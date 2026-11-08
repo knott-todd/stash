@@ -10,6 +10,12 @@ export const DEMO = !TOKEN;
 
 const api = (method: string) => `https://api.telegram.org/bot${TOKEN}/${method}`;
 
+export class StorageBusy extends Error {
+  constructor(public retryAfterSeconds: number) {
+    super(`Storage is busy; retry in ${retryAfterSeconds}s`);
+  }
+}
+
 async function call<T>(method: string, body?: BodyInit | object): Promise<T> {
   const init: RequestInit =
     body instanceof FormData
@@ -17,7 +23,17 @@ async function call<T>(method: string, body?: BodyInit | object): Promise<T> {
       : { method: "POST", headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined };
   const r = await fetch(api(method), init);
   const j = await r.json();
-  if (!j.ok) throw new Error(`telegram ${method}: ${j.description}`);
+  if (!j.ok) {
+    // Telegram rate-limits the bot as a whole. Short waits are absorbed here;
+    // long ones become a StorageBusy error the API turns into a clear message.
+    const wait = Number(j.parameters?.retry_after ?? 0);
+    if (r.status === 429 && wait > 0 && wait <= 5 && !(body instanceof FormData)) {
+      await new Promise((res) => setTimeout(res, wait * 1000 + 100));
+      return call<T>(method, body);
+    }
+    if (r.status === 429) throw new StorageBusy(wait);
+    throw new Error(`telegram ${method}: ${j.description}`);
+  }
   return j.result as T;
 }
 

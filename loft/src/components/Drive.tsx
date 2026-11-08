@@ -162,8 +162,10 @@ export function Drive() {
       setToast({ text: "Safe. Encrypted on this device before it left." });
       await refresh();
       if (first && !localStorage.getItem(DISMISS_KEY)) setPairOpen("card");
-    } catch {
-      setToast({ text: `Couldn't upload ${file.name}. Check your connection.`, retry: () => uploadOne(file) });
+    } catch (e) {
+      // Server messages ("Storage is busy…", size limits) are written for users; show them as-is.
+      const msg = e instanceof Error && e.message && !/^(upload-failed|too-big)$/.test(e.message) ? e.message : `Couldn't upload ${file.name}. Check your connection.`;
+      setToast({ text: msg, retry: () => uploadOne(file) });
     } finally {
       setBusy(null);
     }

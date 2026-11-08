@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUid } from "@/lib/session";
 import { newId, store, type StashFile } from "@/lib/store";
-import { putFile, putFileFromUrl, STAGED_MAX_BYTES } from "@/lib/telegram";
+import { putFile, putFileFromUrl, STAGED_MAX_BYTES, StorageBusy } from "@/lib/telegram";
 
 export async function GET() {
   const uid = await getUid();
@@ -12,6 +12,21 @@ export async function GET() {
 // Two shapes: multipart with the ciphertext in the body, or JSON with a blobUrl
 // the browser already staged (serverless hosts cap request bodies).
 export async function POST(req: Request) {
+  try {
+    return await upload(req);
+  } catch (e) {
+    if (e instanceof StorageBusy) {
+      const mins = Math.max(1, Math.ceil(e.retryAfterSeconds / 60));
+      return NextResponse.json(
+        { error: `Storage is busy right now. Try again in about ${mins} minute${mins > 1 ? "s" : ""}.`, retryAfter: e.retryAfterSeconds },
+        { status: 503, headers: { "retry-after": String(e.retryAfterSeconds) } },
+      );
+    }
+    throw e;
+  }
+}
+
+async function upload(req: Request) {
   const uid = await getUid();
   const id = newId();
   let meta: Record<string, string>;

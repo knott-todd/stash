@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Logo } from "./Logo";
 import { fmtBytes, fmtDate } from "@/lib/format";
+import { STAGING } from "@/lib/stage";
 
 // Every device that sends files to this account, what each is doing, and how
 // to add one. The point of the page: you can see that the backup is automatic.
@@ -96,7 +97,7 @@ export function Devices() {
             <div className="card mt-3 p-5">
               <p className="font-semibold">No computer is backing up yet.</p>
               <p className="mt-1 text-ink-2">Stash Desktop watches the folders you choose and sends every new or changed file here, encrypted, without you doing anything.</p>
-              <AddComputer origin={origin} />
+              {STAGING ? <AddComputer origin={origin} /> : <p className="mt-3 text-sm text-ink-3">Stash Desktop is on its way. It installs like any other app; you pick the folders once and it does the rest.</p>}
             </div>
           )}
           <ul className="mt-3 grid gap-3">
@@ -148,7 +149,7 @@ export function Devices() {
               </li>
             ))}
           </ul>
-          {devices && computers.length > 0 && (
+          {devices && computers.length > 0 && STAGING && (
             <details className="mt-3 text-sm">
               <summary className="cursor-pointer text-ink-2 hover:text-ink">Add another computer</summary>
               <div className="card mt-2 p-5">

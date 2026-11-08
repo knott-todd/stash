@@ -14,6 +14,7 @@ import { fmtBytes } from "@/lib/format";
 import { clearRawKey, decryptFile, getRawKey, setRawKey, type WrappedKey } from "@/lib/crypto";
 import { AskPasscode, ProtectionChoice } from "./Protection";
 import { rememberAccount } from "@/lib/accounts";
+import { STAGING } from "@/lib/stage";
 import Link from "next/link";
 import { doneKey, PROVIDER_LABEL, providerEndpoints, runProviderCopy, type CopyEvent, type Provider } from "@/lib/provider-client";
 import { cacheClear, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
@@ -519,7 +520,10 @@ export function Drive() {
       }}
     >
       <header className="mx-auto w-full max-w-5xl px-5 py-5 flex items-center justify-between gap-4">
-        <Logo />
+        <span className="flex items-center gap-3">
+          <Logo />
+          {STAGING && <span className="rounded-full bg-cream-2 px-2.5 py-1 text-xs font-medium text-ink-2" title="This is the staging site">Staging</span>}
+        </span>
         <nav className="flex items-center gap-4 text-sm" aria-label="Sections">
           <Link href="/drive" className={`whitespace-nowrap underline-offset-4 hover:underline ${tab === "drive" ? "font-semibold text-ink" : "text-ink-2 hover:text-ink"}`} data-testid="nav-drive">
             My drive

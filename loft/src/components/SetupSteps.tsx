@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { STAGING } from "@/lib/stage";
 
 // Setting up Stash is two things: bring what you have, and keep it coming.
 //   1. Move my files here         Google Drive now; OneDrive and Dropbox to follow
@@ -33,10 +34,11 @@ export function SetupSteps({ state, big, onStart, providers, onDismiss }: { stat
             {coming.length > 0 && <p className="text-sm text-ink-3">{coming.join(" and ")} {coming.length > 1 ? "are" : "is"} coming.</p>}
           </StepCard>
           <StepCard n={2} title="Back up automatically" done={step2} body="Pick the folders and the devices once. From then on every new or changed file arrives on its own.">
-            <ActionButton primary linked={state.computer} href="/devices" testId="tile-computer">
-              This computer
+            {/* Stash Desktop is finished only on staging; production leads with the phone until then. */}
+            <ActionButton primary={STAGING} linked={state.computer} href="/devices" testId="tile-computer">
+              {STAGING || state.computer ? "This computer" : "This computer (soon)"}
             </ActionButton>
-            <ActionButton linked={state.phone} href="/devices#phone" testId="tile-phone">
+            <ActionButton primary={!STAGING} linked={state.phone} href="/devices#phone" testId="tile-phone">
               My phone
             </ActionButton>
           </StepCard>

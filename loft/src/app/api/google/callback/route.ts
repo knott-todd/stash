@@ -9,14 +9,17 @@ export async function GET(req: Request) {
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const denied = url.searchParams.get("error");
-  if (denied || !code || state !== uid) {
-    return NextResponse.redirect(new URL("/drive?google=denied", url.origin));
-  }
+  // Send the user back to the address they came in through (tunnel or localhost),
+  // not the server's internal origin.
   const h = req.headers;
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? url.host;
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const origin = `${proto}://${host}`;
+  if (denied || !code || state !== uid) {
+    return NextResponse.redirect(`${origin}/drive?google=denied`);
+  }
   try {
-    const t = await exchangeCode(`${proto}://${host}`, code);
+    const t = await exchangeCode(origin, code);
     const u = db.user(uid);
     u.google = {
       accessToken: t.access_token,
@@ -24,8 +27,8 @@ export async function GET(req: Request) {
       expiresAt: Date.now() + t.expires_in * 1000,
     };
     db.save();
-    return NextResponse.redirect(new URL("/drive?google=ok", url.origin));
+    return NextResponse.redirect(`${origin}/drive?google=ok`);
   } catch {
-    return NextResponse.redirect(new URL("/drive?google=failed", url.origin));
+    return NextResponse.redirect(`${origin}/drive?google=failed`);
   }
 }

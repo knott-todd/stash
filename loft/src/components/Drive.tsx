@@ -378,8 +378,8 @@ export function Drive() {
               ))}
           </nav>
           {!empty && (
-            <div className="flex items-center gap-2">
-              <label className="relative">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <label className="relative w-full sm:w-auto">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" width="14" height="14" viewBox="0 0 14 14" aria-hidden>
                   <circle cx="6" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
                   <path d="M9.2 9.2 12.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -390,18 +390,20 @@ export function Drive() {
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search"
                   aria-label="Search files"
-                  className="w-44 focus:w-64 transition-[width] rounded-full border border-line bg-white pl-8 pr-3 py-2 text-sm outline-none focus:border-ink"
+                  className="w-full sm:w-44 sm:focus:w-64 transition-[width] rounded-full border border-line bg-white pl-8 pr-3 py-2 text-sm outline-none focus:border-ink"
                   data-testid="search"
                 />
               </label>
-              <button className="btn-ghost" onClick={addSample} data-testid="add-sample">
-                Add a sample file
-              </button>
-              <button className="btn-ghost" onClick={() => setMigrateOpen(true)} data-testid="migrate-gdrive">
+              <span className="hidden sm:inline">
+                <button className="btn-ghost" onClick={addSample} data-testid="add-sample">
+                  Add a sample file
+                </button>
+              </span>
+              <button className="btn-ghost whitespace-nowrap" onClick={() => setMigrateOpen(true)} data-testid="migrate-gdrive">
                 Move from Google Drive
               </button>
               <button className="btn-primary py-3 text-base" onClick={() => inputRef.current?.click()} data-testid="upload" disabled={!!busy}>
-                {busy ? "Working…" : "+ Add a file"}
+                {busy ? "Working…" : "+ Add"}
               </button>
             </div>
           )}

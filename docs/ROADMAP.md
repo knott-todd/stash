@@ -29,7 +29,9 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 
 ## Proposed (not started, in rough priority)
 
-1. Files over 20 MB via browser-side chunking (decided; see DESIGN.md). Unblocks video and phone backup.
+0. **Sign in from a new device** (web): email → identity-only link → drive lists files; key arrives by QR from an existing device or the recovery code. Fixes the landing "Sign in" dead end.
+1. **Storage in the user's own Telegram** (MTProto as the user, bytes phone↔Telegram directly): keeps "free, unlimited" true at scale and our running cost at ~$0. Decided 2026-11-08; native app is built on it; web can follow.
+1b. Files over 20 MB via chunking (written against the own-Telegram adapter).
 2. ~~Journeys 2–7 specified in full~~ → docs/JOURNEYS.md.
 3. Native mobile app: journey 1 only (photo auto-backup, keychain-stored key, background transfer).
 4. Export everything (zip of decrypted files).
@@ -52,3 +54,4 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 - 2026-11-08: "Sign out" means sign out of Google; the device keeps the key.
 - 2026-11-08: production on Vercel + Neon + private Blob staging; store moved behind an interface (JSON locally, Postgres in production). Product renamed Stash.
 - 2026-11-08: Google verification not pursued. Direction: drop-in replacement for Drive's integrations, native app for photo auto-backup. Large files by browser-side chunking; local Bot API server deferred.
+- 2026-11-08: storage moves to each user's own Telegram (free/unlimited holds; bytes never touch our servers). Sign-in = email names the drive; the key still arrives device-to-device, keychain, or recovery code; PIN-wrapped key in the user's own Saved Messages considered for later.

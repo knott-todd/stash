@@ -23,12 +23,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   const cipher = await getFileStream(f);
   if (!cipher) return NextResponse.json({ error: "not found" }, { status: 404 });
   const body = f.encrypted ? decryptingStream(cipher as ReadableStream<Uint8Array>, await importRawKey(u.key!), !!f.parts?.length) : cipher;
-  const inline = url.searchParams.get("inline") === "1";
+  // Shown in the page only for types a browser renders without running anything:
+  // pictures (not SVG, which can carry script), video, audio, PDF. Everything else
+  // downloads, and nothing served here may execute on this origin.
+  const safeInline = /^(image\/(?!svg)|video\/|audio\/)/.test(f.mime) || f.mime === "application/pdf";
+  const inline = url.searchParams.get("inline") === "1" && safeInline;
   return new Response(body, {
     headers: {
-      "content-type": f.mime || "application/octet-stream",
+      "content-type": safeInline ? f.mime : "application/octet-stream",
       "content-disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(f.name)}`,
       "cache-control": "private, no-store",
+      "x-content-type-options": "nosniff",
+      "content-security-policy": "sandbox; default-src 'none'",
     },
   });
 }

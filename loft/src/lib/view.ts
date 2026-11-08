@@ -7,6 +7,8 @@ const TEXT_EXT = /\.(txt|md|conf|cfg|ini|log|json|ya?ml|toml|csv|tsv|xml|html?|c
 export function viewableMime(mime: string, name: string): string | null {
   if (TEXT_EXT.test(name) || mime.startsWith("text/") || mime === "application/json") return "text/plain";
   if (mime === "application/pdf") return mime;
+  // SVG can carry script and a blob: URL runs it on this origin: download it instead.
+  if (/svg/i.test(mime) || /\.svgz?$/i.test(name)) return null;
   if (/^(image|video|audio)\//.test(mime)) return mime;
   return null;
 }

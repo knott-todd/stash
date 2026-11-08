@@ -1,0 +1,621 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FileBrowser } from "./FileBrowser";
+import { Logo } from "./Logo";
+import { MigrateDialog, type MigrationStatus } from "./MigrateDialog";
+import { PairCard } from "./PairCard";
+import { fmtBytes } from "@/lib/format";
+import { decryptBytes, encryptBytes, ensureRawKey, getRawKey } from "@/lib/crypto";
+import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
+import { cacheGet, cacheHas, cachePut } from "@/lib/filecache";
+import { viewableMime } from "@/lib/view";
+
+export type FileRow = {
+  id: string;
+  name: string;
+  size: number;
+  mime: string;
+  folder: string;
+  source: "upload" | "google-drive" | "phone";
+  createdAt: number;
+  encrypted: boolean;
+  stored: boolean;
+};
+
+type Me = { demo: boolean; google: boolean; googleConnected: boolean; fileCount: number; bytes: number; email?: string | null };
+
+const DISMISS_KEY = "loft_pair_dismissed";
+
+export function Drive() {
+  const params = useSearchParams();
+  const [me, setMe] = useState<Me | null>(null);
+  const [files, setFiles] = useState<FileRow[] | null>(null);
+  // The folder lives in the URL so Back works and a folder can be linked to.
+  const router = useRouter();
+  const folder = params.get("folder") ?? "";
+  const setFolder = useCallback(
+    (p: string) => router.push(p ? `/drive?folder=${encodeURIComponent(p)}` : "/drive", { scroll: false }),
+    [router],
+  );
+  const [migrateOpen, setMigrateOpen] = useState(false);
+  const [migration, setMigration] = useState<MigrationStatus>({ phase: "idle" });
+  const [busy, setBusy] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; retry?: () => void; undo?: () => void } | null>(null);
+  const [search, setSearch] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const [pairOpen, setPairOpen] = useState<"card" | "qr" | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const noKey = params.get("nokey") === "1";
+  const demoTools = params.get("demo") === "1";
+
+  const refresh = useCallback(async () => {
+    const [m, f] = await Promise.all([fetch("/api/me").then((r) => r.json()), fetch("/api/files").then((r) => r.json())]);
+    setMe(m);
+    setFiles(f.files);
+    return m as Me;
+  }, []);
+
+  useEffect(() => {
+    ensureRawKey();
+    refresh().then((m) => {
+      // Simulated migration status only applies when Google isn't configured.
+      if (!m.google)
+        fetch("/api/migrate")
+          .then((r) => r.json())
+          .then(setMigration)
+          .catch(() => {});
+    });
+  }, [refresh]);
+
+  // Real Google flow: back from consent → list, copy in the browser, resume if interrupted.
+  const googleFlag = params.get("google");
+  const realGoogle = !!me?.google;
+  const copyStarted = useRef(false);
+  const copyCtrl = useRef<AbortController | null>(null);
+  // What the copy is doing right now: action, file, where from, where to.
+  const [activity, setActivity] = useState<CopyEvent | null>(null);
+  const logEvent = useCallback((e: CopyEvent) => setActivity(e), []);
+  const startGoogleCopy = useCallback(() => {
+    copyCtrl.current?.abort();
+    const ctrl = new AbortController();
+    copyCtrl.current = ctrl;
+    runGoogleCopy(setMigration, refresh, ctrl.signal, logEvent).catch(() => {
+      if (!ctrl.signal.aborted) setToast({ text: "Google stopped answering. The copy resumes when you reopen Loft.", retry: () => location.reload() });
+    });
+  }, [refresh, logEvent]);
+  const stopGoogleCopy = () => copyCtrl.current?.abort();
+
+  useEffect(() => {
+    if (!realGoogle || copyStarted.current) return;
+    if (googleFlag === "denied") setToast({ text: "Google didn't allow access. Try again or add files yourself." });
+    if (googleFlag === "failed") setToast({ text: "Couldn't connect to Google. Try again.", retry: () => (location.href = "/api/google/auth") });
+    const resuming = !!me?.googleConnected && !!localStorage.getItem("loft_gd_done_v1");
+    if (googleFlag !== "ok" && !resuming) return;
+    copyStarted.current = true;
+    setMigrateOpen(googleFlag === "ok");
+    startGoogleCopy();
+    return () => copyCtrl.current?.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realGoogle, googleFlag]);
+
+  // Which files have a local copy (ciphertext in the browser cache).
+  const [local, setLocal] = useState<Set<string>>(new Set());
+  const [opening, setOpening] = useState<string | null>(null);
+  useEffect(() => {
+    if (!files) return;
+    cacheHas(files.map((f) => f.id)).then(setLocal);
+  }, [files]);
+
+  useEffect(() => {
+    if (realGoogle) return;
+    if (migration.phase !== "copying" && migration.phase !== "scanning") return;
+    const t = setInterval(async () => {
+      const s: MigrationStatus = await fetch("/api/migrate").then((r) => r.json());
+      setMigration(s);
+      if (s.phase === "copying" || s.phase === "done") refresh();
+    }, 1000);
+    return () => clearInterval(t);
+  }, [migration.phase, refresh]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), toast.retry ? 10000 : toast.undo ? 6000 : 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  async function startMigration() {
+    if (realGoogle) {
+      // Resume after a stop; otherwise real consent lives on Google's screen.
+      if (migration.phase === "stopped") return startGoogleCopy();
+      location.href = "/api/google/auth";
+      return;
+    }
+    setMigration(await fetch("/api/migrate", { method: "POST" }).then((r) => r.json()));
+  }
+
+  // Encrypt in the browser, then upload ciphertext with the original name and type.
+  async function uploadOne(file: File) {
+    if (file.size > 50 * 1024 * 1024) {
+      setToast({ text: `${file.name} is over 50 MB. Files that big aren't supported yet.` });
+      return;
+    }
+    setBusy(file.name);
+    try {
+      const cipher = await encryptBytes(await file.arrayBuffer());
+      const fd = new FormData();
+      fd.set("file", cipher, `${file.name}.loft`);
+      fd.set("name", file.name);
+      fd.set("mime", file.type || "application/octet-stream");
+      fd.set("size", String(file.size));
+      fd.set("folder", folder);
+      fd.set("encrypted", "1");
+      const r = await fetch("/api/files", { method: "POST", body: fd });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? "Upload failed");
+      if (j.file?.id) cachePut(j.file.id, cipher); // it's on this device already
+      const first = (files?.length ?? 0) === 0;
+      setToast({ text: "Safe. Encrypted on this device before it left." });
+      await refresh();
+      if (first && !localStorage.getItem(DISMISS_KEY)) setPairOpen("card");
+    } catch (e) {
+      setToast({ text: `Couldn't upload ${file.name}. Check your connection.`, retry: () => uploadOne(file) });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function upload(list: FileList | File[]) {
+    for (const f of Array.from(list)) await uploadOne(f);
+  }
+
+  function addSample() {
+    const text = `Welcome to Loft.\n\nThis file was encrypted on your device before upload.\nLoft only ever holds the scrambled version.\nAdded ${new Date().toLocaleString()}.\n`;
+    return uploadOne(new File([text], "Welcome to Loft.txt", { type: "text/plain" }));
+  }
+
+  async function rename(f: FileRow, name: string) {
+    setFiles((fs) => fs && fs.map((x) => (x.id === f.id ? { ...x, name } : x)));
+    const r = await fetch(`/api/files/${f.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+    if (!r.ok) setToast({ text: `Couldn't rename ${f.name}.` });
+    refresh();
+  }
+
+  // Trash is optimistic with Undo; the server delete happens when the toast expires.
+  const pendingTrash = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  function trash(f: FileRow) {
+    setFiles((fs) => fs && fs.filter((x) => x.id !== f.id));
+    const t = setTimeout(async () => {
+      pendingTrash.current.delete(f.id);
+      const r = await fetch(`/api/files/${f.id}`, { method: "DELETE" });
+      if (!r.ok) {
+        setToast({ text: `Couldn't delete ${f.name}.` });
+        refresh();
+      }
+    }, 6000);
+    pendingTrash.current.set(f.id, t);
+    setToast({
+      text: `${f.name} moved to trash.`,
+      undo: () => {
+        clearTimeout(t);
+        pendingTrash.current.delete(f.id);
+        setToast(null);
+        refresh();
+      },
+    });
+  }
+
+  // Fetch ciphertext, decrypt here, hand the browser a real file.
+  async function open(f: FileRow, forceDownload = false) {
+    if (!f.stored) {
+      setToast({ text: "This row is a placeholder from the demo migration. Add a file to try Open." });
+      return;
+    }
+    // Viewable files open in a tab. The tab is created now, inside the click, so
+    // the browser doesn't treat the later navigation as a popup.
+    const viewAs = forceDownload ? null : viewableMime(f.mime, f.name);
+    const tab = viewAs ? window.open("", "_blank") : null;
+    if (tab) tab.document.title = f.name;
+    setOpening(f.id);
+    try {
+      // Local copy first; otherwise download and keep a copy for next time.
+      let bytes = await cacheGet(f.id);
+      if (!bytes) {
+        const r = await fetch(`/api/files/${f.id}/download`);
+        if (!r.ok) throw new Error("fetch");
+        bytes = await r.arrayBuffer();
+        cachePut(f.id, bytes);
+        setLocal((s) => new Set(s).add(f.id));
+      }
+      if (f.encrypted) {
+        if (!getRawKey()) {
+          tab?.close();
+          setToast({ text: "This device doesn't have your key. Open the link from your other device first." });
+          return;
+        }
+        bytes = await decryptBytes(bytes);
+      }
+      const url = URL.createObjectURL(new Blob([bytes], { type: viewAs ?? f.mime }));
+      if (tab) {
+        tab.location.href = url;
+      } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = f.name;
+        a.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      tab?.close();
+      setToast({ text: `Couldn't open ${f.name}.`, retry: () => open(f) });
+    } finally {
+      setOpening(null);
+    }
+  }
+
+  async function resetDemo() {
+    await fetch("/api/me", { method: "DELETE" });
+    localStorage.clear();
+    location.href = "/";
+  }
+
+  const all = files ?? [];
+  const empty = files !== null && all.length === 0;
+
+  return (
+    <main
+      className="flex-1 flex flex-col"
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        if (e.dataTransfer.files.length) upload(e.dataTransfer.files);
+      }}
+    >
+      <header className="mx-auto w-full max-w-5xl px-5 py-5 flex items-center justify-between gap-4">
+        <Logo />
+        <div className="flex items-center gap-4 text-sm">
+          {me && (
+            <span className="hidden sm:inline text-ink-2" data-testid="usage">
+              {me.fileCount} files · {fmtBytes(me.bytes)} of <span className="font-semibold text-ink">unlimited</span>
+            </span>
+          )}
+          <button className="text-ink-2 hover:text-ink underline-offset-4 hover:underline" onClick={() => setPairOpen("card")}>
+            Open on another device
+          </button>
+        </div>
+      </header>
+
+      <div className="mx-auto w-full max-w-5xl px-5 pb-24 flex-1">
+        {noKey && (
+          <div className="card mb-5 p-4 bg-accent-soft border-accent/30" role="status">
+            <p className="font-semibold">This device can list your files but can&apos;t open them yet.</p>
+            <p className="text-sm text-ink-2">Open the link from the device you started on, or scan its QR. The key never leaves your devices.</p>
+          </div>
+        )}
+        {migration.phase === "done" && (
+          <div className="card mb-5 p-4 flex flex-wrap items-center gap-3 bg-ok-soft border-ok/30" role="status" data-testid="migration-done">
+            <div className="flex-1">
+              <p className="font-semibold">Your Google Drive is here.</p>
+              <p className="text-sm text-ink-2">
+                {migration.total.toLocaleString()} files · {fmtBytes(migration.bytes)}. You can cancel Google One now.
+              </p>
+            </div>
+            <a className="btn-ghost text-ok underline underline-offset-4" href="https://one.google.com/storage" target="_blank" rel="noreferrer">
+              Cancel Google One →
+            </a>
+          </div>
+        )}
+        {(migration.phase === "copying" || migration.phase === "scanning" || migration.phase === "stopped") && (
+          <ProgressBanner
+            s={migration}
+            activity={activity}
+            onGoToFolder={setFolder}
+            onStop={realGoogle ? stopGoogleCopy : undefined}
+            onResume={realGoogle ? startGoogleCopy : undefined}
+          />
+        )}
+
+        {pairOpen === "card" && (
+          <PairCard
+            mode="card"
+            email={me?.email ?? null}
+            onClose={(dismissForGood) => {
+              if (dismissForGood) localStorage.setItem(DISMISS_KEY, "1");
+              setPairOpen(null);
+            }}
+          />
+        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <nav className="flex items-center gap-1 text-lg" aria-label="Folder path">
+            <button className="font-semibold hover:underline" onClick={() => setFolder("")}>
+              My drive
+            </button>
+            {folder
+              .split("/")
+              .filter(Boolean)
+              .map((part, i, arr) => (
+                <span key={i} className="flex items-center gap-1">
+                  <span className="text-ink-3">/</span>
+                  <button className="hover:underline" onClick={() => setFolder(arr.slice(0, i + 1).join("/"))}>
+                    {part}
+                  </button>
+                </span>
+              ))}
+          </nav>
+          {!empty && (
+            <div className="flex items-center gap-2">
+              <label className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+                  <circle cx="6" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M9.2 9.2 12.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search"
+                  aria-label="Search files"
+                  className="w-44 focus:w-64 transition-[width] rounded-full border border-line bg-white pl-8 pr-3 py-2 text-sm outline-none focus:border-ink"
+                  data-testid="search"
+                />
+              </label>
+              <button className="btn-ghost" onClick={addSample} data-testid="add-sample">
+                Add a sample file
+              </button>
+              <button className="btn-ghost" onClick={() => setMigrateOpen(true)} data-testid="migrate-gdrive">
+                Move from Google Drive
+              </button>
+              <button className="btn-primary py-3 text-base" onClick={() => inputRef.current?.click()} data-testid="upload" disabled={!!busy}>
+                {busy ? "Working…" : "+ Add a file"}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <input ref={inputRef} type="file" multiple className="sr-only" onChange={(e) => e.target.files && upload(e.target.files)} aria-label="Choose files to add" />
+
+        {files === null && (
+          <ul className="card divide-y divide-line overflow-hidden" aria-busy="true" aria-label="Loading">
+            {Array.from({ length: 5 }, (_, i) => (
+              <li key={i} className="px-5 py-4">
+                <div className="h-4 w-1/3 rounded bg-cream-2" />
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {empty && (
+          <section className="pt-6">
+            <h1 className="rise text-4xl sm:text-5xl font-semibold">Where should we start?</h1>
+            <p className="rise-2 mt-2 text-lg text-ink-2">
+              Pick one. Everything is encrypted on this device before it leaves.{" "}
+              <button className="underline" onClick={addSample} data-testid="add-sample">
+                Add a sample file
+              </button>
+              .
+            </p>
+            <div className="rise-3 mt-8 grid gap-4 sm:grid-cols-3">
+              <button className="tile" onClick={() => setMigrateOpen(true)} data-testid="tile-gdrive">
+                <GDriveIcon />
+                <span className="text-xl font-semibold">Move my Google Drive</span>
+                <span className="text-ink-2">Everything, folders included. Then cancel Google One.</span>
+              </button>
+              <button className="tile" onClick={() => setPairOpen("qr")} data-testid="tile-photos">
+                <PhoneIcon />
+                <span className="text-xl font-semibold">Back up my phone photos</span>
+                <span className="text-ink-2">Point your phone camera at a code. One tap after that.</span>
+              </button>
+              <button className="tile" onClick={() => inputRef.current?.click()} data-testid="tile-upload">
+                <FileIcon />
+                <span className="text-xl font-semibold">Add a file</span>
+                <span className="text-ink-2">Or drag a file onto this page.</span>
+              </button>
+            </div>
+          </section>
+        )}
+
+        {pairOpen === "qr" && <PairCard mode="qr" email={null} onClose={() => setPairOpen(null)} />}
+
+        {!empty && files && (
+          <FileBrowser
+            files={all}
+            folder={folder}
+            search={search}
+            local={local}
+            opening={opening}
+            onOpenFolder={(p) => {
+              setSearch("");
+              setFolder(p);
+            }}
+            onOpen={(f) => open(f)}
+            onDownload={(f) => open(f, true)}
+            onRename={rename}
+            onTrash={trash}
+          />
+        )}
+      </div>
+
+      {dragging && (
+        <div className="fixed inset-0 bg-white/90 border-2 border-ink m-3 rounded-2xl flex items-center justify-center pointer-events-none">
+          <p className="text-2xl font-semibold">Drop to add</p>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-ink text-cream px-5 py-3 rounded-full shadow-lg rise flex items-center gap-4" role="status">
+          {toast.text}
+          {toast.retry && (
+            <button className="underline" onClick={toast.retry}>
+              Retry
+            </button>
+          )}
+          {toast.undo && (
+            <button className="underline font-medium" onClick={toast.undo} data-testid="undo">
+              Undo
+            </button>
+          )}
+        </div>
+      )}
+
+
+      <MigrateDialog
+        open={migrateOpen}
+        status={migration}
+        real={realGoogle}
+        onClose={() => {
+          setMigrateOpen(false);
+          // One-time reassurance when they leave the dialog mid-copy.
+          if (migration.phase === "copying" || migration.phase === "scanning") setToast({ text: "Keep using your drive. The copy continues in the background." });
+        }}
+        onStart={startMigration}
+        onStop={realGoogle ? stopGoogleCopy : undefined}
+      />
+
+      {me?.demo && demoTools && (
+        <button onClick={resetDemo} className="fixed bottom-4 right-4 text-xs text-ink-3 hover:text-ink underline" title="Demo helper: wipe this device's data">
+          reset demo
+        </button>
+      )}
+    </main>
+  );
+}
+
+// One line that answers: what is it doing, where from, where to.
+//   Moving  Thesis final.pdf  ·  from Google Drive / School  ·  into School
+function ActivityFeed({ e, onGoToFolder }: { e: CopyEvent | null; onGoToFolder: (folder: string) => void }) {
+  if (!e) return null;
+  // Long paths collapse to "First / … / Last"; the full path is on hover.
+  const crumbs = (p: string) => {
+    const parts = p.split("/").filter(Boolean);
+    return parts.length > 3 ? `${parts[0]} / … / ${parts[parts.length - 1]}` : parts.join(" / ");
+  };
+  return (
+    <p className="mt-2 text-xs text-ink-3 flex items-baseline gap-x-2 min-w-0 whitespace-nowrap overflow-hidden" aria-live="polite" data-testid="activity" title={e.name ? `${e.from}${e.path ? " / " + e.path : ""} / ${e.name}` : undefined}>
+      {/* Left: what and which file. Right: where from, right-aligned. Both clip, neither moves. All one quiet tone. */}
+      <span className="truncate shrink min-w-0 max-w-[55%]">
+        {e.action}
+        {e.name && ` ${e.name}`}
+      </span>
+      {e.name && (
+        <span className="truncate shrink min-w-0 ml-auto text-right">
+          from {e.from}
+          {e.path ? ` / ${crumbs(e.path)}` : ""}
+        </span>
+      )}
+      {e.to !== undefined && (
+        <span className="text-ink-3 shrink-0 truncate">
+          · into{" "}
+          <button className="underline underline-offset-2 hover:text-ink" onClick={() => onGoToFolder(e.to!)}>
+            {e.to ? crumbs(e.to) : "My drive"}
+          </button>
+        </span>
+      )}
+    </p>
+  );
+}
+
+function ProgressBanner({
+  s,
+  activity,
+  onGoToFolder,
+  onStop,
+  onResume,
+}: {
+  s: MigrationStatus;
+  activity: CopyEvent | null;
+  onGoToFolder: (folder: string) => void;
+  onStop?: () => void;
+  onResume?: () => void;
+}) {
+  if (s.phase === "scanning")
+    return (
+      <div className="card mb-5 p-4" role="status" data-testid="migration-progress">
+        <div className="flex items-center gap-3">
+          <span className="inline-block size-4 rounded-full border-2 border-ink-3 border-t-accent animate-spin" aria-hidden />
+          <p className="font-medium">Reading your Google Drive. A large Drive takes a minute or two.</p>
+        </div>
+        <ActivityFeed e={activity} onGoToFolder={onGoToFolder} />
+      </div>
+    );
+  if (s.phase !== "copying" && s.phase !== "stopped") return null;
+  const stopped = s.phase === "stopped";
+  return (
+    <div className="card mb-5 px-4 py-3" role="status" data-testid="migration-progress">
+      <div className="flex items-center gap-3">
+        <p className="font-medium truncate">
+          {stopped ? "Copy stopped" : "Copying from Google Drive"} · {s.copiedCount.toLocaleString()} of {s.total.toLocaleString()}
+        </p>
+        <p className="ml-auto text-sm text-ink-2 shrink-0">
+          {fmtBytes(s.copiedBytes)} / {fmtBytes(s.bytes)} · {s.percent}%
+        </p>
+        {stopped && onResume && <IconButton label="Resume copy" onClick={onResume} icon="play" />}
+        {!stopped && onStop && <IconButton label="Stop copy" onClick={onStop} icon="stop" testId="banner-stop" />}
+      </div>
+      <div className="mt-2 h-1.5 rounded-full bg-cream-2 overflow-hidden">
+        <div className="h-full bg-accent transition-all duration-700" style={{ width: `${s.percent}%` }} />
+      </div>
+      {stopped ? <p className="mt-2 text-xs text-ink-3">Nothing is lost. Resume any time.</p> : <ActivityFeed e={activity} onGoToFolder={onGoToFolder} />}
+    </div>
+  );
+}
+
+export function IconButton({ label, onClick, icon, testId }: { label: string; onClick: () => void; icon: "stop" | "play"; testId?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      data-testid={testId}
+      className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink hover:bg-cream-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+    >
+      {icon === "stop" ? (
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+          <rect x="2" y="2" width="10" height="10" rx="1.5" fill="currentColor" />
+        </svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+          <path d="M3.5 2.2v9.6a.6.6 0 0 0 .9.5l7.6-4.8a.6.6 0 0 0 0-1L4.4 1.7a.6.6 0 0 0-.9.5Z" fill="currentColor" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+function PhoneIcon() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <rect x="9" y="3" width="14" height="26" rx="3" />
+      <path d="M14 25h4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M8 3h11l6 6v20H8z" strokeLinejoin="round" />
+      <path d="M19 3v6h6" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function GDriveIcon() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 87.3 78" aria-hidden>
+      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da" />
+      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47" />
+      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335" />
+      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d" />
+      <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc" />
+      <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00" />
+    </svg>
+  );
+}

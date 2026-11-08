@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+/* Product tokens. Same system as the landing page (see docs/DESIGN.md):
+   one typeface, near-white, ink, no accent colour. Variable names are kept so
+   existing components keep working; their values now follow the brand brief. */
+:root {
+  --cream: #fafafa; /* page background */
+  --cream-2: #f0f0f0; /* hover / inset surfaces */
+  --ink: #111111; /* 18.3:1 on bg */
+  --ink-2: #6b6b6b; /* 5.1:1 on bg */
+  --ink-3: #8a8a8a; /* 3.5:1, large/secondary text only */
+  --line: #e4e4e4;
+  --accent: #111111; /* "accent" is ink: the brand has one colour */
+  --accent-ink: #000000;
+  --accent-soft: #f0f0f0;
+  --ok: #1f7a3a; /* success, 4.9:1 on bg */
+  --ok-soft: #eef5f0;
+  --tg: #111111;
+}
+
+@theme inline {
+  --color-cream: var(--cream);
+  --color-cream-2: var(--cream-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-tg: var(--tg);
+  --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-geist-sans); /* one family everywhere */
+}
+
+html,
+body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+.serif {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+/* One primary action per screen. Quiet, exact, no glow. */
+.btn-primary,
+.btn-tg,
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-base font-medium transition
+    focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-ink disabled:opacity-50;
+}
+.btn-primary,
+.btn-tg {
+  @apply bg-ink text-white hover:opacity-85;
+}
+.btn-ghost {
+  @apply bg-transparent text-ink-2 hover:text-ink hover:bg-cream-2 py-3;
+}
+.card,
+.tile {
+  @apply rounded-2xl border border-line bg-white;
+}
+.tile {
+  @apply flex flex-col items-start gap-3 p-6 text-left transition hover:border-ink;
+}
+
+
+/* No entrance motion; classes kept so components don't break. */
+.rise,
+.rise-2,
+.rise-3 {
+  animation: none;
+}

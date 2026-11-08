@@ -1,0 +1,39 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { adoptKeyFromFragment } from "@/lib/crypto";
+
+export function Claim() {
+  const router = useRouter();
+  const token = String(useParams().token ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const hadKey = adoptKeyFromFragment();
+    fetch(`/api/claim?t=${encodeURIComponent(token)}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok) return setError(j.error ?? "This link didn't work.");
+        router.replace(hadKey ? "/drive" : "/drive?nokey=1");
+      })
+      .catch(() => setError("Couldn't reach Loft. Check your connection and open the link again."));
+  }, [token, router]);
+
+  return (
+    <main className="flex-1 flex items-center justify-center px-5">
+      {error ? (
+        <div className="card p-6 max-w-sm text-center">
+          <p className="font-semibold">{error}</p>
+          <a className="btn-primary mt-4 py-3 text-base" href="/drive">
+            Open my drive
+          </a>
+        </div>
+      ) : (
+        <p className="text-ink-2" role="status">
+          Opening your drive…
+        </p>
+      )}
+    </main>
+  );
+}

@@ -1,0 +1,39 @@
+version: 1
+name: loft
+run:
+  url: http://localhost:3000   # overridden per run with the public tunnel URL
+testCases:
+  - name: Zero-config onboarding lands in an empty drive
+    id: onboarding
+    steps:
+      - go to /
+      - click the "Switch to Loft in 3 easy steps" button
+    criteria: the very next screen is the drive, asking "Where should we start?" with three choices — "Move my Google Drive", "Back up my phone photos" and "Add a file" — and no sign-in, sign-up, email or password form appeared at any point
+
+  - name: Google Drive migration copies files into the drive
+    id: gdrive-migration
+    steps:
+      - go to /drive
+      - click "Move my Google Drive"
+      - click "Allow" in the dialog
+      - wait until the dialog says it found 1,284 files, then click "Keep working"
+      - wait up to 40 seconds for the progress banner at the top to finish
+    criteria: a green banner says "Your Google Drive is here" with a "Cancel Google One" link, and the file list below shows folders such as Photos and Work with files inside
+
+  - name: Phone photo backup uploads the camera roll
+    id: photo-backup
+    steps:
+      - go to /m
+      - click "Back up my photos"
+      - wait up to 20 seconds for the count to reach 24 of 24
+    criteria: the status card says "All backed up." and every photo thumbnail in the grid has a green check mark
+
+  - name: Added file is encrypted, listed, and opens readable
+    id: upload-file
+    steps:
+      - go to /drive
+      - click "Add a sample file" (a link in the welcome text, or a button at the top right if the drive already has files)
+      - wait for the confirmation message at the bottom of the page
+      - click "Open" next to "Welcome to Loft.txt"
+    criteria: a file named "Welcome to Loft.txt" is listed with its size, today's date and an "encrypted" label, and clicking "Open" downloads a file (no error message appears)
+

@@ -42,4 +42,4 @@ Set `SELDON_API_KEY` in your environment first (the key is not committed). The S
 
 ## Demo script
 
-See `docs/PRODUCT.md`. Short version: landing → Open Telegram → "You're in" → Move my Google Drive → files stream in → phone photo backup on `/m` → drag in a real file → savings tile.
+See `docs/DESIGN.md`. Short version: landing → drive (no sign-in) → Move my Google Drive → Google consent → files copy in, encrypted on the device → open one → "Open on another device" → tap the email link on a phone, files are there.

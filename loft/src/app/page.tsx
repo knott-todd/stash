@@ -43,9 +43,16 @@ export default function Landing() {
           </Link>
           <p className="reassure">No account. No card.</p>
         </div>
+        {/* Scroll cue: the hero fills the screen, so say there is more. */}
+        <a href="#answers" className="more" aria-label="Read what that means">
+          <span>What that means</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+            <path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </a>
       </section>
 
-      <section className="col answers" aria-label="What each word means">
+      <section id="answers" className="col answers" aria-label="What each word means">
         {answers.map((a) => (
           <div key={a.h} className="answer">
             <h2>{a.h}</h2>
@@ -54,7 +61,9 @@ export default function Landing() {
         ))}
       </section>
 
-      <footer className="col">Encrypted on your phone before it leaves.</footer>
+      <footer className="col">
+        <p className="thanks">A big thank you to Ben, who made this all possible &lt;3</p>
+      </footer>
     </main>
   );
 }

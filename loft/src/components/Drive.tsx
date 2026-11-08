@@ -9,7 +9,7 @@ import { PairCard } from "./PairCard";
 import { fmtBytes } from "@/lib/format";
 import { decryptBytes, encryptBytes, ensureRawKey, getRawKey, keyFromRecoveryCode, setRawKey } from "@/lib/crypto";
 import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
-import { cacheGet, cacheHas, cachePut } from "@/lib/filecache";
+import { cacheClear, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { viewableMime } from "@/lib/view";
 import Link from "next/link";
 
@@ -257,9 +257,13 @@ export function Drive() {
     }
   }
 
+  // Start fresh: forget this device's drive, key, local copies and Google link.
+  // Reached via /drive?demo=1 so it never shows to a normal user.
   async function resetDemo() {
+    if (!confirm("Start fresh? This forgets every file, the key and the Google connection on this device.")) return;
     await fetch("/api/me", { method: "DELETE" });
     localStorage.clear();
+    await cacheClear();
     location.href = "/";
   }
 
@@ -590,9 +594,9 @@ export function Drive() {
         onStop={realGoogle ? stopGoogleCopy : undefined}
       />
 
-      {me?.demo && demoTools && (
-        <button onClick={resetDemo} className="fixed bottom-4 right-4 text-xs text-ink-3 hover:text-ink underline" title="Demo helper: wipe this device's data">
-          reset demo
+      {demoTools && (
+        <button onClick={resetDemo} className="fixed bottom-4 right-4 text-xs text-ink-3 hover:text-ink underline" title="Forget this device's drive, key and Google connection" data-testid="start-fresh">
+          Start fresh
         </button>
       )}
     </main>

@@ -5,7 +5,7 @@
 //   node scripts/wren.mjs runs                          → lists recent runs
 import fs from "node:fs";
 
-const KEY = process.env.SELDON_API_KEY ?? "seldon_86edc37eb75f07c64ae41bd9df2ba4c6";
+const KEY = process.env.SELDON_API_KEY ?? "";
 const MCP = "https://app.seldon.com/mcp";
 
 async function call(name, args = {}) {

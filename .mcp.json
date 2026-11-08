@@ -4,7 +4,7 @@
       "type": "http",
       "url": "https://app.seldon.com/mcp",
       "headers": {
-        "X-API-Key": "seldon_86edc37eb75f07c64ae41bd9df2ba4c6"
+        "X-API-Key": "${SELDON_API_KEY}"
       }
     }
   }

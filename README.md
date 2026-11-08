@@ -38,8 +38,8 @@ node scripts/wren.mjs run https://<something>.trycloudflare.com
 node scripts/wren.mjs report <experiment_id>
 ```
 
-The Seldon MCP server is also configured in `.mcp.json` for use inside Claude Code (`validate_seldon_yaml`, `run_seldon`, `get_report`, …).
+Set `SELDON_API_KEY` in your environment first (the key is not committed). The Seldon MCP server is also configured in `.mcp.json` for use inside Claude Code (`validate_seldon_yaml`, `run_seldon`, `get_report`, …).
 
 ## Demo script
 
-See `docs/PRODUCT.md`. Short version: landing → Open Telegram → "You're in" → Move my Google Drive → files stream in → phone photo backup on `/m` → drag in a real file → savings tile.
+See `docs/DESIGN.md`. Short version: landing → drive (no sign-in) → Move my Google Drive → Google consent → files copy in, encrypted on the device → open one → "Open on another device" → tap the email link on a phone, files are there.

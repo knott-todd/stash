@@ -95,7 +95,8 @@ export const db = {
     const d = load();
     d.files = d.files.filter((f) => f.uid !== uid);
     delete d.migrations[uid];
-    delete d.users[uid];
+    delete d.users[uid]; // takes the Google tokens and cached listing with it
+    for (const [k, t] of Object.entries(d.tokens)) if (t.uid === uid) delete d.tokens[k];
     save();
   },
 };

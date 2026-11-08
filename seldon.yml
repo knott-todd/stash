@@ -23,7 +23,7 @@ testCases:
   - name: Phone photo backup uploads the camera roll
     id: photo-backup
     steps:
-      - go to /m
+      - go to /m?demo=1
       - click "Back up my photos"
       - wait up to 20 seconds for the count to reach 24 of 24
     criteria: the status card says "All backed up." and every photo thumbnail in the grid has a green check mark

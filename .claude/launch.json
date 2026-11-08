@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "loft"],
       "port": 3000
+    },
+    {
+      "name": "loft-photos",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "loft", "--", "-p", "3001"],
+      "port": 3001
     }
   ]
 }

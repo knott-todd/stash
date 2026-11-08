@@ -42,8 +42,9 @@ export async function uploadEncrypted(
 
   let r: Response;
   if (staged) {
+    // Private: the staged ciphertext is readable only by our server, never by URL.
     const put = await blobUpload(`tmp/${file.name}.stash`, cipher, {
-      access: "public",
+      access: "private",
       handleUploadUrl: "/api/blob",
       contentType: "application/octet-stream",
       abortSignal: opts.signal,

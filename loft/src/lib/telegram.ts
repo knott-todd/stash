@@ -57,25 +57,18 @@ export async function putFile(uid: string, id: string, name: string, bytes: Buff
   return { tg: { fileId: r.document.file_id, messageId: r.message_id } };
 }
 
-// Staged path: the browser put the ciphertext in a temporary public blob; storage
-// fetches it by URL (Telegram allows up to 20 MB that way), then the blob is deleted.
+// Staged path: the browser put the ciphertext in a temporary *private* blob (only
+// our server can read it). The server pulls it and sends it on to storage, then
+// deletes the blob. Capped so one function invocation comfortably finishes.
 export const STAGED_MAX_BYTES = 20 * 1024 * 1024;
 
 export async function putFileFromUrl(uid: string, id: string, name: string, url: string) {
-  const { del } = await import("@vercel/blob");
+  const { get, del } = await import("@vercel/blob");
   try {
-    const chatId = (await getStorageChatId().catch(() => null)) ?? (await store().getUser(uid)).tgChatId;
-    if (DEMO || !chatId) {
-      // No storage configured: pull the bytes down and keep them locally.
-      const bytes = Buffer.from(await (await fetch(url)).arrayBuffer());
-      return putFile(uid, id, name, bytes);
-    }
-    const r = await call<{ message_id: number; document: { file_id: string } }>("sendDocument", {
-      chat_id: chatId,
-      document: url,
-      caption: `${uid}/${name}`,
-    });
-    return { tg: { fileId: r.document.file_id, messageId: r.message_id } };
+    const got = await get(url, { access: "private", useCache: false });
+    if (!got || got.statusCode !== 200 || !got.stream) throw new Error("staged blob not readable");
+    const bytes = Buffer.from(await new Response(got.stream).arrayBuffer());
+    return putFile(uid, id, name, bytes);
   } finally {
     del(url).catch(() => {});
   }

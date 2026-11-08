@@ -44,8 +44,8 @@ export default function Landing() {
           <p className="reassure">No account. No card.</p>
         </div>
         {/* Scroll cue: the hero fills the screen, so say there is more. */}
-        <a href="#answers" className="more" aria-label="Read what each word means">
-          <span>What each word means</span>
+        <a href="#answers" className="more" aria-label="Read what that means">
+          <span>What that means</span>
           <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
             <path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>

@@ -121,7 +121,31 @@
   color: var(--l-ink-2);
 }
 
-/* Scroll cue at the foot of the hero: quiet text and a chevron, no motion. */
+/* Scroll cue at the foot of the hero: quiet text; the chevron hops once every few seconds. */
+@keyframes hop {
+  0%,
+  86%,
+  100% {
+    transform: translateY(0);
+  }
+  90% {
+    transform: translateY(4px);
+  }
+  94% {
+    transform: translateY(0);
+  }
+  97% {
+    transform: translateY(2px);
+  }
+}
+.landing .more svg {
+  animation: hop 5s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing .more svg {
+    animation: none;
+  }
+}
 .landing .more {
   display: inline-flex;
   align-items: center;

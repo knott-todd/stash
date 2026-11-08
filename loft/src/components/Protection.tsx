@@ -42,7 +42,9 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
           selected={current === "standard"}
           title="Standard"
           tag="Recommended"
-          body="Your files open on any device the moment you sign in. Nothing to remember. Private from everyone except Stash itself, the same way Google Drive is."
+          icon="cloud"
+          body="Opens wherever you sign in. Nothing to remember."
+          note="Stash can open your files, as Google Drive can. We never do unless you share one."
           action={current === "standard" ? null : current === "passcode" ? () => setUnlocking(true) : chooseStandard}
           actionLabel={current === "passcode" ? "Switch to Standard" : "Use Standard"}
           testId="protection-standard"
@@ -53,7 +55,9 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
           selected={current === "passcode"}
           title="Locked with a passcode"
           tag="More private"
-          body="Only you can open your files. Not even Stash can. You choose a passcode that Stash never sees and type it once on each new device. If you forget it and lose the recovery code, the files are gone for good."
+          icon="lock"
+          body="Only you can open them, with a passcode you choose."
+          note="Not even Stash can. Forget the passcode and the recovery code, and the files are gone."
           action={current === "passcode" ? null : () => setLocking(true)}
           actionLabel="Lock my files"
           testId="protection-passcode"
@@ -82,14 +86,18 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
   );
 }
 
-function Option({ selected, title, tag, body, action, actionLabel, testId, big = false, primary = false }: { selected: boolean; title: string; tag: string; body: string; action: (() => void) | null; actionLabel: string; testId: string; big?: boolean; primary?: boolean }) {
+function Option({ selected, title, tag, icon, body, note, action, actionLabel, testId, big = false, primary = false }: { selected: boolean; title: string; tag: string; icon: "cloud" | "lock"; body: string; note: string; action: (() => void) | null; actionLabel: string; testId: string; big?: boolean; primary?: boolean }) {
   return (
     <div className={`card p-5 h-full flex flex-col `} data-testid={testId} aria-current={selected ? "true" : undefined}>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-lg font-semibold">{title}</p>
+        <p className="flex items-center gap-2.5 text-lg font-semibold">
+          <ModeIcon kind={icon} />
+          {title}
+        </p>
         <span className={`text-xs rounded-full px-2.5 py-1 ${selected ? "bg-ink text-white" : "bg-cream-2 text-ink-2"}`}>{selected ? "Current" : tag}</span>
       </div>
-      <p className="mt-2 text-sm text-ink-2">{body}</p>
+      <p className="mt-3 text-ink">{body}</p>
+      <p className="mt-1 text-sm text-ink-3">{note}</p>
       {action && big && (
         <div className="mt-auto pt-5">
           <button className={primary ? "btn-primary w-full" : "btn-ghost w-full border border-line text-ink"} onClick={action}>
@@ -249,3 +257,22 @@ export function Dialog({ title, onClose, children }: { title: string; onClose?: 
 }
 
 const input = "rounded-full border border-line bg-white px-5 py-3 text-base outline-none focus:border-ink";
+
+// One line icon per mode, in the same single-colour style as the file icons.
+function ModeIcon({ kind }: { kind: "cloud" | "lock" }) {
+  const common = { width: 26, height: 26, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true, className: "shrink-0 text-ink" };
+  if (kind === "cloud")
+    return (
+      <svg {...common}>
+        <path d="M7 18a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 8.5 3.75 3.75 0 0 1 17.5 16H7Z" />
+        <path d="m9.5 13 2 2 3.5-4" />
+      </svg>
+    );
+  return (
+    <svg {...common}>
+      <rect x="5" y="10.5" width="14" height="10" rx="2" />
+      <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
+      <circle cx="12" cy="15.5" r="1" fill="currentColor" />
+    </svg>
+  );
+}

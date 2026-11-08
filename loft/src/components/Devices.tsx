@@ -96,7 +96,7 @@ export function Devices() {
           {devices && computers.length === 0 && (
             <div className="card mt-3 p-5">
               <p className="font-semibold">No computer is backing up yet.</p>
-              <p className="mt-1 text-ink-2">Stash Desktop watches the folders you choose and sends every new or changed file here, encrypted, without you doing anything.</p>
+              <p className="mt-1 text-ink-2">Stash Desktop keeps the folders you choose backed up on their own.</p>
               {STAGING ? <AddComputer origin={origin} /> : <p className="mt-3 text-sm text-ink-3">Stash Desktop is on its way. It installs like any other app; you pick the folders once and it does the rest.</p>}
             </div>
           )}
@@ -201,34 +201,49 @@ function StatusText({ d, stale }: { d: Device; stale: boolean }) {
 }
 
 function AddComputer({ origin }: { origin: string }) {
-  const server = origin && !/localhost/.test(origin) ? ` --server ` : "";
+  const server = origin && !/localhost/.test(origin) ? ` --server ${origin}` : "";
+  // Order on the card: what it does (above), the three steps, then the one action.
   return (
-    <div className="mt-3 text-sm">
-      <p className="text-ink-2">
-        <a className="btn-primary inline-flex text-sm py-2" href="https://github.com/knott-todd/stash/releases/latest/download/Stash-Setup.exe" data-testid="download-windows">
-          Download Stash for Windows
-        </a>
-      </p>
-      <p className="mt-2 text-ink-2">Open it, click <span className="font-semibold text-ink">Link this computer</span>, say yes in the browser, tick the folders. That is the whole setup. Mac is next.</p>
-      <details className="mt-3">
-        <summary className="cursor-pointer text-ink-3">Without the installer (developer route)</summary>
-      <ol className="list-decimal pl-5 mt-2 space-y-1.5 text-ink-2">
-        <li>
-          On that computer, install Node.js if it isn&apos;t there (<a className="underline" href="https://nodejs.org" target="_blank" rel="noreferrer">nodejs.org</a>).
-        </li>
-        <li>
-          <a className="underline" href="https://github.com/knott-todd/stash/archive/refs/heads/main.zip">Download Stash</a> and unzip it.
-        </li>
-        <li>
-          Open a terminal in the unzipped folder and run:
-          <code className="block mt-1.5 rounded-lg bg-cream-2 px-3 py-2 text-ink select-all">node desktop/cli.mjs{server}</code>
-        </li>
-        <li>It shows a code and opens the link page here; approve it.</li>
-        <li>Choose the folders to keep backed up. Documents and Pictures are suggested. Leave it running.</li>
+    <div className="mt-4">
+      <ol className="grid gap-3 sm:grid-cols-3 text-sm">
+        {[
+          ["Download and open it", "A normal installer, nothing to type."],
+          ["Say yes in your browser", "It opens the link page here for you."],
+          ["Tick the folders", "Documents and Pictures are ready to go."],
+        ].map(([t, d], i) => (
+          <li key={t} className="flex gap-3">
+            <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-ink text-white text-xs font-semibold" aria-hidden>
+              {i + 1}
+            </span>
+            <span>
+              <span className="block font-medium">{t}</span>
+              <span className="block text-ink-3">{d}</span>
+            </span>
+          </li>
+        ))}
       </ol>
-      <p className="mt-2 text-ink-3">
-        To have it start with the computer: <code className="rounded bg-cream-2 px-1.5 py-0.5 text-ink">node desktop/cli.mjs --install-startup</code>.
-      </p>
+      <div className="mt-5 flex flex-wrap items-center gap-4">
+        <a className="btn-primary inline-flex text-sm py-2.5" href="https://github.com/knott-todd/stash/releases/latest/download/Stash-Setup.exe" data-testid="download-windows">
+          Download for Windows
+        </a>
+        <span className="text-sm text-ink-3">Mac is next.</span>
+      </div>
+      <details className="mt-4 text-sm">
+        <summary className="cursor-pointer text-ink-3">Without the installer (developer route)</summary>
+        <ol className="list-decimal pl-5 mt-2 space-y-1.5 text-ink-2">
+          <li>
+            On that computer, install Node.js if it isn&apos;t there (<a className="underline" href="https://nodejs.org" target="_blank" rel="noreferrer">nodejs.org</a>).
+          </li>
+          <li>
+            <a className="underline" href="https://github.com/knott-todd/stash/archive/refs/heads/main.zip">Download Stash</a> and unzip it.
+          </li>
+          <li>
+            Open a terminal in the unzipped folder and run:
+            <code className="block mt-1.5 rounded-lg bg-cream-2 px-3 py-2 text-ink select-all">node desktop/cli.mjs{server}</code>
+          </li>
+          <li>It shows a code and opens the link page here; approve it.</li>
+          <li>Choose the folders to keep backed up. Leave it running.</li>
+        </ol>
       </details>
     </div>
   );

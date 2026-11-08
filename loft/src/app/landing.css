@@ -207,6 +207,14 @@
 .landing footer .thanks {
   color: var(--l-ink-3, var(--l-ink-2));
 }
+.landing footer .thanks a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.landing footer .thanks a:hover {
+  color: var(--l-ink);
+}
 
 /* No motion. The page is static on purpose; nothing here needs to move to be understood. */
 

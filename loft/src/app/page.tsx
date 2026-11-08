@@ -63,7 +63,13 @@ export default function Landing() {
       </section>
 
       <footer className="col">
-        <p className="thanks">A big thank you to Ben, who made this all possible &lt;3</p>
+        <p className="thanks">
+          A big thank you to{" "}
+          <a href="https://x.com/BBesckinder" target="_blank" rel="noreferrer">
+            Benoni Taddesse
+          </a>
+          , who made this all possible &lt;3
+        </p>
       </footer>
     </main>
   );

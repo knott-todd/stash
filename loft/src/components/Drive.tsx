@@ -355,9 +355,9 @@ export function Drive() {
               {me.fileCount} files · {fmtBytes(me.bytes)} of <span className="font-semibold text-ink">unlimited</span>
             </span>
           )}
-          <button className="text-ink-2 hover:text-ink underline-offset-4 hover:underline" onClick={() => setPairOpen("card")}>
-            Open on another device
-          </button>
+          <Link href="/devices" className="text-ink-2 hover:text-ink underline-offset-4 hover:underline" data-testid="nav-devices">
+            Devices
+          </Link>
           <button className="text-ink-3 hover:text-ink underline-offset-4 hover:underline" onClick={signOut} data-testid="sign-out">
             Sign out
           </button>

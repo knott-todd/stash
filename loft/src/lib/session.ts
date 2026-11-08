@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { newId, store } from "./store";
 
@@ -14,6 +14,13 @@ export type Session = { uid: string; createdAt: number; legacyUid?: string; devi
 export const sessionKey = (sid: string) => `sess:${sid}`;
 
 export async function getSession(): Promise<Session | null> {
+  // A linked device (Stash Desktop, the phone app) sends its token instead of a cookie.
+  const auth = (await headers()).get("authorization");
+  if (auth?.startsWith("Bearer ")) {
+    const { deviceForToken } = await import("./devices");
+    const d = await deviceForToken(auth.slice(7).trim());
+    return d ? { uid: d.uid, createdAt: d.createdAt, deviceId: d.id } : null;
+  }
   const jar = await cookies();
   const sid = jar.get(SID)?.value;
   if (!sid) return null;

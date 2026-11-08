@@ -203,11 +203,14 @@ html {
   line-height: 1.5;
   color: var(--l-ink-2);
 }
+.landing footer {
+  border-top: 1px solid var(--l-line, #e4e4e4);
+  text-align: center;
+}
 .landing footer p {
   margin: 0;
 }
 .landing footer .thanks {
-  margin-top: 8px;
   color: var(--l-ink-3, var(--l-ink-2));
 }
 

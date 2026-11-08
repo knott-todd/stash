@@ -9,7 +9,11 @@ export async function GET(req: Request) {
   if (new URL(req.url).searchParams.get("diag") === "1") {
     const names = Object.keys(process.env).filter((k) => /^(TELEGRAM|BLOB|STASH|SMTP|MAIL|GOOGLE|DATABASE|PUBLIC|VERCEL_ENV|NODE_ENV)/.test(k)).sort();
     const present = Object.fromEntries(names.map((k) => [k, (process.env[k] ?? "").length > 0 ? "set" : "empty"]));
-    return NextResponse.json({ present, demo: DEMO, blobUploads: !!process.env.BLOB_READ_WRITE_TOKEN });
+    // Which database host (first label only) and whether the value was pasted with quotes.
+    const raw = process.env.DATABASE_URL ?? "";
+    let dbHost = "unset";
+    try { dbHost = raw ? new URL(raw.replace(/^"|"$/g, "")).host.split(".")[0] : "unset"; } catch { dbHost = "unparseable"; }
+    return NextResponse.json({ present, demo: DEMO, blobUploads: !!process.env.BLOB_READ_WRITE_TOKEN, dbHost, dbQuoted: /^".*"$/.test(raw) });
   }
   const uid = await getUid();
   const db = store();

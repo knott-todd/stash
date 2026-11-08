@@ -7,7 +7,7 @@ import { Logo } from "./Logo";
 import { MigrateDialog, type MigrationStatus } from "./MigrateDialog";
 import { PairCard } from "./PairCard";
 import { fmtBytes } from "@/lib/format";
-import { decryptBytes, encryptBytes, ensureRawKey, getRawKey } from "@/lib/crypto";
+import { decryptBytes, encryptBytes, ensureRawKey, getRawKey, keyFromRecoveryCode, setRawKey } from "@/lib/crypto";
 import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
 import { cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { viewableMime } from "@/lib/view";
@@ -44,6 +44,7 @@ export function Drive() {
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; retry?: () => void; undo?: () => void } | null>(null);
   const [search, setSearch] = useState("");
+  const [recoveryInput, setRecoveryInput] = useState("");
   const [dragging, setDragging] = useState(false);
   const [pairOpen, setPairOpen] = useState<"card" | "qr" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -58,7 +59,8 @@ export function Drive() {
   }, []);
 
   useEffect(() => {
-    ensureRawKey();
+    // A device that arrived by email link has no key yet; don't mint one, ask for the recovery code.
+    if (!noKey) ensureRawKey();
     refresh().then((m) => {
       // Simulated migration status only applies when Google isn't configured.
       if (!m.google)
@@ -292,11 +294,37 @@ export function Drive() {
       </header>
 
       <div className="mx-auto w-full max-w-5xl px-5 pb-24 flex-1">
-        {noKey && (
-          <div className="card mb-5 p-4 bg-accent-soft border-accent/30" role="status">
-            <p className="font-semibold">This device can list your files but can&apos;t open them yet.</p>
-            <p className="text-sm text-ink-2">Open the link from the device you started on, or scan its QR. The key never leaves your devices.</p>
-          </div>
+        {noKey && !getRawKey() && (
+          <form
+            className="card mb-5 p-4"
+            role="status"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const raw = keyFromRecoveryCode(recoveryInput);
+              if (!raw) return setToast({ text: "That code doesn't look right. It's 26 letters and numbers, dashes optional." });
+              setRawKey(raw);
+              router.replace("/drive");
+              setToast({ text: "Unlocked. Your files open on this device now." });
+            }}
+          >
+            <p className="font-semibold">This device can&apos;t open your files yet.</p>
+            <p className="text-sm text-ink-2 mt-1">Open the link from your email again, or scan the QR on your other device. Lost every device? Enter your recovery code.</p>
+            <div className="mt-3 flex flex-col sm:flex-row gap-2">
+              <input
+                value={recoveryInput}
+                onChange={(e) => setRecoveryInput(e.target.value)}
+                placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-X"
+                autoCapitalize="characters"
+                spellCheck={false}
+                aria-label="Recovery code"
+                className="flex-1 rounded-full border border-line bg-white px-5 py-3 text-base tracking-wider outline-none focus:border-ink"
+                data-testid="recovery-input"
+              />
+              <button type="submit" className="btn-primary py-3 text-base">
+                Unlock
+              </button>
+            </div>
+          </form>
         )}
         {migration.phase === "done" && (
           <div className="card mb-5 p-4 flex flex-wrap items-center gap-3 bg-ok-soft border-ok/30" role="status" data-testid="migration-done">
@@ -350,8 +378,8 @@ export function Drive() {
               ))}
           </nav>
           {!empty && (
-            <div className="flex items-center gap-2">
-              <label className="relative">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <label className="relative w-full sm:w-auto">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" width="14" height="14" viewBox="0 0 14 14" aria-hidden>
                   <circle cx="6" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
                   <path d="M9.2 9.2 12.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -362,18 +390,20 @@ export function Drive() {
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search"
                   aria-label="Search files"
-                  className="w-44 focus:w-64 transition-[width] rounded-full border border-line bg-white pl-8 pr-3 py-2 text-sm outline-none focus:border-ink"
+                  className="w-full sm:w-44 sm:focus:w-64 transition-[width] rounded-full border border-line bg-white pl-8 pr-3 py-2 text-sm outline-none focus:border-ink"
                   data-testid="search"
                 />
               </label>
-              <button className="btn-ghost" onClick={addSample} data-testid="add-sample">
-                Add a sample file
-              </button>
-              <button className="btn-ghost" onClick={() => setMigrateOpen(true)} data-testid="migrate-gdrive">
+              <span className="hidden sm:inline">
+                <button className="btn-ghost" onClick={addSample} data-testid="add-sample">
+                  Add a sample file
+                </button>
+              </span>
+              <button className="btn-ghost whitespace-nowrap" onClick={() => setMigrateOpen(true)} data-testid="migrate-gdrive">
                 Move from Google Drive
               </button>
               <button className="btn-primary py-3 text-base" onClick={() => inputRef.current?.click()} data-testid="upload" disabled={!!busy}>
-                {busy ? "Working…" : "+ Add a file"}
+                {busy ? "Working…" : "+ Add"}
               </button>
             </div>
           )}

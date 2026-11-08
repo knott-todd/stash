@@ -131,7 +131,7 @@ export function FileBrowser({
 
   return (
     <div className="card overflow-hidden" onKeyDown={onKey} tabIndex={0} aria-label="Files">
-      <div className="grid grid-cols-[28px_1fr_140px_90px_200px] items-center gap-4 px-5 py-2 border-b border-line text-xs">
+      <div className="grid grid-cols-[28px_minmax(0,1fr)_auto] sm:grid-cols-[28px_minmax(0,1fr)_140px_90px_auto] items-center gap-4 px-5 py-2 border-b border-line text-xs">
         <span />
         {header("name", "Name")}
         {header("modified", "Modified", "hidden sm:flex")}
@@ -143,7 +143,7 @@ export function FileBrowser({
         {rows.map((r) => {
           const k = keyOf(r);
           const isSel = selected === k;
-          const base = `grid grid-cols-[28px_1fr_140px_90px_200px] items-center gap-4 px-5 py-2.5 select-none cursor-default ${isSel ? "bg-cream-2" : "hover:bg-cream-2/60"}`;
+          const base = `grid grid-cols-[28px_minmax(0,1fr)_auto] sm:grid-cols-[28px_minmax(0,1fr)_140px_90px_auto] items-center gap-4 px-5 py-2.5 select-none cursor-default ${isSel ? "bg-cream-2" : "hover:bg-cream-2/60"}`;
           if (r.kind === "folder")
             return (
               <li
@@ -195,23 +195,34 @@ export function FileBrowser({
               </div>
               <span className="hidden sm:block text-sm text-ink-3">{fmtDate(f.createdAt)}</span>
               <span className="hidden sm:block text-sm text-ink-3">{f.size === 0 ? "Empty" : fmtBytes(f.size)}</span>
-              <div className="flex items-center justify-end gap-2">
+              <div className="flex items-center justify-end gap-1 sm:gap-2">
                 {f.stored && (
                   <span
                     className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
                       opening === f.id ? "border-line text-ink-2" : local.has(f.id) ? "border-ok/40 bg-ok-soft text-ok" : "border-line bg-cream-2 text-ink-2"
                     }`}
                     data-testid="location"
+                    title={opening === f.id ? "Downloading" : local.has(f.id) ? "On this device" : "In cloud"}
                   >
                     {opening === f.id ? (
                       <>
                         <span className="inline-block size-3 rounded-full border-2 border-ink-3 border-t-ink animate-spin" aria-hidden />
-                        Downloading
+                        <span className="hidden sm:inline">Downloading</span>
                       </>
                     ) : local.has(f.id) ? (
-                      "On this device"
+                      <>
+                        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+                          <path d="M2 6.5 5 9.5 10 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <span className="hidden sm:inline">On this device</span>
+                      </>
                     ) : (
-                      "In cloud"
+                      <>
+                        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+                          <path d="M3.5 9.5a2.5 2.5 0 0 1-.3-5 3 3 0 0 1 5.8-.6A2.3 2.3 0 0 1 9 9.5H3.5Z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                        </svg>
+                        <span className="hidden sm:inline">In cloud</span>
+                      </>
                     )}
                   </span>
                 )}

@@ -3,14 +3,16 @@
 Live at: https://github.com/knott-todd/stash/blob/main/docs/ROADMAP.md
 Rule: nothing moves to **Complete** until it's verified on the production URL, not localhost.
 
-## Complete (verified)
+Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (private staging) + Telegram (bytes). Cost today: $0.
+
+## Complete (verified on https://stash.olusanyatodd.com, 2026-11-08)
 
 | Feature | Notes |
 | --- | --- |
 | Landing → drive with no account | Device identity (cookie). "Switch to Stash in 3 easy steps". |
 | Client-side encryption | AES-GCM in the browser; key only on the device; server holds ciphertext. |
 | Add / open files | Viewable types open in a tab; others download. Local cache, "In cloud / On this device" badge. |
-| Storage in Telegram (operator bot) | Users never see it. Files ≤ 50 MB. |
+| Storage in Telegram (operator bot) | Users never see it. 20 MB per file in production (staged through a private Vercel Blob, deleted after transfer). |
 | Google Drive migration | Real OAuth, folder paths, Docs/Sheets exported, resumable, stop/resume, smallest-first, status line. |
 | File browser | Sort, select, keyboard, right-click / ⋮ menu, rename, trash + undo, search, folder in URL, phone layout. |
 | Open on another device | Email link (key in link, single-use, 24 h) via SMTP; QR for phones. Recovery code as last resort. |
@@ -22,8 +24,8 @@ Rule: nothing moves to **Complete** until it's verified on the production URL, n
 
 | Feature | Status | Owner |
 | --- | --- | --- |
-| Production deployment: domain, HTTPS, persistent store, env secrets | planning, see below | Claude |
-| Google OAuth app out of "Testing" | blocked on Google verification for the Drive scope (see decisions) | Olusanya |
+| Google OAuth verification (Drive scope) | consent-screen links + verification pack next | Olusanya + Claude |
+
 
 ## Proposed (not started, in rough priority)
 
@@ -38,13 +40,14 @@ Rule: nothing moves to **Complete** until it's verified on the production URL, n
 
 ## Known limits (say them out loud)
 
-- Bot API: 50 MB per upload; 20 MB per download via `getFile` (larger files need the local Bot API server).
+- Telegram Bot API: 20 MB per download via `getFile`; production uploads are capped at 20 MB to match (local dev allows 50).
 - Google Drive listing of a very large Drive takes 1–2 minutes; cached for an hour.
 - Demo-mode migration rows (when Google isn't configured) are placeholders with no bytes.
-- Quick Cloudflare tunnels expire; production needs a real host.
+- Vercel functions cap request bodies at 4.5 MB; uploads are staged through a private blob instead.
 
 ## Decisions log
 
 - 2026-11-07: device-first identity, no accounts. Client-side encryption (option A). Email link carries the key; server never stores it.
 - 2026-11-07: supplier (Telegram) never named in the product.
 - 2026-11-08: "Sign out" means sign out of Google; the device keeps the key.
+- 2026-11-08: production on Vercel + Neon + private Blob staging; store moved behind an interface (JSON locally, Postgres in production). Product renamed Stash.

@@ -11,7 +11,6 @@ import { decryptBytes, encryptBytes, ensureRawKey, getRawKey, keyFromRecoveryCod
 import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
 import { cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { viewableMime } from "@/lib/view";
-import { usePhone } from "@/lib/use-phone";
 import Link from "next/link";
 
 export type FileRow = {
@@ -107,7 +106,6 @@ export function Drive() {
   // Which files have a local copy (ciphertext in the browser cache).
   const [local, setLocal] = useState<Set<string>>(new Set());
   const [opening, setOpening] = useState<string | null>(null);
-  const phone = usePhone();
   useEffect(() => {
     if (!files) return;
     cacheHas(files.map((f) => f.id)).then(setLocal);
@@ -402,19 +400,19 @@ export function Drive() {
                   Add a sample file
                 </button>
               </span>
-              {/* On a phone the job is its own camera roll; Google Drive moves are a laptop job. */}
-              {phone ? (
-                folder !== "Phone photos" && (
-                  <Link href="/m" className="btn-ghost whitespace-nowrap" data-testid="toolbar-photos">
-                    Back up photos
-                  </Link>
-                )
-              ) : (
+              {/* On a phone the job is its own camera roll; Google Drive moves are a laptop job.
+                  Chosen in CSS (pointer-coarse) so the right one is there on first paint. */}
+              <span className="hidden pointer-coarse:contents">
+                <Link href="/m" className="btn-ghost flex-1 border border-line text-ink whitespace-nowrap" data-testid="toolbar-photos">
+                  {folder === "Phone photos" ? "Back up new photos" : "Back up photos"}
+                </Link>
+              </span>
+              <span className="contents pointer-coarse:hidden">
                 <button className="btn-ghost whitespace-nowrap" onClick={() => setMigrateOpen(true)} data-testid="migrate-gdrive">
                   Move from Google Drive
                 </button>
-              )}
-              <button className="btn-primary py-3 text-base" onClick={() => inputRef.current?.click()} data-testid="upload" disabled={!!busy}>
+              </span>
+              <button className="btn-primary py-3 text-base pointer-coarse:flex-1" onClick={() => inputRef.current?.click()} data-testid="upload" disabled={!!busy}>
                 {busy ? "Working…" : "+ Add"}
               </button>
             </div>
@@ -449,19 +447,20 @@ export function Drive() {
                 <span className="text-xl font-semibold">Move my Google Drive</span>
                 <span className="text-ink-2">Everything, folders included. Then cancel Google One.</span>
               </button>
-              {phone ? (
-                <Link href="/m" className="tile" data-testid="tile-photos">
+              <span className="hidden pointer-coarse:contents">
+                <Link href="/m" className="tile" data-testid="tile-photos-phone">
                   <PhoneIcon />
                   <span className="text-xl font-semibold">Back up this phone&apos;s photos</span>
                   <span className="text-ink-2">Pick them once. Encrypted here before they leave.</span>
                 </Link>
-              ) : (
+              </span>
+              <span className="contents pointer-coarse:hidden">
                 <button className="tile" onClick={() => setPairOpen("qr")} data-testid="tile-photos">
                   <PhoneIcon />
                   <span className="text-xl font-semibold">Back up my phone photos</span>
                   <span className="text-ink-2">Point your phone camera at a code. One tap after that.</span>
                 </button>
-              )}
+              </span>
               <button className="tile" onClick={() => inputRef.current?.click()} data-testid="tile-upload">
                 <FileIcon />
                 <span className="text-xl font-semibold">Add a file</span>
@@ -473,18 +472,13 @@ export function Drive() {
 
         {pairOpen === "qr" && <PairCard mode="qr" email={null} onClose={() => setPairOpen(null)} />}
 
+        {/* On a phone this lives in the toolbar; on a laptop the phone is elsewhere, so offer its code. */}
         {!empty && files && folder === "Phone photos" && !search && (
-          <div className="card mb-4 px-4 py-3 flex items-center justify-between gap-3" data-testid="photos-bar">
-            <p className="text-sm text-ink-2">{phone ? "Took more photos?" : "Back up more from your phone."}</p>
-            {phone ? (
-              <Link href="/m" className="btn-primary py-2 text-sm whitespace-nowrap">
-                Back up new photos
-              </Link>
-            ) : (
-              <button className="btn-ghost border border-line py-2 text-sm whitespace-nowrap" onClick={() => setPairOpen("qr")}>
-                Show phone code
-              </button>
-            )}
+          <div className="mb-4 pointer-coarse:hidden flex items-center justify-between gap-3 rounded-xl bg-cream-2 px-4 py-2.5" data-testid="photos-bar">
+            <p className="text-sm text-ink-2">Back up more from your phone.</p>
+            <button className="text-sm font-medium underline-offset-4 hover:underline whitespace-nowrap" onClick={() => setPairOpen("qr")}>
+              Show phone code
+            </button>
           </div>
         )}
 

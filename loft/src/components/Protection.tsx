@@ -37,7 +37,7 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
 
   return (
     <div>
-      <div className={`grid gap-3 ${compact ? "" : "sm:grid-cols-2"}`}>
+      <div className={`grid gap-3 items-stretch `}>
         <Option
           selected={current === "standard"}
           title="Standard"
@@ -84,21 +84,25 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
 
 function Option({ selected, title, tag, body, action, actionLabel, testId, big = false, primary = false }: { selected: boolean; title: string; tag: string; body: string; action: (() => void) | null; actionLabel: string; testId: string; big?: boolean; primary?: boolean }) {
   return (
-    <div className={`card p-5 ${selected ? "border-ink" : ""}`} data-testid={testId} aria-current={selected ? "true" : undefined}>
+    <div className={`card p-5 h-full flex flex-col `} data-testid={testId} aria-current={selected ? "true" : undefined}>
       <div className="flex items-center justify-between gap-3">
         <p className="text-lg font-semibold">{title}</p>
         <span className={`text-xs rounded-full px-2.5 py-1 ${selected ? "bg-ink text-white" : "bg-cream-2 text-ink-2"}`}>{selected ? "Current" : tag}</span>
       </div>
       <p className="mt-2 text-sm text-ink-2">{body}</p>
       {action && big && (
-        <button className={`mt-5 w-full `} onClick={action}>
-          {actionLabel}
-        </button>
+        <div className="mt-auto pt-5">
+          <button className={primary ? "btn-primary w-full" : "btn-ghost w-full border border-line text-ink"} onClick={action}>
+            {actionLabel}
+          </button>
+        </div>
       )}
       {action && !big && (
-        <button className="btn-ghost mt-3 px-0 text-ink underline underline-offset-4" onClick={action}>
-          {actionLabel}
-        </button>
+        <div className="mt-auto pt-3">
+          <button className="btn-ghost px-0 text-ink underline underline-offset-4" onClick={action}>
+            {actionLabel}
+          </button>
+        </div>
       )}
     </div>
   );

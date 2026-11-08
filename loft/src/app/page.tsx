@@ -26,7 +26,7 @@ export default function Landing() {
         <Link href="/" className="wordmark" aria-label="Stash home">
           <StashLockup />
         </Link>
-        <Link href="/drive" className="quiet-link">
+        <Link href="/signin" className="quiet-link">
           Sign in
         </Link>
       </header>

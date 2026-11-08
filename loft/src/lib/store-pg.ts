@@ -48,6 +48,17 @@ export function pgStore(): Store {
       await sql`INSERT INTO users (uid, data, created_at) VALUES (${u.uid}, ${JSON.stringify(u)}::jsonb, ${u.createdAt})
                 ON CONFLICT (uid) DO UPDATE SET data = EXCLUDED.data`;
     },
+    async findUserByEmail(email) {
+      await ensure();
+      const rows = await sql`
+        SELECT u.data FROM users u
+        LEFT JOIN files f ON f.uid = u.uid
+        WHERE lower(u.data->>'email') = ${email.trim().toLowerCase()}
+        GROUP BY u.uid, u.data, u.created_at
+        ORDER BY count(f.id) DESC, u.created_at DESC
+        LIMIT 1`;
+      return rows[0] ? (rows[0].data as User) : undefined;
+    },
     async filesFor(uid) {
       await ensure();
       const rows = await sql`SELECT data FROM files WHERE uid = ${uid} ORDER BY created_at DESC`;

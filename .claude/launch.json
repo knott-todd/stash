@@ -4,14 +4,41 @@
     {
       "name": "loft",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "loft"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "loft"
+      ],
       "port": 3000
     },
     {
       "name": "loft-photos",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "loft", "--", "-p", "3001"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "loft",
+        "--",
+        "-p",
+        "3001"
+      ],
       "port": 3001
+    },
+    {
+      "name": "loft-3002",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "loft",
+        "--",
+        "-p",
+        "3002"
+      ],
+      "port": 3002
     }
   ]
 }

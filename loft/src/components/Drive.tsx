@@ -61,10 +61,18 @@ export function Drive() {
     return m as Me;
   }, []);
 
+  // Decided from the drive, not the URL: a device with files it can't open must
+  // never mint a fresh key (that would silently make every file unreadable here).
+  // Only an empty drive gets a new key.
+  const [missingKey, setMissingKey] = useState(false);
   useEffect(() => {
-    // A device that arrived by email link has no key yet; don't mint one, ask for the recovery code.
-    if (!noKey) ensureRawKey();
     refresh().then((m) => {
+      if (!getRawKey()) {
+        if (m.fileCount > 0 || noKey) setMissingKey(true);
+        else ensureRawKey();
+      }
+      // Simulated migration status only applies when Google isn't configured.
+      if (!m.google)
       // Simulated migration status only applies when Google isn't configured.
       if (!m.google)
         fetch("/api/migrate")
@@ -328,7 +336,7 @@ export function Drive() {
       </header>
 
       <div className="mx-auto w-full max-w-5xl px-5 pb-24 flex-1">
-        {noKey && !getRawKey() && (
+        {missingKey && (
           <form
             className="card mb-5 p-4"
             role="status"
@@ -337,12 +345,15 @@ export function Drive() {
               const raw = keyFromRecoveryCode(recoveryInput);
               if (!raw) return setToast({ text: "That code doesn't look right. It's 26 letters and numbers, dashes optional." });
               setRawKey(raw);
+              setMissingKey(false);
               router.replace("/drive");
               setToast({ text: "Unlocked. Your files open on this device now." });
             }}
           >
-            <p className="font-semibold">This device can&apos;t open your files yet.</p>
-            <p className="text-sm text-ink-2 mt-1">Open the link from your email again, or scan the QR on your other device. Lost every device? Enter your recovery code.</p>
+            <p className="font-semibold">Your files are here, but this device can&apos;t open them yet.</p>
+            <p className="text-sm text-ink-2 mt-1">
+              Fastest: on a device that already opens them, go to <strong>Open on another device → Scan with your phone</strong> and scan the code with this one. Or have that device email you a link. Lost every device? Enter your recovery code below.
+            </p>
             <div className="mt-3 flex flex-col sm:flex-row gap-2">
               <input
                 value={recoveryInput}

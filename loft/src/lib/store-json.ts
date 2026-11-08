@@ -43,6 +43,14 @@ export function jsonStore(): Store {
       load().users[u.uid] = u;
       save();
     },
+    async findUserByEmail(email) {
+      const d = load();
+      const e = email.trim().toLowerCase();
+      const matches = Object.values(d.users).filter((u) => u.email?.toLowerCase() === e);
+      if (!matches.length) return undefined;
+      const count = (uid: string) => d.files.filter((f) => f.uid === uid).length;
+      return matches.sort((a, b) => count(b.uid) - count(a.uid) || b.createdAt - a.createdAt)[0];
+    },
     async filesFor(uid) {
       return load()
         .files.filter((f) => f.uid === uid)

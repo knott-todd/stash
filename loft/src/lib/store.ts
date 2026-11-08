@@ -49,6 +49,9 @@ export type Migration = {
 export interface Store {
   getUser(uid: string): Promise<User>; // creates the drive on first sight
   saveUser(u: User): Promise<void>;
+  // Sign-in from a new device: the drive that has this email on file (the one
+  // with the most files if several devices registered the same address).
+  findUserByEmail(email: string): Promise<User | undefined>;
   filesFor(uid: string): Promise<StashFile[]>;
   getFile(uid: string, id: string): Promise<StashFile | undefined>;
   addFile(f: StashFile): Promise<StashFile>;

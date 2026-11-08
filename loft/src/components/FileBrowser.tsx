@@ -116,6 +116,8 @@ export function FileBrowser({
       if (next.has(k)) next.delete(k);
       else next.add(k);
       onSelect(next);
+    } else if (selected.size === 1 && selected.has(k)) {
+      onSelect(new Set()); // clicking the only selected row again clears it
     } else {
       onSelect(new Set([k]));
     }

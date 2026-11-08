@@ -238,6 +238,11 @@ function RealBackup() {
                 </button>
               </div>
             )}
+            {!running && saved > 0 && (
+              <Link href={`/drive?folder=${encodeURIComponent(FOLDER)}`} className="mt-3 block text-center text-sm underline" data-testid="backup-view">
+                See them in your drive
+              </Link>
+            )}
           </div>
         )}
       </section>

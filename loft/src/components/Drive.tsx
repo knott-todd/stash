@@ -11,6 +11,8 @@ import { decryptBytes, encryptBytes, ensureRawKey, getRawKey, keyFromRecoveryCod
 import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
 import { cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { viewableMime } from "@/lib/view";
+import { usePhone } from "@/lib/use-phone";
+import Link from "next/link";
 
 export type FileRow = {
   id: string;
@@ -105,6 +107,7 @@ export function Drive() {
   // Which files have a local copy (ciphertext in the browser cache).
   const [local, setLocal] = useState<Set<string>>(new Set());
   const [opening, setOpening] = useState<string | null>(null);
+  const phone = usePhone();
   useEffect(() => {
     if (!files) return;
     cacheHas(files.map((f) => f.id)).then(setLocal);
@@ -399,9 +402,18 @@ export function Drive() {
                   Add a sample file
                 </button>
               </span>
-              <button className="btn-ghost whitespace-nowrap" onClick={() => setMigrateOpen(true)} data-testid="migrate-gdrive">
-                Move from Google Drive
-              </button>
+              {/* On a phone the job is its own camera roll; Google Drive moves are a laptop job. */}
+              {phone ? (
+                folder !== "Phone photos" && (
+                  <Link href="/m" className="btn-ghost whitespace-nowrap" data-testid="toolbar-photos">
+                    Back up photos
+                  </Link>
+                )
+              ) : (
+                <button className="btn-ghost whitespace-nowrap" onClick={() => setMigrateOpen(true)} data-testid="migrate-gdrive">
+                  Move from Google Drive
+                </button>
+              )}
               <button className="btn-primary py-3 text-base" onClick={() => inputRef.current?.click()} data-testid="upload" disabled={!!busy}>
                 {busy ? "Working…" : "+ Add"}
               </button>
@@ -437,11 +449,19 @@ export function Drive() {
                 <span className="text-xl font-semibold">Move my Google Drive</span>
                 <span className="text-ink-2">Everything, folders included. Then cancel Google One.</span>
               </button>
-              <button className="tile" onClick={() => setPairOpen("qr")} data-testid="tile-photos">
-                <PhoneIcon />
-                <span className="text-xl font-semibold">Back up my phone photos</span>
-                <span className="text-ink-2">Point your phone camera at a code. One tap after that.</span>
-              </button>
+              {phone ? (
+                <Link href="/m" className="tile" data-testid="tile-photos">
+                  <PhoneIcon />
+                  <span className="text-xl font-semibold">Back up this phone&apos;s photos</span>
+                  <span className="text-ink-2">Pick them once. Encrypted here before they leave.</span>
+                </Link>
+              ) : (
+                <button className="tile" onClick={() => setPairOpen("qr")} data-testid="tile-photos">
+                  <PhoneIcon />
+                  <span className="text-xl font-semibold">Back up my phone photos</span>
+                  <span className="text-ink-2">Point your phone camera at a code. One tap after that.</span>
+                </button>
+              )}
               <button className="tile" onClick={() => inputRef.current?.click()} data-testid="tile-upload">
                 <FileIcon />
                 <span className="text-xl font-semibold">Add a file</span>
@@ -452,6 +472,21 @@ export function Drive() {
         )}
 
         {pairOpen === "qr" && <PairCard mode="qr" email={null} onClose={() => setPairOpen(null)} />}
+
+        {!empty && files && folder === "Phone photos" && !search && (
+          <div className="card mb-4 px-4 py-3 flex items-center justify-between gap-3" data-testid="photos-bar">
+            <p className="text-sm text-ink-2">{phone ? "Took more photos?" : "Back up more from your phone."}</p>
+            {phone ? (
+              <Link href="/m" className="btn-primary py-2 text-sm whitespace-nowrap">
+                Back up new photos
+              </Link>
+            ) : (
+              <button className="btn-ghost border border-line py-2 text-sm whitespace-nowrap" onClick={() => setPairOpen("qr")}>
+                Show phone code
+              </button>
+            )}
+          </div>
+        )}
 
         {!empty && files && (
           <FileBrowser

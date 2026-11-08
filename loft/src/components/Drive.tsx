@@ -437,6 +437,9 @@ export function Drive() {
   }
 
   const all = files ?? [];
+  // The selection bar replaces the toolbar only when there is something to act on:
+  // a file, or several items. A single folder click just highlights it.
+  const showSelection = selected.size > 1 || [...selected].some((k) => !k.startsWith("d:"));
   // The two setup steps, judged from what has actually happened.
   const setupState = {
     migrated: !!me?.googleConnected || !!me?.providers?.dropbox?.connected || !!me?.providers?.onedrive?.connected || all.some((f) => f.source === "google-drive" || f.source === "dropbox" || f.source === "onedrive") || migration.phase === "done",
@@ -606,7 +609,7 @@ export function Drive() {
         )}
 
         {tab === "drive" && (
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 min-h-12">
           <nav className="flex items-center gap-1 text-lg" aria-label="Folder path">
             <button className="font-semibold hover:underline rounded px-1 -mx-1" onClick={() => setFolder("")} {...crumbDrop("")}>
               My drive
@@ -623,7 +626,7 @@ export function Drive() {
                 </span>
               ))}
           </nav>
-          {!empty && selected.size > 0 && (
+          {!empty && showSelection && (
             <div className="flex items-center gap-3 text-sm w-full sm:w-auto" data-testid="selection-bar">
               <span className="font-medium">{selected.size} selected</span>
               <button className="underline underline-offset-4 hover:text-ink text-ink-2" onClick={() => setMoveIds([...selected].filter((k) => !k.startsWith("d:")))}>
@@ -643,7 +646,7 @@ export function Drive() {
               </button>
             </div>
           )}
-          {!empty && selected.size === 0 && (
+          {!empty && !showSelection && (
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <label className="relative w-full sm:w-auto order-last sm:order-none">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" width="14" height="14" viewBox="0 0 14 14" aria-hidden>

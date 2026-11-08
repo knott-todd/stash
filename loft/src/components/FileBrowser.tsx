@@ -35,6 +35,7 @@ export function FileBrowser({
   onMoveTo,
   onDropMove,
   onShare,
+  selectionBar,
 }: {
   files: FileRow[];
   extraFolders: string[];
@@ -53,6 +54,7 @@ export function FileBrowser({
   onMoveTo: (ids: string[]) => void;
   onDropMove: (ids: string[], folder: string) => void;
   onShare?: (f: FileRow) => void;
+  selectionBar?: React.ReactNode; // shown in the header row while something is selected
 }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "name", dir: 1 });
   const [menu, setMenu] = useState<{ f: FileRow; x: number; y: number } | null>(null);
@@ -227,6 +229,9 @@ export function FileBrowser({
   if (view === "grid") {
     return (
       <div className="outline-none" onKeyDown={onKey} tabIndex={0} aria-label="Files" data-testid="file-grid">
+        <div className={`flex items-center min-h-[33px] px-1 mb-3 text-sm ${selectionBar ? "rounded-lg bg-[#e8f0fe] px-4" : "text-ink-3"}`} data-testid="selection-header">
+          {selectionBar ?? `${rows.length} item${rows.length === 1 ? "" : "s"}`}
+        </div>
         {empty}
         <ul className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
           {rows.map((r) => {
@@ -293,13 +298,19 @@ export function FileBrowser({
 
   return (
     <div className="card overflow-hidden outline-none" onKeyDown={onKey} tabIndex={0} aria-label="Files">
-      <div className="grid grid-cols-[28px_minmax(0,1fr)_auto] sm:grid-cols-[28px_minmax(0,1fr)_140px_90px_auto] items-center gap-4 px-5 py-2 border-b border-line text-xs">
-        <span />
-        {header("name", "Name")}
-        {header("modified", "Modified", "hidden sm:flex")}
-        {header("size", "Size", "hidden sm:flex")}
-        <span />
-      </div>
+      {selectionBar ? (
+        <div className="flex items-center min-h-[33px] px-5 border-b border-line bg-[#e8f0fe]" data-testid="selection-header">
+          {selectionBar}
+        </div>
+      ) : (
+        <div className="grid grid-cols-[28px_minmax(0,1fr)_auto] sm:grid-cols-[28px_minmax(0,1fr)_140px_90px_auto] items-center gap-4 px-5 py-2 border-b border-line text-xs min-h-[33px]">
+          <span />
+          {header("name", "Name")}
+          {header("modified", "Modified", "hidden sm:flex")}
+          {header("size", "Size", "hidden sm:flex")}
+          <span />
+        </div>
+      )}
 
       <ul ref={listRef} className="divide-y divide-line" data-testid="file-list">
         {rows.map((r) => {

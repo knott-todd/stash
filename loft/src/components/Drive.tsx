@@ -468,6 +468,30 @@ export function Drive() {
   // The selection bar replaces the toolbar only when there is something to act on:
   // a file, or several items. A single folder click just highlights it.
   const showSelection = selected.size > 0;
+  // The selection strip lives in the list's header row, which has a fixed height,
+  // so the toolbar and the rows never move when something is selected.
+  const selectionBar = showSelection ? (
+                    <div className="flex items-center gap-4 text-sm" data-testid="selection-bar">
+                      <span className="font-medium whitespace-nowrap">{selected.size} selected</span>
+                      <button className="underline underline-offset-4 hover:text-ink text-ink-2 whitespace-nowrap" onClick={() => setMoveIds([...selected])}>
+                        Move to…
+                      </button>
+                      <button
+                        className="underline underline-offset-4 hover:text-ink text-ink-2"
+                        onClick={() => {
+                          const batch = filesForKeys(selected);
+                          const firstKey = [...selected][0];
+                          trashMany(batch, firstKey.startsWith("d:") ? firstKey.slice(2).split("/").pop()! : (batch[0]?.name ?? ""));
+                        }}
+                      >
+                        Trash
+                      </button>
+                      <button className="text-ink-3 hover:text-ink" onClick={() => setSelected(new Set())} aria-label="Clear selection">
+                        Clear
+                      </button>
+                    </div>
+      ) : null;
+
   // The two setup steps, judged from what has actually happened.
   const setupState = {
     migrated: !!me?.googleConnected || !!me?.providers?.dropbox?.connected || !!me?.providers?.onedrive?.connected || all.some((f) => f.source === "google-drive" || f.source === "dropbox" || f.source === "onedrive") || migration.phase === "done",
@@ -539,6 +563,11 @@ export function Drive() {
         setDragging(true);
       }}
       onDragLeave={() => setDragging(false)}
+      onClick={(e) => {
+        // Clicking anywhere that is not a row or a control clears the selection.
+        const t = e.target as HTMLElement;
+        if (selected.size && !t.closest("li[aria-selected], [data-testid=grid-file], [data-testid=selection-bar], [role=dialog], [role=menu], button, input, a, label, select, textarea")) setSelected(new Set());
+      }}
       onDragOverCapture={(e) => {
         // Moving rows inside the drive is not a file drop from the desktop.
         if (e.dataTransfer.types.includes(DRAG_TYPE)) setDragging(false);
@@ -627,28 +656,7 @@ export function Drive() {
                 </span>
               ))}
           </nav>
-          {!empty && showSelection && (
-            <div className="flex items-center gap-3 text-sm w-full sm:w-auto" data-testid="selection-bar">
-              <span className="font-medium">{selected.size} selected</span>
-              <button className="underline underline-offset-4 hover:text-ink text-ink-2" onClick={() => setMoveIds([...selected])}>
-                Move to…
-              </button>
-              <button
-                className="underline underline-offset-4 hover:text-ink text-ink-2"
-                onClick={() => {
-                  const batch = filesForKeys(selected);
-                  const firstKey = [...selected][0];
-                  trashMany(batch, firstKey.startsWith("d:") ? firstKey.slice(2).split("/").pop()! : (batch[0]?.name ?? ""));
-                }}
-              >
-                Trash
-              </button>
-              <button className="text-ink-3 hover:text-ink" onClick={() => setSelected(new Set())} aria-label="Clear selection">
-                Clear
-              </button>
-            </div>
-          )}
-          {!empty && !showSelection && (
+          {!empty && (
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <label className="relative w-full sm:w-auto order-last sm:order-none">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" width="14" height="14" viewBox="0 0 14 14" aria-hidden>
@@ -785,6 +793,7 @@ export function Drive() {
             onTrash={trash}
             onMoveTo={(ids) => setMoveIds(ids)}
             onDropMove={moveFiles}
+            selectionBar={selectionBar}
             onShare={me?.protection === "passcode" ? undefined : (f) => setShareFile(f)}
           />
         )}

@@ -18,6 +18,7 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 | Open on another device | Email link (key in link, single-use, 24 h) via SMTP; QR for phones. Recovery code as last resort. |
 | Switch Google account | "Use a different Google account" + header "Sign out" (Google only). |
 | Demo controls | `?demo=1` sticks per tab: Start fresh, simulated camera roll on `/m`. |
+| Sign in from a new device | `/signin`: email → identity-only link → files listed; key by QR from a device that has it, or the recovery code. A device holding files without the key never mints a new one. |
 | Phone photo backup | Real photo picker + encrypted upload (built in the parallel session). |
 
 ## In the works
@@ -29,9 +30,9 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 
 ## Proposed (not started, in rough priority)
 
-0. **Sign in from a new device** (web): email → identity-only link → drive lists files; key arrives by QR from an existing device or the recovery code. Fixes the landing "Sign in" dead end.
-1. **Storage in the user's own Telegram** (MTProto as the user, bytes phone↔Telegram directly): keeps "free, unlimited" true at scale and our running cost at ~$0. Decided 2026-11-08; native app is built on it; web can follow.
-1b. Files over 20 MB via chunking (written against the own-Telegram adapter).
+1. **Staging via Cloudflare R2** (needs an R2 bucket + token from Olusanya) while Blob is paused; small files already bypass staging.
+2. **Storage in the user's own Telegram** (MTProto as the user, bytes phone↔Telegram directly): keeps "free, unlimited" true at scale and our running cost at ~$0. Decided 2026-11-08; native app is built on it; web can follow.
+3. Files over 20 MB via chunking (written against the own-Telegram adapter).
 2. ~~Journeys 2–7 specified in full~~ → docs/JOURNEYS.md.
 3. Native mobile app: journey 1 only (photo auto-backup, keychain-stored key, background transfer).
 4. Export everything (zip of decrypted files).
@@ -45,7 +46,8 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 - Telegram Bot API: 20 MB per download via `getFile`; production uploads are capped at 20 MB to match (local dev allows 50).
 - Google Drive listing of a very large Drive takes 1–2 minutes; cached for an hour.
 - Demo-mode migration rows (when Google isn't configured) are placeholders with no bytes.
-- Vercel functions cap request bodies at 4.5 MB; uploads are staged through a private blob instead.
+- Vercel functions cap request bodies at 4.5 MB. Files ≤ 4 MB go direct; larger ones are staged through Vercel Blob, whose free tier meters 2,000 operations/month (three per file) and **is paused until ~2026-12-08** after the hackathon copies. Next: stage through Cloudflare R2 (1M ops/month free), then no staging at all once storage is the user's own Telegram.
+- Telegram rate-limits the bot as a whole (seen: "retry after 434 s"); the app now says "Storage is busy, try again in N minutes" instead of failing. Another reason for per-user Telegram storage.
 
 ## Decisions log
 
@@ -55,3 +57,4 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 - 2026-11-08: production on Vercel + Neon + private Blob staging; store moved behind an interface (JSON locally, Postgres in production). Product renamed Stash.
 - 2026-11-08: Google verification not pursued. Direction: drop-in replacement for Drive's integrations, native app for photo auto-backup. Large files by browser-side chunking; local Bot API server deferred.
 - 2026-11-08: storage moves to each user's own Telegram (free/unlimited holds; bytes never touch our servers). Sign-in = email names the drive; the key still arrives device-to-device, keychain, or recovery code; PIN-wrapped key in the user's own Saved Messages considered for later.
+- 2026-11-08 (late): sign-in from a new device shipped. Vercel Blob free quota exhausted by hackathon-scale copies; small files go direct, R2 staging next.

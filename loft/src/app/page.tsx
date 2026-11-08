@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { StashLockup } from "@/components/Logo";
 import "./landing.css";
 
 // The landing page. One promise, one button, then one short answer per word.
@@ -23,7 +24,7 @@ export default function Landing() {
     <main className="landing">
       <header className="col">
         <Link href="/" className="wordmark" aria-label="Stash home">
-          Stash
+          <StashLockup />
         </Link>
         <Link href="/drive" className="quiet-link">
           Sign in

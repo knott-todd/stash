@@ -40,9 +40,11 @@
   padding-block: 20px;
   font-size: 0.9375rem;
 }
+/* The logo lockup (components/Logo.tsx) sizes itself in em from this font-size. */
 .landing .wordmark {
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  font-size: 1.375rem;
   color: var(--l-ink);
   text-decoration: none;
 }

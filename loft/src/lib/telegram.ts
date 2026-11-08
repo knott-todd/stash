@@ -3,7 +3,7 @@ import path from "node:path";
 import { BLOB_DIR, store } from "./store";
 
 // Storage backend. Real mode talks to the Telegram Bot API: ciphertext is sent to a
-// Loft-operated chat. Demo mode (no token) mimics the same shape with local blobs.
+// Stash-operated chat. Demo mode (no token) mimics the same shape with local blobs.
 
 export const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 export const DEMO = !TOKEN;

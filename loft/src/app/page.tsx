@@ -6,7 +6,7 @@ import "./landing.css";
 const answers = [
   {
     h: "Free.",
-    p: "There is no plan to upgrade to. The storage behind Loft costs us nothing to give, so there is no bill to pass on. No tiers, no trial, no card.",
+    p: "There is no plan to upgrade to. The storage behind Stash costs us nothing to give, so there is no bill to pass on. No tiers, no trial, no card.",
   },
   {
     h: "Unlimited.",
@@ -22,8 +22,8 @@ export default function Landing() {
   return (
     <main className="landing">
       <header className="col">
-        <Link href="/" className="wordmark" aria-label="Loft home">
-          Loft
+        <Link href="/" className="wordmark" aria-label="Stash home">
+          Stash
         </Link>
         <Link href="/drive" className="quiet-link">
           Sign in
@@ -39,7 +39,7 @@ export default function Landing() {
             <span className="brand">Storage.</span>
           </h1>
           <Link href="/start" className="cta" data-testid="cta-start">
-            Switch to Loft in 3 easy steps
+            Switch to Stash in 3 easy steps
           </Link>
           <p className="reassure">No account. No card.</p>
         </div>

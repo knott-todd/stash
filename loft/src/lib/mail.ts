@@ -19,8 +19,8 @@ export async function sendDeviceLink(to: string, link: string) {
   await transport.sendMail({
     from: process.env.MAIL_FROM ?? process.env.SMTP_USER,
     to,
-    subject: "Open your Loft files on this device",
+    subject: "Open your Stash files on this device",
     text: `Open this link on the device you want to use:\n\n${link}\n\nIt works once and stops working after 24 hours.\n\nIf you didn't ask for this, ignore it.`,
-    html: `<p>Open this link on the device you want to use:</p><p><a href="${link}">Open my Loft files</a></p><p style="color:#888">It works once and stops working after 24 hours. If you didn't ask for this, ignore it.</p>`,
+    html: `<p>Open this link on the device you want to use:</p><p><a href="${link}">Open my Stash files</a></p><p style="color:#888">It works once and stops working after 24 hours. If you didn't ask for this, ignore it.</p>`,
   });
 }

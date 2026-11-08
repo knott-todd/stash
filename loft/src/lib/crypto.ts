@@ -1,7 +1,7 @@
 "use client";
 
 // Client-side encryption. The key is generated on this device and never sent to
-// Loft. Files are AES-GCM encrypted in the browser before upload; the server and
+// Stash. Files are AES-GCM encrypted in the browser before upload; the server and
 // the storage supplier only ever hold ciphertext. The key travels to another
 // device only inside a URL fragment (#k=...), which browsers never send to servers.
 

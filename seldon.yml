@@ -7,7 +7,7 @@ testCases:
     id: onboarding
     steps:
       - go to /
-      - click the "Switch to Loft in 3 easy steps" button
+      - click the "Switch to Stash in 3 easy steps" button
     criteria: the very next screen is the drive, asking "Where should we start?" with three choices — "Move my Google Drive", "Back up my phone photos" and "Add a file" — and no sign-in, sign-up, email or password form appeared at any point
 
   - name: Google Drive migration opens Google's own permission page
@@ -15,9 +15,9 @@ testCases:
     steps:
       - go to /drive
       - click "Move my Google Drive"
-      - click "Allow" in the Loft dialog
+      - click "Allow" in the Stash dialog
       - wait for the next page to load, then stop
-    criteria: the next page is hosted by Google (the address begins with accounts.google.com) and is about Google Drive access for Loft
+    criteria: the next page is hosted by Google (the address begins with accounts.google.com) and is about Google Drive access for Stash
 
   - name: Added file is encrypted, listed, and opens readable
     id: upload-file
@@ -25,15 +25,15 @@ testCases:
       - go to /drive
       - click "Add a sample file" (a link in the welcome text, or a button at the top right if the drive already has files)
       - wait for the confirmation message at the bottom of the page
-      - click "Open" next to "Welcome to Loft.txt" (a new tab may open; switch to it)
-    criteria: a file named "Welcome to Loft.txt" is listed with its size, today's date and an "encrypted" label, and opening it shows readable text beginning "Welcome to Loft" rather than an error
+      - click "Open" next to "Welcome to Stash.txt" (a new tab may open; switch to it)
+    criteria: a file named "Welcome to Stash.txt" is listed with its size, today's date and an "encrypted" label, and opening it shows readable text beginning "Welcome to Stash" rather than an error
 
   - name: File can be renamed and moved to trash with undo
     id: rename-trash-undo
     steps:
       - go to /drive
       - if the drive is empty, click "Add a sample file" and wait for the confirmation
-      - right-click the row "Welcome to Loft.txt" (or click the three-dot button at the right of that row) and choose "Rename"
+      - right-click the row "Welcome to Stash.txt" (or click the three-dot button at the right of that row) and choose "Rename"
       - type "Lease.txt" and press Enter
       - open the same row's menu again and choose "Move to trash"
       - click "Undo" in the message at the bottom within a few seconds

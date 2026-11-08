@@ -2,7 +2,7 @@ import { store } from "./store";
 
 // Google Drive, read-only. Tokens are kept server-side per device identity;
 // file bytes pass through the server to the browser, which encrypts them before
-// they go to storage. Google never sees Loft's key; Loft never sees plaintext at rest.
+// they go to storage. Google never sees Stash's key; Stash never sees plaintext at rest.
 
 export const GOOGLE_ENABLED = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 const SCOPE = "https://www.googleapis.com/auth/drive.readonly";

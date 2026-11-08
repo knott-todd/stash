@@ -18,7 +18,7 @@ export function Claim() {
         if (!j.ok) return setError(j.error ?? "This link didn't work.");
         router.replace(hadKey ? "/drive" : "/drive?nokey=1");
       })
-      .catch(() => setError("Couldn't reach Loft. Check your connection and open the link again."));
+      .catch(() => setError("Couldn't reach Stash. Check your connection and open the link again."));
   }, [token, router]);
 
   return (

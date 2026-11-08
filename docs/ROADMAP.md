@@ -1,4 +1,4 @@
-# Loft — feature tracker
+# Stash — feature tracker
 
 Live at: https://github.com/knott-todd/loft/blob/main/docs/ROADMAP.md
 Rule: nothing moves to **Complete** until it's verified on the production URL, not localhost.
@@ -7,7 +7,7 @@ Rule: nothing moves to **Complete** until it's verified on the production URL, n
 
 | Feature | Notes |
 | --- | --- |
-| Landing → drive with no account | Device identity (cookie). "Switch to Loft in 3 easy steps". |
+| Landing → drive with no account | Device identity (cookie). "Switch to Stash in 3 easy steps". |
 | Client-side encryption | AES-GCM in the browser; key only on the device; server holds ciphertext. |
 | Add / open files | Viewable types open in a tab; others download. Local cache, "In cloud / On this device" badge. |
 | Storage in Telegram (operator bot) | Users never see it. Files ≤ 50 MB. |

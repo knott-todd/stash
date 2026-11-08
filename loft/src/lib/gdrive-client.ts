@@ -60,7 +60,7 @@ export async function runGoogleCopy(
     }
   }
   emit("copying");
-  onEvent({ action: `Found ${total.toLocaleString()} files${copiedCount ? `, ${copiedCount.toLocaleString()} already in Loft` : ""}`, from: "Google Drive" });
+  onEvent({ action: `Found ${total.toLocaleString()} files${copiedCount ? `, ${copiedCount.toLocaleString()} already in Stash` : ""}`, from: "Google Drive" });
 
   // Smallest first so the drive fills visibly within seconds; big videos last.
   // Empty files are real but uninteresting, so they go after everything else.
@@ -104,6 +104,6 @@ export async function runGoogleCopy(
   };
   await Promise.all([worker(), worker(), worker(), worker()]);
   onFilesChanged();
-  onEvent({ action: signal?.aborted ? "Stopped. Nothing is lost." : "Everything is in Loft.", from: "Google Drive" });
+  onEvent({ action: signal?.aborted ? "Stopped. Nothing is lost." : "Everything is in Stash.", from: "Google Drive" });
   emit(signal?.aborted ? "stopped" : "done");
 }

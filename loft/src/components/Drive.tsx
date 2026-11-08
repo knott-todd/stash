@@ -87,7 +87,7 @@ export function Drive() {
     const ctrl = new AbortController();
     copyCtrl.current = ctrl;
     runGoogleCopy(setMigration, refresh, ctrl.signal, logEvent).catch(() => {
-      if (!ctrl.signal.aborted) setToast({ text: "Google stopped answering. The copy resumes when you reopen Loft.", retry: () => location.reload() });
+      if (!ctrl.signal.aborted) setToast({ text: "Google stopped answering. The copy resumes when you reopen Stash.", retry: () => location.reload() });
     });
   }, [refresh, logEvent]);
   const stopGoogleCopy = () => copyCtrl.current?.abort();
@@ -166,8 +166,8 @@ export function Drive() {
   }
 
   function addSample() {
-    const text = `Welcome to Loft.\n\nThis file was encrypted on your device before upload.\nLoft only ever holds the scrambled version.\nAdded ${new Date().toLocaleString()}.\n`;
-    return uploadOne(new File([text], "Welcome to Loft.txt", { type: "text/plain" }));
+    const text = `Welcome to Stash.\n\nThis file was encrypted on your device before upload.\nLoft only ever holds the scrambled version.\nAdded ${new Date().toLocaleString()}.\n`;
+    return uploadOne(new File([text], "Welcome to Stash.txt", { type: "text/plain" }));
   }
 
   async function rename(f: FileRow, name: string) {
@@ -249,7 +249,7 @@ export function Drive() {
     }
   }
 
-  // Sign out = sign out of Google, the only sign-in Loft has. The drive, key and
+  // Sign out = sign out of Google, the only sign-in Stash has. The drive, key and
   // files stay on this device (a device that holds the key is trusted).
   async function signOut() {
     copyCtrl.current?.abort();

@@ -7,7 +7,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 const fraunces = Fraunces({ variable: "--font-fraunces", subsets: ["latin"], axes: ["opsz", "SOFT"] });
 
 export const metadata: Metadata = {
-  title: "Loft — Free. Unlimited. Private. Storage.",
+  title: "Stash — Free. Unlimited. Private. Storage.",
   description: "Storage that is free, unlimited and private. No account. No card. Encrypted on your phone before it leaves.",
 };
 

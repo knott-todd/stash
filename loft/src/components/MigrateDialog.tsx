@@ -52,13 +52,13 @@ export function MigrateDialog({
               Move my Google Drive
             </h2>
             <p className="mt-2 text-ink-2">
-              Loft copies every file and folder from your Google Drive, encrypted on this device as it arrives. Nothing is
+              Stash copies every file and folder from your Google Drive, encrypted on this device as it arrives. Nothing is
               deleted from Google.
             </p>
             {real ? (
               <div className="mt-4 text-sm text-ink-2">
                 <p className="flex items-center gap-2">
-                  <GoogleG /> Google will ask you to allow read-only access. Loft never gets your Google password.
+                  <GoogleG /> Google will ask you to allow read-only access. Stash never gets your Google password.
                 </p>
                 {onSwitchAccount && (
                   <button className="mt-2 text-ink-3 hover:text-ink underline underline-offset-2" onClick={onSwitchAccount} data-testid="switch-google">
@@ -69,7 +69,7 @@ export function MigrateDialog({
             ) : (
               <div className="mt-5 rounded-2xl border border-line bg-white p-4 text-sm">
                 <p className="font-medium flex items-center gap-2">
-                  <GoogleG /> Loft wants to access your Google Drive
+                  <GoogleG /> Stash wants to access your Google Drive
                 </p>
                 <ul className="mt-2 text-ink-2 list-disc pl-5 space-y-1">
                   <li>See and download all your Google Drive files</li>

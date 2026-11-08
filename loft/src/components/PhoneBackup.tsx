@@ -222,7 +222,7 @@ function RealBackup() {
                     n("done") && `${n("done")} new ${n("done") === 1 ? "photo" : "photos"} safe in your drive.`,
                     n("skipped") && `${n("skipped")} ${n("skipped") === 1 ? "was" : "were"} already backed up.`,
                     tooBig && `Files over 50 MB, usually long videos, can't be backed up yet.`,
-                    failed ? "Check your connection, then try again." : "Open Loft to back up new ones.",
+                    failed ? "Check your connection, then try again." : "Open Stash to back up new ones.",
                   ]
                     .filter(Boolean)
                     .join(" ")}

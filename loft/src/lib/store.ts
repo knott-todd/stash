@@ -27,6 +27,8 @@ export type StashFile = {
   // Small encrypted preview (images and videos), stored like a one-piece file.
   thumb?: StoredPart;
   deviceId?: string; // which linked device sent it
+  // A public link: anyone holding the token can download the file (Standard accounts only).
+  share?: { token: string; createdAt: number };
 };
 
 export type StoredPart = { tg?: { fileId: string; messageId: number }; blob?: string; size: number };

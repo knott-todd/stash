@@ -30,5 +30,6 @@ export const pub = (f: StashFile) => ({
   chunked: !!f.parts?.length,
   thumb: !!f.thumb,
   deviceId: f.deviceId ?? null,
+  shared: !!f.share,
   stored: !!(f.tg || f.blob || f.parts?.length),
 });

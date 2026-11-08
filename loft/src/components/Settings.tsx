@@ -8,6 +8,8 @@ import { AskPasscode, ProtectionChoice, type Protection } from "./Protection";
 import { clearRawKey, getRawKey, recoveryCode, setRawKey, type WrappedKey } from "@/lib/crypto";
 import { cacheClear } from "@/lib/filecache";
 import { fmtBytes } from "@/lib/format";
+import { exportAll, type ExportProgress } from "@/lib/export";
+import type { FileRow } from "./Drive";
 
 type Me = { signedIn: boolean; email?: string | null; name?: string | null; picture?: string | null; protection?: Protection; key?: string | null; keyWrapped?: WrappedKey | null; fileCount?: number; bytes?: number };
 
@@ -116,6 +118,20 @@ export function Settings() {
         </section>
       </div>
 
+      <section className="mt-10 mx-auto w-full max-w-3xl px-5 pb-24" aria-labelledby="export">
+        <h2 id="export" className="text-xl font-semibold">
+          Take everything with you
+        </h2>
+        <p className="mt-1 text-ink-2 text-sm">One zip with every file, decrypted, in its folders. Your files are never locked in.</p>
+        <div className="card mt-3 p-5">
+          {me.protection === "passcode" && !hasKey ? (
+            <p className="text-sm text-ink-2">Enter your passcode above first.</p>
+          ) : (
+            <ExportButton />
+          )}
+        </div>
+      </section>
+
       {askPasscode && (
         <AskPasscode
           wrapped={me.keyWrapped ?? null}
@@ -127,5 +143,39 @@ export function Settings() {
         />
       )}
     </main>
+  );
+}
+
+function ExportButton() {
+  const [p, setP] = useState<ExportProgress | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function run() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const files: FileRow[] = (await fetch("/api/files").then((r) => r.json())).files;
+      await exportAll(files, setP);
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === "AbortError")) setErr("The export didn't finish. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-4">
+      <button className="btn-primary" onClick={run} disabled={busy} data-testid="export-all">
+        {busy ? "Exporting" : "Export everything"}
+      </button>
+      {p && (
+        <p className="text-sm text-ink-2" role="status">
+          {p.done} of {p.total} · {fmtBytes(p.bytes)}
+          {busy && p.name ? ` · ${p.name}` : ""}
+          {!busy && p.failed.length ? ` · ${p.failed.length} couldn't be read` : ""}
+          {!busy && p.done === p.total && !p.failed.length ? " · done" : ""}
+        </p>
+      )}
+      {err && <p className="text-sm text-accent-ink">{err}</p>}
+    </div>
   );
 }

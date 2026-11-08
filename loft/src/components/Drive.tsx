@@ -9,6 +9,7 @@ import { PairCard } from "./PairCard";
 import { SetupSteps } from "./SetupSteps";
 import { PhotosView } from "./PhotosView";
 import { MoveDialog } from "./MoveDialog";
+import { ShareDialog } from "./ShareDialog";
 import { fmtBytes } from "@/lib/format";
 import { clearRawKey, decryptFile, getRawKey, setRawKey, type WrappedKey } from "@/lib/crypto";
 import { AskPasscode, ProtectionChoice } from "./Protection";
@@ -33,6 +34,7 @@ export type FileRow = {
   thumb: boolean;
   modifiedAt: number | null;
   deviceId: string | null;
+  shared: boolean;
   stored: boolean;
 };
 
@@ -94,6 +96,7 @@ export function Drive() {
   const [extraFolders, setExtraFolders] = useState<string[]>([]);
   const [computers, setComputers] = useState(0);
   const [moveIds, setMoveIds] = useState<string[] | null>(null);
+  const [shareFile, setShareFile] = useState<FileRow | null>(null);
   const [setupHidden, setSetupHidden] = useState(false);
   useEffect(() => {
     try {
@@ -727,9 +730,11 @@ export function Drive() {
             onTrash={trash}
             onMoveTo={(ids) => setMoveIds(ids)}
             onDropMove={moveFiles}
+            onShare={me?.protection === "passcode" ? undefined : (f) => setShareFile(f)}
           />
         )}
         {moveIds && <MoveDialog folders={allFolders} count={moveIds.length} current={folder} onMove={(target) => moveFiles(moveIds, target)} onClose={() => setMoveIds(null)} />}
+        {shareFile && <ShareDialog f={shareFile} onClose={() => setShareFile(null)} onChanged={refresh} />}
         {/* Room under the last row so the floating + never covers its menu. */}
         {!empty && files && <div className="hidden pointer-coarse:block h-20" aria-hidden />}
       </div>

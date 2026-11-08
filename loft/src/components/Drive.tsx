@@ -439,7 +439,14 @@ export function Drive() {
               </span>
               {/* On a phone, Add is the floating button below. */}
               <span className="contents pointer-coarse:hidden">
-                <button className="btn-primary px-4 py-2 text-sm" onClick={() => inputRef.current?.click()} data-testid="upload" disabled={!!busy}>
+                {/* .btn-primary is unlayered CSS, so utility classes can't shrink it; inline style can. */}
+                <button
+                  className="btn-primary text-sm"
+                  style={{ padding: "0.4rem 0.85rem", borderRadius: "0.5rem" }}
+                  onClick={() => inputRef.current?.click()}
+                  data-testid="upload"
+                  disabled={!!busy}
+                >
                   {busy ? "Working…" : "+ Add"}
                 </button>
               </span>

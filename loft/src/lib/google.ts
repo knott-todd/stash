@@ -1,4 +1,4 @@
-import { db } from "./store";
+import { store } from "./store";
 
 // Google Drive, read-only. Tokens are kept server-side per device identity;
 // file bytes pass through the server to the browser, which encrypts them before
@@ -54,7 +54,8 @@ async function refresh(refreshToken: string) {
 }
 
 export async function accessTokenFor(uid: string): Promise<string | null> {
-  const u = db.user(uid);
+  const db = store();
+  const u = await db.getUser(uid);
   const g = u.google;
   if (!g) return null;
   if (Date.now() < g.expiresAt - 30_000) return g.accessToken;
@@ -62,7 +63,7 @@ export async function accessTokenFor(uid: string): Promise<string | null> {
   const t = await refresh(g.refreshToken);
   g.accessToken = t.access_token;
   g.expiresAt = Date.now() + t.expires_in * 1000;
-  db.save();
+  await db.saveUser(u);
   return g.accessToken;
 }
 

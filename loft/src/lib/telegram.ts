@@ -1,14 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
-import { BLOB_DIR, db } from "./store";
+import { BLOB_DIR, store } from "./store";
 
-// Storage backend. Real mode talks to the Telegram Bot API: files are sent to the
-// user's private chat with the bot, so the user owns them even if Loft disappears.
-// Demo mode (no token) mimics the same shape with local blobs and an auto-link.
+// Storage backend. Real mode talks to the Telegram Bot API: ciphertext is sent to a
+// Loft-operated chat. Demo mode (no token) mimics the same shape with local blobs.
 
 export const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 export const DEMO = !TOKEN;
-export const DEMO_BOT = "LoftDriveBot";
 
 const api = (method: string) => `https://api.telegram.org/bot${TOKEN}/${method}`;
 
@@ -23,60 +21,28 @@ async function call<T>(method: string, body?: BodyInit | object): Promise<T> {
   return j.result as T;
 }
 
-let botUsername: string | null = null;
-export async function getBotUsername() {
-  if (DEMO) return DEMO_BOT;
-  if (!botUsername) botUsername = (await call<{ username: string }>("getMe")).username;
-  return botUsername!;
-}
-
 // Operator-side: where ciphertext is stored. Users never interact with this.
-// With a bot token, files go to a Loft-operated chat (LOFT_STORAGE_CHAT_ID, or the
-// operator's own chat with the bot, learned from the first /start message).
+// Set LOFT_STORAGE_CHAT_ID in production. Without it, the chat is learned once from
+// the first /start message the bot receives (fine for a single dev machine).
 let storageChatId: number | null = process.env.LOFT_STORAGE_CHAT_ID ? Number(process.env.LOFT_STORAGE_CHAT_ID) : null;
 
 export async function getStorageChatId() {
   if (DEMO) return null;
   if (storageChatId) return storageChatId;
-  const d = db.get();
+  const db = store();
+  let offset = await db.getTgOffset();
   type Upd = { update_id: number; message?: { text?: string; chat: { id: number } } };
-  const updates = await call<Upd[]>("getUpdates", { offset: d.tgOffset, timeout: 0 });
+  const updates = await call<Upd[]>("getUpdates", { offset, timeout: 0 });
   for (const u of updates) {
-    d.tgOffset = u.update_id + 1;
+    offset = u.update_id + 1;
     if (u.message?.text?.startsWith("/start")) storageChatId = u.message.chat.id;
   }
-  db.save();
+  await db.setTgOffset(offset);
   return storageChatId;
 }
 
-// Legacy per-user linking via /start <token>; kept for the "own chat" mode.
-export async function pollLinks() {
-  const d = db.get();
-  if (DEMO) return;
-  type Upd = { update_id: number; message?: { text?: string; chat: { id: number; first_name?: string } } };
-  const updates = await call<Upd[]>("getUpdates", { offset: d.tgOffset, timeout: 0 });
-  for (const u of updates) {
-    d.tgOffset = u.update_id + 1;
-    const m = u.message;
-    const match = m?.text?.match(/^\/start\s+(\S+)/);
-    if (!m || !match) continue;
-    const t = d.tokens[match[1]];
-    if (!t || t.used) continue;
-    t.used = true;
-    const user = db.user(t.uid);
-    user.linked = true;
-    user.firstName = m.chat.first_name ?? "there";
-    user.tgChatId = m.chat.id;
-    call("sendMessage", {
-      chat_id: m.chat.id,
-      text: "You're linked to Loft. Everything you add to Loft lands here, in your own chat. 📦",
-    }).catch(() => {});
-  }
-  db.save();
-}
-
 export async function putFile(uid: string, id: string, name: string, bytes: Buffer) {
-  const chatId = (await getStorageChatId().catch(() => null)) ?? db.user(uid).tgChatId;
+  const chatId = (await getStorageChatId().catch(() => null)) ?? (await store().getUser(uid)).tgChatId;
   if (DEMO || !chatId) {
     fs.mkdirSync(BLOB_DIR, { recursive: true });
     const p = path.join(BLOB_DIR, id);

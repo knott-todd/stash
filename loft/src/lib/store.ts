@@ -1,7 +1,9 @@
-import fs from "node:fs";
 import path from "node:path";
 
-// Tiny JSON-file store. Good enough for a one-day demo; swap for SQLite/Postgres later.
+// The catalogue: who owns which file and where its bytes went. Bytes live in
+// storage (Telegram), the key lives on the device; this is only the index.
+// Two backends behind one interface: a JSON file for local work, Postgres when
+// DATABASE_URL is set (production on serverless hosts).
 
 export type LoftFile = {
   id: string;
@@ -42,64 +44,38 @@ export type Migration = {
   done: boolean;
 };
 
-type Data = {
-  users: Record<string, User>;
-  files: LoftFile[];
-  tokens: Record<string, LinkToken>;
-  migrations: Record<string, Migration>; // keyed by uid
-  tgOffset: number;
-};
+export interface Store {
+  getUser(uid: string): Promise<User>; // creates the drive on first sight
+  saveUser(u: User): Promise<void>;
+  filesFor(uid: string): Promise<LoftFile[]>;
+  getFile(uid: string, id: string): Promise<LoftFile | undefined>;
+  addFile(f: LoftFile): Promise<LoftFile>;
+  updateFile(f: LoftFile): Promise<void>;
+  deleteFile(uid: string, id: string): Promise<LoftFile | undefined>;
+  getToken(token: string): Promise<LinkToken | undefined>;
+  putToken(t: LinkToken): Promise<void>;
+  getMigration(uid: string): Promise<Migration | undefined>;
+  putMigration(m: Migration): Promise<void>;
+  getTgOffset(): Promise<number>;
+  setTgOffset(n: number): Promise<void>;
+  reset(uid: string): Promise<void>; // forget a drive entirely
+}
 
-// In production this is a persistent volume (DATA_DIR=/data on Railway).
-const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), ".data");
-const FILE = path.join(DATA_DIR, "store.json");
+export const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), ".data");
 export const BLOB_DIR = path.join(DATA_DIR, "blobs");
 
-let cache: Data | null = null;
-
-function load(): Data {
-  if (cache) return cache;
-  try {
-    cache = JSON.parse(fs.readFileSync(FILE, "utf8"));
-  } catch {
-    cache = { users: {}, files: [], tokens: {}, migrations: {}, tgOffset: 0 };
-  }
-  return cache!;
-}
-
-function save() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify(cache, null, 2));
-}
-
-export const db = {
-  get: load,
-  save,
-  user(uid: string): User {
-    const d = load();
-    if (!d.users[uid]) {
-      // The device is the identity: a drive exists the moment someone arrives.
-      d.users[uid] = { uid, linked: true, createdAt: Date.now() };
-      save();
-    }
-    return d.users[uid];
-  },
-  filesFor(uid: string) {
-    return load().files.filter((f) => f.uid === uid).sort((a, b) => b.createdAt - a.createdAt);
-  },
-  addFile(f: LoftFile) {
-    load().files.push(f);
-    save();
-    return f;
-  },
-  reset(uid: string) {
-    const d = load();
-    d.files = d.files.filter((f) => f.uid !== uid);
-    delete d.migrations[uid];
-    delete d.users[uid]; // takes the Google tokens and cached listing with it
-    for (const [k, t] of Object.entries(d.tokens)) if (t.uid === uid) delete d.tokens[k];
-    save();
-  },
-};
-
 export const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+// Chosen once per process. Imports are lazy so the JSON backend never loads the pg driver.
+let chosen: Store | null = null;
+export function store(): Store {
+  if (chosen) return chosen;
+  if (process.env.DATABASE_URL) {
+    const { pgStore } = require("./store-pg") as typeof import("./store-pg");
+    chosen = pgStore();
+  } else {
+    const { jsonStore } = require("./store-json") as typeof import("./store-json");
+    chosen = jsonStore();
+  }
+  return chosen;
+}

@@ -1,0 +1,103 @@
+import fs from "node:fs";
+import path from "node:path";
+import { DATA_DIR, type LinkToken, type LoftFile, type Migration, type Store, type User } from "./store";
+
+// JSON-file backend for local development. One file, rewritten on every change.
+
+type Data = {
+  users: Record<string, User>;
+  files: LoftFile[];
+  tokens: Record<string, LinkToken>;
+  migrations: Record<string, Migration>;
+  tgOffset: number;
+};
+
+const FILE = path.join(DATA_DIR, "store.json");
+
+export function jsonStore(): Store {
+  let cache: Data | null = null;
+  const load = (): Data => {
+    if (cache) return cache;
+    try {
+      cache = JSON.parse(fs.readFileSync(FILE, "utf8"));
+    } catch {
+      cache = { users: {}, files: [], tokens: {}, migrations: {}, tgOffset: 0 };
+    }
+    return cache!;
+  };
+  const save = () => {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(FILE, JSON.stringify(cache, null, 2));
+  };
+
+  return {
+    async getUser(uid) {
+      const d = load();
+      if (!d.users[uid]) {
+        d.users[uid] = { uid, linked: true, createdAt: Date.now() };
+        save();
+      }
+      return d.users[uid];
+    },
+    async saveUser(u) {
+      load().users[u.uid] = u;
+      save();
+    },
+    async filesFor(uid) {
+      return load()
+        .files.filter((f) => f.uid === uid)
+        .sort((a, b) => b.createdAt - a.createdAt);
+    },
+    async getFile(uid, id) {
+      return load().files.find((f) => f.id === id && f.uid === uid);
+    },
+    async addFile(f) {
+      load().files.push(f);
+      save();
+      return f;
+    },
+    async updateFile(f) {
+      const d = load();
+      const i = d.files.findIndex((x) => x.id === f.id && x.uid === f.uid);
+      if (i >= 0) d.files[i] = f;
+      save();
+    },
+    async deleteFile(uid, id) {
+      const d = load();
+      const i = d.files.findIndex((x) => x.id === id && x.uid === uid);
+      if (i < 0) return undefined;
+      const [f] = d.files.splice(i, 1);
+      save();
+      return f;
+    },
+    async getToken(token) {
+      return load().tokens[token];
+    },
+    async putToken(t) {
+      load().tokens[t.token] = t;
+      save();
+    },
+    async getMigration(uid) {
+      return load().migrations[uid];
+    },
+    async putMigration(m) {
+      load().migrations[m.uid] = m;
+      save();
+    },
+    async getTgOffset() {
+      return load().tgOffset;
+    },
+    async setTgOffset(n) {
+      load().tgOffset = n;
+      save();
+    },
+    async reset(uid) {
+      const d = load();
+      d.files = d.files.filter((f) => f.uid !== uid);
+      delete d.migrations[uid];
+      delete d.users[uid];
+      for (const [k, t] of Object.entries(d.tokens)) if (t.uid === uid) delete d.tokens[k];
+      save();
+    },
+  };
+}

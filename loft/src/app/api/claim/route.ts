@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getUid } from "@/lib/session";
-import { db, newId } from "@/lib/store";
+import { newId, store } from "@/lib/store";
 import { MAIL_ENABLED, sendDeviceLink } from "@/lib/mail";
 import { publicOrigin } from "@/lib/public-url";
 
@@ -13,13 +13,16 @@ import { publicOrigin } from "@/lib/public-url";
 
 export async function POST(req: Request) {
   const uid = await getUid();
-  db.user(uid);
+  const db = store();
+  const u = await db.getUser(uid);
   const { email, key } = await req.json().catch(() => ({}));
   const token = newId();
-  db.get().tokens[token] = { token, uid, createdAt: Date.now(), used: false };
+  await db.putToken({ token, uid, createdAt: Date.now(), used: false });
   const hasEmail = typeof email === "string" && email.includes("@");
-  if (hasEmail) db.user(uid).email = email;
-  db.save();
+  if (hasEmail) {
+    u.email = email;
+    await db.saveUser(u);
+  }
 
   const origin = publicOrigin(req);
   if (hasEmail && MAIL_ENABLED) {
@@ -36,7 +39,8 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   const t = new URL(req.url).searchParams.get("t") ?? "";
-  const tok = db.get().tokens[t];
+  const db = store();
+  const tok = await db.getToken(t);
   const jar = await cookies();
   const already = jar.get("loft_uid")?.value === tok?.uid;
   // Single use and 24 h, except for the device that already adopted it (a refresh).
@@ -44,7 +48,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "This link has expired. Ask for a new one from the drive." }, { status: 400 });
   }
   tok.used = true;
-  db.save();
+  await db.putToken(tok);
   jar.set("loft_uid", tok.uid, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 365 });
   return NextResponse.json({ ok: true });
 }

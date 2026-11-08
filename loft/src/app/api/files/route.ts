@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getUid } from "@/lib/session";
-import { db, newId, type LoftFile } from "@/lib/store";
+import { newId, store, type LoftFile } from "@/lib/store";
 import { putFile } from "@/lib/telegram";
 
 export async function GET() {
   const uid = await getUid();
-  return NextResponse.json({ files: db.filesFor(uid).map(pub) });
+  const files = await store().filesFor(uid);
+  return NextResponse.json({ files: files.map(pub) });
 }
 
 export async function POST(req: Request) {
@@ -30,12 +31,12 @@ export async function POST(req: Request) {
     size: Number(form.get("size") ?? file.size),
     mime,
     folder: String(form.get("folder") ?? ""),
-    source: (String(form.get("source") ?? "upload") as LoftFile["source"]),
+    source: String(form.get("source") ?? "upload") as LoftFile["source"],
     createdAt: Date.now(),
     encrypted,
     ...stored,
   };
-  db.addFile(f);
+  await store().addFile(f);
   return NextResponse.json({ file: pub(f) });
 }
 

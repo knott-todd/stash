@@ -63,3 +63,20 @@ The page has no data, so no loading/empty/error states. Links: `Get started` →
 
 ## Rules for anything added later
 Each addition must name which of the three words it proves. If it can't, it doesn't go on this page. Keep one typeface, two colours of text, one button.
+
+## Recovery model (decided 2026-11-08)
+
+The key exists only on the user's devices. Adding a device means carrying the key, never fetching it from Stash.
+
+| Situation | How the key arrives | User steps |
+| --- | --- | --- |
+| New phone of the same kind (same Apple ID / Google account), native app | OS keychain backup restores it | 0 |
+| Second device, or switching iPhone ↔ Android | QR from a device that has it, or the emailed link (key in the link, single-use, 24 h) | 1 |
+| Everything lost | Recovery code (26 chars, shown once, Crockford base32) | type it |
+| Later | PIN-protected escrow in hardware (Signal/WhatsApp pattern) or passkeys (WebAuthn PRF) | PIN or Face ID |
+
+An email on file names the drive (which one is yours); it never carries the key by itself. This is what "account" means in Stash: passwordless, identity only.
+
+## Journeys (end state first; steps counted honestly, OS prompts included)
+
+Written one at a time, trimmed afterwards. Journey 1 (phone photos) is agreed: 3 taps to start, a wait that must survive the phone being put down, zero steps forever after, with iOS "shortly after" honesty; it depends on the native app, background transfer, the 20 MB cap being lifted, and a per-photo "verified" state before anyone deletes from the phone.

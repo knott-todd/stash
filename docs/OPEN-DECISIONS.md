@@ -10,7 +10,7 @@ Today the app runs in **demo mode**: "Open Telegram" opens a stand-in Telegram s
 - If unanswered: I keep going with A's code path ready and demo B.
 
 ## 2. RESOLVED (2026-11-07, option A): bot chat + client-side encryption
-Files are AES-GCM encrypted in the browser before upload; the key lives only on the device (localStorage), travels to other devices only inside a URL fragment, and a recovery code is shown from the "Open on another device" card. Storage is Loft-operated (a Loft-owned chat); Loft and the supplier only ever hold ciphertext. The user never hears "Telegram". The "files outlive Loft" claim is dropped.
+Files are AES-GCM encrypted in the browser before upload; the key lives only on the device (localStorage) and travels to other devices inside a URL fragment: by QR (no server involved) or by email link (decided 2026-11-07 evening: the key is written into the email by the server and never stored, so the claim is "Loft never stores your key"; links are single-use, 24 h). A recovery code remains as the lost-every-device fallback. Passkeys are the roadmap for a zero-knowledge email path. Storage is Loft-operated (a Loft-owned chat); Loft and the supplier only ever hold ciphertext. The user never hears "Telegram". The "files outlive Loft" claim is dropped.
 
 <details><summary>Original question</summary>
 

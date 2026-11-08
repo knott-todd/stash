@@ -307,8 +307,8 @@ export function Drive() {
               setToast({ text: "Unlocked. Your files open on this device now." });
             }}
           >
-            <p className="font-semibold">Enter your recovery code to open files on this device.</p>
-            <p className="text-sm text-ink-2 mt-1">It&apos;s on your other device under &ldquo;Open on another device&rdquo;. Or scan that device&apos;s QR instead; no typing.</p>
+            <p className="font-semibold">This device can&apos;t open your files yet.</p>
+            <p className="text-sm text-ink-2 mt-1">Open the link from your email again, or scan the QR on your other device. Lost every device? Enter your recovery code.</p>
             <div className="mt-3 flex flex-col sm:flex-row gap-2">
               <input
                 value={recoveryInput}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { adoptKeyFromFragment } from "@/lib/crypto";
+import { adoptKeyFromFragment, getRawKey } from "@/lib/crypto";
 
 export function Claim() {
   const router = useRouter();
@@ -10,7 +10,8 @@ export function Claim() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const hadKey = adoptKeyFromFragment();
+    // Effects can run twice in dev; the first pass may already have adopted the key.
+    const hadKey = adoptKeyFromFragment() || !!getRawKey();
     fetch(`/api/claim?t=${encodeURIComponent(token)}`)
       .then((r) => r.json())
       .then((j) => {

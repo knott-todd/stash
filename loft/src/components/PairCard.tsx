@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { pairingUrl, recoveryCode } from "@/lib/crypto";
+import { ensureRawKey, pairingUrl, recoveryCode } from "@/lib/crypto";
 
 // One card, two jobs: reach these files on another device (email link or QR),
 // and show the recovery code once. The key only ever travels in the URL fragment.
@@ -26,7 +26,8 @@ export function PairCard({
     const r = await fetch("/api/claim", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(target === "email" ? { email: value } : {}),
+      // The key goes along only to be written into the email; the server doesn't keep it.
+      body: JSON.stringify(target === "email" ? { email: value, key: ensureRawKey() } : {}),
     });
     const { token, sent: mailed, origin } = await r.json();
     if (target === "qr") {
@@ -36,11 +37,9 @@ export function PairCard({
       setQr(await QRCode.toDataURL(url, { margin: 1, width: 220, color: { dark: "#1c1917", light: "#fffbf5" } }));
       return;
     }
-    // Email carries identity only; the recovery code unlocks files on the new device.
     setMailed(!!mailed);
-    setLink(mailed ? null : `${origin ?? location.origin}/claim/${token}`);
+    setLink(mailed ? null : pairingUrl(`/claim/${token}`, token, origin ?? location.origin));
     setSent(true);
-    if (!mailed) setShowCode(true);
   }
 
   useEffect(() => {
@@ -95,7 +94,7 @@ export function PairCard({
             <div className="mt-3 text-sm">
               <p className="font-semibold">{mailed ? `Link sent to ${value}.` : "Here is your link."}</p>
               <p className="text-ink-2 mt-1">
-                {mailed ? "Open it on the other device, then enter the recovery code below there. The link works for 24 hours." : "Email isn't set up, so open this on the other device yourself, then enter the recovery code below there."}
+                {mailed ? "Open it on the other device and your files are there. It works once, for 24 hours." : "Email isn't set up, so open this on the other device yourself. It works once, for 24 hours."}
               </p>
               {link && (
                 <a className="underline break-all block mt-1" href={link}>
@@ -108,13 +107,13 @@ export function PairCard({
             </div>
           )}
           <div className="mt-4 pt-4 border-t border-line text-sm">
-            <button className="underline" onClick={() => setShowCode((s) => !s)}>
-              {showCode ? "Hide recovery code" : "Show recovery code"}
+            <button className="text-ink-3 hover:text-ink underline-offset-2 hover:underline" onClick={() => setShowCode((s) => !s)}>
+              {showCode ? "Hide recovery code" : "Lost every device? Recovery code"}
             </button>
             {showCode && (
               <p className="mt-2">
                 <code className="font-mono text-base tracking-wider bg-cream-2 rounded-lg px-3 py-1.5 inline-block">{recoveryCode()}</code>
-                <span className="block mt-1 text-ink-2">Type this on a new device to unlock your files. Loft doesn&apos;t have a copy, so keep it somewhere safe.</span>
+                <span className="block mt-1 text-ink-2">Only needed if you lose every device and every link. Loft doesn&apos;t have a copy.</span>
               </p>
             )}
           </div>

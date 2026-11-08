@@ -30,6 +30,7 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 
 ## Proposed (not started, in rough priority)
 
+0. **New-user onboarding as a short checklist** on the empty drive: 1. Move from your current provider (Google Drive now; Dropbox/iCloud later), 2. Set up automatic backup (phone photos; WhatsApp on Android), 3. Open on your other devices. Each step one tap, ticks off when done, disappears when all three are done. Replaces the three tiles.
 1. **Staging via Cloudflare R2** (needs an R2 bucket + token from Olusanya) while Blob is paused; small files already bypass staging.
 2. **Storage in the user's own Telegram** (MTProto as the user, bytes phone↔Telegram directly): keeps "free, unlimited" true at scale and our running cost at ~$0. Decided 2026-11-08; native app is built on it; web can follow.
 3. Files over 20 MB via chunking (written against the own-Telegram adapter).

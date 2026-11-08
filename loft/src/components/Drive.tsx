@@ -266,6 +266,31 @@ export function Drive() {
   const all = files ?? [];
   const empty = files !== null && all.length === 0;
 
+  // A phone code may be showing (tile or "Open on another device"): follow the phone. When its first photo lands,
+  // close the code and take this screen to Phone photos. While that folder is
+  // open, keep it fresh so photos appear as the phone sends them.
+  const phoneCount = all.filter((f) => f.source === "phone").length;
+  const baseline = useRef(phoneCount);
+  useEffect(() => {
+    if (pairOpen) baseline.current = phoneCount;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot only when the code opens
+  }, [pairOpen]);
+  useEffect(() => {
+    if (!pairOpen && folder !== "Phone photos") return;
+    const t = setInterval(async () => {
+      const f = await fetch("/api/files").then((r) => r.json()).catch(() => null);
+      if (!f) return;
+      setFiles(f.files);
+      const n = (f.files as FileRow[]).filter((x) => x.source === "phone").length;
+      if (pairOpen && n > baseline.current) {
+        setPairOpen(null);
+        setFolder("Phone photos");
+        setToast({ text: "Your phone is backing up. Photos appear here as they arrive." });
+      }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [pairOpen, folder, setFolder]);
+
   return (
     <main
       className="flex-1 flex flex-col"
@@ -485,7 +510,11 @@ export function Drive() {
           </section>
         )}
 
-        {pairOpen === "qr" && <PairCard mode="qr" email={null} onClose={() => setPairOpen(null)} />}
+        {pairOpen === "qr" && (
+          <div className="mt-4">
+            <PairCard mode="qr" email={null} onClose={() => setPairOpen(null)} />
+          </div>
+        )}
 
         {/* On a phone this lives in the toolbar; on a laptop the phone is elsewhere, so offer its code. */}
         {!empty && files && folder === "Phone photos" && !search && (

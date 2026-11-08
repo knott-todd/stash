@@ -200,18 +200,26 @@ function StatusText({ d, stale }: { d: Device; stale: boolean }) {
 }
 
 function AddComputer({ origin }: { origin: string }) {
-  const cmd = `npx stash-desktop@latest --server ${origin || "https://stash.olusanyatodd.com"}`;
+  const server = origin && !/localhost/.test(origin) ? ` --server ${origin}` : "";
   return (
     <div className="mt-3 text-sm">
       <ol className="list-decimal pl-5 space-y-1.5 text-ink-2">
         <li>
-          On that computer, install Node.js if it isn&apos;t there (<a className="underline" href="https://nodejs.org" target="_blank" rel="noreferrer">nodejs.org</a>), then open a terminal and run:
-          <code className="block mt-1.5 rounded-lg bg-cream-2 px-3 py-2 text-ink select-all">{cmd}</code>
+          On that computer, install Node.js if it isn&apos;t there (<a className="underline" href="https://nodejs.org" target="_blank" rel="noreferrer">nodejs.org</a>).
         </li>
-        <li>It shows a code. Open the link it prints (or come back here) and approve it.</li>
-        <li>Choose the folders to keep backed up. Documents and Pictures are suggested.</li>
+        <li>
+          <a className="underline" href="https://github.com/knott-todd/stash/archive/refs/heads/main.zip">Download Stash</a> and unzip it.
+        </li>
+        <li>
+          Open a terminal in the unzipped folder and run:
+          <code className="block mt-1.5 rounded-lg bg-cream-2 px-3 py-2 text-ink select-all">node desktop/cli.mjs{server}</code>
+        </li>
+        <li>It shows a code and opens the link page here; approve it.</li>
+        <li>Choose the folders to keep backed up. Documents and Pictures are suggested. Leave it running.</li>
       </ol>
-      <p className="mt-2 text-ink-3">An installer with no terminal is coming; this is the developer preview.</p>
+      <p className="mt-2 text-ink-3">
+        To have it start with the computer: <code className="rounded bg-cream-2 px-1.5 py-0.5 text-ink">node desktop/cli.mjs --install-startup</code>. An installer with no terminal is coming; this is the developer preview.
+      </p>
     </div>
   );
 }

@@ -1,0 +1,11 @@
+{
+  "name": "stash-desktop",
+  "version": "0.1.0",
+  "description": "Keeps folders on this computer backed up to Stash, encrypted, automatically.",
+  "type": "module",
+  "bin": { "stash-desktop": "./cli.mjs" },
+  "files": ["cli.mjs", "lib/", "README.md"],
+  "engines": { "node": ">=20" },
+  "optionalDependencies": { "sharp": "^0.34.0" },
+  "license": "MIT"
+}

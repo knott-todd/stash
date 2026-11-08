@@ -28,16 +28,17 @@ export function PairCard({
       headers: { "content-type": "application/json" },
       body: JSON.stringify(target === "email" ? { email: value } : {}),
     });
-    const { token, sent: mailed } = await r.json();
+    const { token, sent: mailed, origin } = await r.json();
     if (target === "qr") {
       // The QR carries the key in the fragment: phone reads it off the screen, no server involved.
-      const url = pairingUrl("/m", token);
+      // It must use the public address; "localhost" means nothing on a phone.
+      const url = pairingUrl("/m", token, origin ?? location.origin);
       setQr(await QRCode.toDataURL(url, { margin: 1, width: 220, color: { dark: "#1c1917", light: "#fffbf5" } }));
       return;
     }
     // Email carries identity only; the recovery code unlocks files on the new device.
     setMailed(!!mailed);
-    setLink(mailed ? null : `${location.origin}/claim/${token}`);
+    setLink(mailed ? null : `${origin ?? location.origin}/claim/${token}`);
     setSent(true);
     if (!mailed) setShowCode(true);
   }

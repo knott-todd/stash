@@ -91,8 +91,8 @@ export async function decryptBytes(blob: ArrayBuffer): Promise<ArrayBuffer> {
 }
 
 // Build a link that carries the device identity (token) and the key (fragment only).
-export function pairingUrl(path: string, token: string) {
-  return `${location.origin}${path}?t=${token}#k=${ensureRawKey()}`;
+export function pairingUrl(path: string, token: string, origin = location.origin) {
+  return `${origin}${path}?t=${token}#k=${ensureRawKey()}`;
 }
 
 // On a new device: adopt the key from the URL fragment, if present.

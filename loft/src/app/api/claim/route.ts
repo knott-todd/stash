@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getUid } from "@/lib/session";
 import { db, newId } from "@/lib/store";
 import { MAIL_ENABLED, sendDeviceLink } from "@/lib/mail";
+import { publicOrigin } from "@/lib/public-url";
 
 // Device pairing. POST mints a one-time token for this device's drive and, with an
 // email and mail configured, sends the link. GET with ?t= makes the calling browser
@@ -19,18 +20,16 @@ export async function POST(req: Request) {
   if (hasEmail) db.user(uid).email = email;
   db.save();
 
+  const origin = publicOrigin(req);
   if (hasEmail && MAIL_ENABLED) {
-    const h = req.headers;
-    const host = h.get("x-forwarded-host") ?? h.get("host") ?? new URL(req.url).host;
-    const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
     try {
-      await sendDeviceLink(email, `${proto}://${host}/claim/${token}`);
-      return NextResponse.json({ token, sent: true });
-    } catch (e) {
-      return NextResponse.json({ token, sent: false, error: "Couldn't send the email. Here's the link instead." });
+      await sendDeviceLink(email, `${origin}/claim/${token}`);
+      return NextResponse.json({ token, sent: true, origin });
+    } catch {
+      return NextResponse.json({ token, sent: false, origin, error: "Couldn't send the email. Here's the link instead." });
     }
   }
-  return NextResponse.json({ token, sent: false });
+  return NextResponse.json({ token, sent: false, origin });
 }
 
 export async function GET(req: Request) {

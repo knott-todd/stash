@@ -7,7 +7,7 @@ import { Logo } from "./Logo";
 import { MigrateDialog, type MigrationStatus } from "./MigrateDialog";
 import { PairCard } from "./PairCard";
 import { fmtBytes } from "@/lib/format";
-import { decryptBytes, encryptBytes, ensureRawKey, getRawKey } from "@/lib/crypto";
+import { decryptBytes, encryptBytes, ensureRawKey, getRawKey, keyFromRecoveryCode, setRawKey } from "@/lib/crypto";
 import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
 import { cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { viewableMime } from "@/lib/view";
@@ -44,6 +44,7 @@ export function Drive() {
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; retry?: () => void; undo?: () => void } | null>(null);
   const [search, setSearch] = useState("");
+  const [recoveryInput, setRecoveryInput] = useState("");
   const [dragging, setDragging] = useState(false);
   const [pairOpen, setPairOpen] = useState<"card" | "qr" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -58,7 +59,8 @@ export function Drive() {
   }, []);
 
   useEffect(() => {
-    ensureRawKey();
+    // A device that arrived by email link has no key yet; don't mint one, ask for the recovery code.
+    if (!noKey) ensureRawKey();
     refresh().then((m) => {
       // Simulated migration status only applies when Google isn't configured.
       if (!m.google)
@@ -292,11 +294,37 @@ export function Drive() {
       </header>
 
       <div className="mx-auto w-full max-w-5xl px-5 pb-24 flex-1">
-        {noKey && (
-          <div className="card mb-5 p-4 bg-accent-soft border-accent/30" role="status">
-            <p className="font-semibold">This device can list your files but can&apos;t open them yet.</p>
-            <p className="text-sm text-ink-2">Open the link from the device you started on, or scan its QR. The key never leaves your devices.</p>
-          </div>
+        {noKey && !getRawKey() && (
+          <form
+            className="card mb-5 p-4"
+            role="status"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const raw = keyFromRecoveryCode(recoveryInput);
+              if (!raw) return setToast({ text: "That code doesn't look right. It's 26 letters and numbers, dashes optional." });
+              setRawKey(raw);
+              router.replace("/drive");
+              setToast({ text: "Unlocked. Your files open on this device now." });
+            }}
+          >
+            <p className="font-semibold">Enter your recovery code to open files on this device.</p>
+            <p className="text-sm text-ink-2 mt-1">It&apos;s on your other device under &ldquo;Open on another device&rdquo;. Or scan that device&apos;s QR instead; no typing.</p>
+            <div className="mt-3 flex flex-col sm:flex-row gap-2">
+              <input
+                value={recoveryInput}
+                onChange={(e) => setRecoveryInput(e.target.value)}
+                placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-X"
+                autoCapitalize="characters"
+                spellCheck={false}
+                aria-label="Recovery code"
+                className="flex-1 rounded-full border border-line bg-white px-5 py-3 text-base tracking-wider outline-none focus:border-ink"
+                data-testid="recovery-input"
+              />
+              <button type="submit" className="btn-primary py-3 text-base">
+                Unlock
+              </button>
+            </div>
+          </form>
         )}
         {migration.phase === "done" && (
           <div className="card mb-5 p-4 flex flex-wrap items-center gap-3 bg-ok-soft border-ok/30" role="status" data-testid="migration-done">

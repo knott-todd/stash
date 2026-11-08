@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getUid } from "@/lib/session";
 import { db, newId } from "@/lib/store";
+import { MAIL_ENABLED, sendDeviceLink } from "@/lib/mail";
 
-// Device pairing. POST mints a one-time token for this device's drive; GET with
-// ?t= makes the calling browser adopt that drive. The encryption key never comes
-// here: the client puts it in the URL fragment, which the browser keeps to itself.
+// Device pairing. POST mints a one-time token for this device's drive and, with an
+// email and mail configured, sends the link. GET with ?t= makes the calling browser
+// adopt that drive. The encryption key never comes here: a QR carries it in the URL
+// fragment; an email link relies on the recovery code entered on the new device.
 
 export async function POST(req: Request) {
   const uid = await getUid();
@@ -13,9 +15,22 @@ export async function POST(req: Request) {
   const { email } = await req.json().catch(() => ({}));
   const token = newId();
   db.get().tokens[token] = { token, uid, createdAt: Date.now(), used: false };
-  if (typeof email === "string" && email.includes("@")) db.user(uid).email = email;
+  const hasEmail = typeof email === "string" && email.includes("@");
+  if (hasEmail) db.user(uid).email = email;
   db.save();
-  return NextResponse.json({ token });
+
+  if (hasEmail && MAIL_ENABLED) {
+    const h = req.headers;
+    const host = h.get("x-forwarded-host") ?? h.get("host") ?? new URL(req.url).host;
+    const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+    try {
+      await sendDeviceLink(email, `${proto}://${host}/claim/${token}`);
+      return NextResponse.json({ token, sent: true });
+    } catch (e) {
+      return NextResponse.json({ token, sent: false, error: "Couldn't send the email. Here's the link instead." });
+    }
+  }
+  return NextResponse.json({ token, sent: false });
 }
 
 export async function GET(req: Request) {

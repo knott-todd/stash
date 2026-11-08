@@ -19,6 +19,7 @@ export function PairCard({
   const [link, setLink] = useState<string | null>(null);
   const [value, setValue] = useState(email ?? "");
   const [sent, setSent] = useState(false);
+  const [mailed, setMailed] = useState(false);
   const [showCode, setShowCode] = useState(false);
 
   async function mint(target: "qr" | "email") {
@@ -27,13 +28,18 @@ export function PairCard({
       headers: { "content-type": "application/json" },
       body: JSON.stringify(target === "email" ? { email: value } : {}),
     });
-    const { token } = await r.json();
-    const url = pairingUrl(target === "qr" ? "/m" : `/claim/${token}`, token);
-    if (target === "qr") setQr(await QRCode.toDataURL(url, { margin: 1, width: 220, color: { dark: "#1c1917", light: "#fffbf5" } }));
-    else {
-      setLink(url);
-      setSent(true);
+    const { token, sent: mailed } = await r.json();
+    if (target === "qr") {
+      // The QR carries the key in the fragment: phone reads it off the screen, no server involved.
+      const url = pairingUrl("/m", token);
+      setQr(await QRCode.toDataURL(url, { margin: 1, width: 220, color: { dark: "#1c1917", light: "#fffbf5" } }));
+      return;
     }
+    // Email carries identity only; the recovery code unlocks files on the new device.
+    setMailed(!!mailed);
+    setLink(mailed ? null : `${location.origin}/claim/${token}`);
+    setSent(true);
+    if (!mailed) setShowCode(true);
   }
 
   useEffect(() => {
@@ -86,13 +92,15 @@ export function PairCard({
             </form>
           ) : (
             <div className="mt-3 text-sm">
-              <p className="font-semibold">Link sent to {value}.</p>
+              <p className="font-semibold">{mailed ? `Link sent to ${value}.` : "Here is your link."}</p>
               <p className="text-ink-2 mt-1">
-                Demo: email isn&apos;t wired up, so here it is.{" "}
-                <a className="underline break-all" href={link!}>
+                {mailed ? "Open it on the other device, then enter the recovery code below there. The link works for 24 hours." : "Email isn't set up, so open this on the other device yourself, then enter the recovery code below there."}
+              </p>
+              {link && (
+                <a className="underline break-all block mt-1" href={link}>
                   {link}
                 </a>
-              </p>
+              )}
               <button className="btn-ghost mt-2 px-0" onClick={() => onClose()}>
                 Done
               </button>
@@ -105,7 +113,7 @@ export function PairCard({
             {showCode && (
               <p className="mt-2">
                 <code className="font-mono text-base tracking-wider bg-cream-2 rounded-lg px-3 py-1.5 inline-block">{recoveryCode()}</code>
-                <span className="block mt-1 text-ink-2">Write this down. It opens your files if you lose every device. Loft doesn&apos;t have a copy.</span>
+                <span className="block mt-1 text-ink-2">Type this on a new device to unlock your files. Loft doesn&apos;t have a copy, so keep it somewhere safe.</span>
               </p>
             )}
           </div>

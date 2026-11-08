@@ -38,9 +38,12 @@ export function ensureRawKey(): string {
   return raw;
 }
 
+// Crockford base32: no I, L, O or U, so the code survives handwriting and reading aloud.
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
 // Human-readable form of the key for the recovery card: 26 chars in groups of 4-5.
 export function recoveryCode(raw = ensureRawKey()) {
-  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O/1/I/L
+  const alphabet = CROCKFORD;
   const bytes = unb64url(raw);
   let bits = "";
   for (const b of bytes) bits += b.toString(2).padStart(8, "0");
@@ -49,6 +52,23 @@ export function recoveryCode(raw = ensureRawKey()) {
     out += alphabet[parseInt(bits.slice(i, i + 5).padEnd(5, "0"), 2)];
   }
   return out.match(/.{1,5}/g)!.join("-");
+}
+
+// Inverse of recoveryCode(): typed on a new device to unlock files. Tolerant of
+// case, spaces, dashes and the usual 0/O 1/I/L confusions.
+export function keyFromRecoveryCode(code: string): string | null {
+  const alphabet = CROCKFORD;
+  const fixed = code.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
+  if (fixed.length !== 26) return null;
+  let bits = "";
+  for (const ch of fixed) {
+    const i = alphabet.indexOf(ch);
+    if (i < 0) return null;
+    bits += i.toString(2).padStart(5, "0");
+  }
+  const bytes = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) bytes[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+  return b64url(bytes);
 }
 
 async function importKey(raw: string) {

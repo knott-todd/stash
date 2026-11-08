@@ -13,7 +13,16 @@ import { makeKeypair, openSealedKey } from "@/lib/handshake";
 //            encrypted to a one-time keypair the relay can't open
 // Plus the recovery code, for when there is no other device.
 
-const isPhone = () => typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) && navigator.maxTouchPoints > 0;
+// Phone or tablet: a mobile user agent, a touch-first pointer, or an iPad that
+// presents itself as a Mac (Safari does this by default).
+const isPhone = () => {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  const touch = navigator.maxTouchPoints > 0;
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return true;
+  if (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches) return true;
+  return /Macintosh/.test(ua) && touch;
+};
 
 export function Unlock({ fallback }: { fallback?: React.ReactNode } = {}) {
   const router = useRouter();
@@ -170,9 +179,9 @@ function Scanner({ onKey }: { onKey: (raw: string) => void }) {
         {camera === "on" && <div className="pointer-events-none absolute inset-8 rounded-xl border-2 border-white/80" aria-hidden />}
         {camera === "starting" && <p className="absolute inset-0 flex items-center justify-center text-cream text-sm">Starting camera</p>}
         {camera === "denied" && (
-          <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-cream text-sm">Camera access was refused. Allow it in your browser settings and reload, or show a code instead.</p>
+          <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-cream text-sm">Camera access was refused. Allow it in your browser settings and reload. If this opened inside another app, open stash.olusanyatodd.com in Safari or Chrome instead.</p>
         )}
-        {camera === "none" && <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-cream text-sm">No camera on this device. Show a code instead.</p>}
+        {camera === "none" && <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-cream text-sm">This browser can&apos;t use the camera. Open stash.olusanyatodd.com in Safari or Chrome, or show a code instead.</p>}
       </div>
     </>
   );

@@ -258,6 +258,15 @@ export function Drive() {
     }
   }
 
+  // Sign out = sign out of Google, the only sign-in Loft has. The drive, key and
+  // files stay on this device (a device that holds the key is trusted).
+  async function signOut() {
+    copyCtrl.current?.abort();
+    await fetch("/api/google", { method: "DELETE" });
+    localStorage.removeItem("loft_gd_done_v1");
+    location.href = "/";
+  }
+
   // Start fresh: forget this device's drive, key, local copies and Google link.
   // Reached via /drive?demo=1 so it never shows to a normal user.
   async function resetDemo() {
@@ -320,6 +329,9 @@ export function Drive() {
           )}
           <button className="text-ink-2 hover:text-ink underline-offset-4 hover:underline" onClick={() => setPairOpen("card")}>
             Open on another device
+          </button>
+          <button className="text-ink-3 hover:text-ink underline-offset-4 hover:underline" onClick={signOut} data-testid="sign-out">
+            Sign out
           </button>
         </div>
       </header>

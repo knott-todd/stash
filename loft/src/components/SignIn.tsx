@@ -1,11 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { Logo } from "./Logo";
+import { Unlock } from "./Unlock";
 
-// Sign in = tell Stash which drive is yours. One field, one button.
+// Sign in = scan a code from a device that has your files (or show one for it
+// to scan). Email only matters when there's no other device: it finds the drive,
+// and the recovery code opens it.
 export function SignIn() {
+  return <Unlock fallback={<EmailFallback />} />;
+}
+
+function EmailFallback() {
+  const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "busy" | "sent">("idle");
   const [link, setLink] = useState<string | null>(null);
@@ -27,58 +33,43 @@ export function SignIn() {
   }
 
   return (
-    <main className="flex-1 flex flex-col">
-      <header className="mx-auto w-full max-w-5xl px-5 py-5">
-        <Logo />
-      </header>
-      <section className="mx-auto w-full max-w-md px-5 pt-8 pb-16">
-        <h1 className="text-3xl font-semibold">Sign in</h1>
-        {state !== "sent" ? (
-          <>
-            <p className="mt-2 text-ink-2">Enter the email you gave Stash. We send a link that opens your drive on this device.</p>
-            <form onSubmit={submit} className="mt-6 flex flex-col gap-3">
-              <input
-                type="email"
-                required
-                autoFocus
-                autoComplete="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="rounded-full border border-line bg-white px-5 py-3 text-base outline-none focus:border-ink"
-                aria-label="Email"
-                data-testid="signin-email"
-              />
-              <button type="submit" className="btn-primary" disabled={state === "busy"} data-testid="signin-send">
-                {state === "busy" ? "Sending" : "Send me a link"}
-              </button>
-              {error && <p className="text-sm text-accent-ink">{error}</p>}
-            </form>
-            <p className="mt-6 text-sm text-ink-3">
-              New here? There is nothing to sign up for.{" "}
-              <Link href="/drive" className="underline">
-                Start a drive
-              </Link>
-              .
+    <div className="mt-6 text-sm">
+      <button className="text-ink-3 hover:text-ink underline underline-offset-2" onClick={() => setOpen((o) => !o)}>
+        {open ? "Hide" : "No other device? Sign in with your email and recovery code"}
+      </button>
+      {open && state !== "sent" && (
+        <form onSubmit={submit} className="mt-3 flex flex-col gap-2">
+          <p className="text-ink-2">We email a link that finds your drive on this device. Your recovery code then opens the files.</p>
+          <input
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="rounded-full border border-line bg-white px-5 py-3 text-base outline-none focus:border-ink"
+            aria-label="Email"
+            data-testid="signin-email"
+          />
+          <button type="submit" className="btn-primary py-3 text-base" disabled={state === "busy"} data-testid="signin-send">
+            {state === "busy" ? "Sending" : "Send me a link"}
+          </button>
+          {error && <p className="text-accent-ink">{error}</p>}
+        </form>
+      )}
+      {open && state === "sent" && (
+        <div className="mt-3" role="status">
+          <p className="text-ink-2">If Stash has a drive for that email, a link is on its way. Open it on this device, then enter your recovery code.</p>
+          {link && (
+            <p className="mt-2 text-ink-2">
+              Email isn&apos;t set up here, so:{" "}
+              <a href={link} className="underline break-all">
+                {link}
+              </a>
             </p>
-          </>
-        ) : (
-          <div className="mt-4" role="status">
-            <p className="text-ink-2">If Stash has a drive for that email, a link is on its way. Open it on this device.</p>
-            {link && (
-              <p className="mt-3 text-sm text-ink-2">
-                Email isn&apos;t set up here, so:{" "}
-                <a href={link} className="underline break-all">
-                  {link}
-                </a>
-              </p>
-            )}
-            <p className="mt-4 text-sm text-ink-3">
-              The link opens your files. To unlock them on this device you&apos;ll then scan the code on a device that already has them, or enter your recovery code.
-            </p>
-          </div>
-        )}
-      </section>
-    </main>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

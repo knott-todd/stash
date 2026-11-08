@@ -38,13 +38,25 @@ export function pgStore(): Store {
     async getUser(uid) {
       await ensure();
       const rows = await sql`SELECT data FROM users WHERE uid = ${uid}`;
-      if (rows[0]) return rows[0].data as User;
+      if (rows[0]) {
+        const u = rows[0].data as User;
+        if (u.googleList !== undefined) {
+          // One-time move: the Drive listing used to live on the row and made
+          // every request carry it. Park it in kv and shrink the row for good.
+          await sql`INSERT INTO kv (key, value) VALUES (${"glist:" + uid}, ${JSON.stringify(u.googleList)}::jsonb)
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+          delete u.googleList;
+          await sql`UPDATE users SET data = data - 'googleList' WHERE uid = ${uid}`;
+        }
+        return u;
+      }
       const u: User = { uid, linked: true, createdAt: Date.now() };
       await sql`INSERT INTO users (uid, data, created_at) VALUES (${uid}, ${JSON.stringify(u)}::jsonb, ${u.createdAt}) ON CONFLICT (uid) DO NOTHING`;
       return u;
     },
     async saveUser(u) {
       await ensure();
+      delete u.googleList; // never back on the user row
       await sql`INSERT INTO users (uid, data, created_at) VALUES (${u.uid}, ${JSON.stringify(u)}::jsonb, ${u.createdAt})
                 ON CONFLICT (uid) DO UPDATE SET data = EXCLUDED.data`;
     },
@@ -133,6 +145,7 @@ export function pgStore(): Store {
       await sql`DELETE FROM migrations WHERE uid = ${uid}`;
       await sql`DELETE FROM tokens WHERE uid = ${uid}`;
       await sql`DELETE FROM users WHERE uid = ${uid}`;
+      await sql`DELETE FROM kv WHERE key = ${"glist:" + uid}`;
     },
   };
 }

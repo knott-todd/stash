@@ -41,6 +41,7 @@ export function jsonStore(): Store {
       return d.users[uid];
     },
     async saveUser(u) {
+      delete u.googleList;
       load().users[u.uid] = u;
       save();
     },
@@ -117,6 +118,7 @@ export function jsonStore(): Store {
       delete d.migrations[uid];
       delete d.users[uid];
       for (const [k, t] of Object.entries(d.tokens)) if (t.uid === uid) delete d.tokens[k];
+      delete (d.kv ??= {})[`glist:${uid}`];
       save();
     },
   };

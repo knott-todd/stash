@@ -11,5 +11,6 @@ export async function DELETE() {
   delete u.google;
   delete u.googleList;
   await db.saveUser(u);
+  await db.kvDelete(`glist:${uid}`);
   return NextResponse.json({ ok: true });
 }

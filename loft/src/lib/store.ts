@@ -29,7 +29,8 @@ export type User = {
   email?: string;
   tgChatId?: number;
   google?: { accessToken: string; refreshToken?: string; expiresAt: number };
-  googleList?: { at: number; files: import("./google").GFile[] };
+  /** @deprecated moved to kv `glist:<uid>`; stripped on save */
+  googleList?: unknown;
   createdAt: number;
   photoBackup?: { on: boolean; total: number; startedAt: number };
 };

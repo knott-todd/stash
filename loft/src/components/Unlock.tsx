@@ -15,7 +15,7 @@ import { makeKeypair, openSealedKey } from "@/lib/handshake";
 
 const isPhone = () => typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) && navigator.maxTouchPoints > 0;
 
-export function Unlock() {
+export function Unlock({ fallback }: { fallback?: React.ReactNode } = {}) {
   const router = useRouter();
   const [mode, setMode] = useState<"scan" | "show" | null>(null);
   const [code, setCode] = useState("");
@@ -55,9 +55,10 @@ export function Unlock() {
           </p>
         )}
 
+        {fallback}
         <div className="mt-6 text-sm">
           <button className="text-ink-3 hover:text-ink underline underline-offset-2" onClick={() => setShowCode((s) => !s)}>
-            {showCode ? "Hide recovery code" : "No other device at all? Enter your recovery code"}
+            {showCode ? "Hide recovery code" : "Have your recovery code? Enter it"}
           </button>
           {showCode && (
             <form
@@ -103,10 +104,14 @@ function Scanner({ onKey }: { onKey: (raw: string) => void }) {
   useEffect(() => {
     let stream: MediaStream | null = null;
     let stop = false;
+    let accepted = false;
     const accept = (text: string) => {
       const m = text.match(/#k=([A-Za-z0-9_-]{16,64})/);
-      if (!m) return false;
-      onKey(m[1]);
+      if (!m || accepted) return false;
+      accepted = true;
+      // The code also says which drive: join it before unlocking.
+      const t = text.match(/[?&]t=([A-Za-z0-9]+)/)?.[1];
+      (t ? fetch(`/api/claim?t=${encodeURIComponent(t)}`).catch(() => null) : Promise.resolve(null)).then(() => onKey(m[1]));
       return true;
     };
     (async () => {
@@ -158,7 +163,7 @@ function Scanner({ onKey }: { onKey: (raw: string) => void }) {
     <>
       <h1 className="text-3xl font-semibold">Scan the code on your other device</h1>
       <p className="mt-2 text-ink-2">
-        On a device that already opens your files: <strong>Open on another device → Scan with your phone</strong>. Point this camera at the code.
+        On a device that already has your files: <strong>Open on another device → Scan with your phone</strong>. Point this camera at the code and you&apos;re in.
       </p>
       <div className="mt-5 relative aspect-square w-full overflow-hidden rounded-2xl bg-ink">
         <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
@@ -217,7 +222,7 @@ function ShowCode({ onKey }: { onKey: (raw: string) => void }) {
   return (
     <>
       <h1 className="text-3xl font-semibold">Scan this with your phone</h1>
-      <p className="mt-2 text-ink-2">Use the phone that already opens your files. Point its camera at this code and tap the link it shows. Nothing to type.</p>
+      <p className="mt-2 text-ink-2">Use the phone that already has your files. Point its camera at this code, tap the link it shows, and say yes. Nothing to type.</p>
       <div className="mt-5 flex items-center justify-center rounded-2xl border border-line bg-white p-5 min-h-[18rem]">
         {qr ? (
           <img src={qr} alt="Code for your phone to scan" width={260} height={260} />

@@ -30,7 +30,7 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 ## Proposed (not started, in rough priority)
 
 1. Files over 20 MB via browser-side chunking (decided; see DESIGN.md). Unblocks video and phone backup.
-2. Journeys 2–7 specified in full (share sheet, Files presence, WhatsApp on Android, desktop folder, Gmail button, new device).
+2. ~~Journeys 2–7 specified in full~~ → docs/JOURNEYS.md.
 3. Native mobile app: journey 1 only (photo auto-backup, keychain-stored key, background transfer).
 4. Export everything (zip of decrypted files).
 5. Passkeys or PIN escrow for lost-everything recovery.

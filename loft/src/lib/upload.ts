@@ -12,6 +12,8 @@ import { cachePut } from "./filecache";
 // The server says which, and the size cap, via /api/me.
 
 export const MAX_BYTES = 50 * 1024 * 1024;
+// Vercel functions accept bodies up to 4.5 MB; keep headroom for multipart framing.
+export const DIRECT_MAX_BYTES = 4 * 1024 * 1024;
 
 export type UploadedFile = { id: string; name: string; size: number; folder: string };
 
@@ -41,14 +43,24 @@ export async function uploadEncrypted(
   };
 
   let r: Response;
-  if (staged) {
+  // Small files skip the staging store even on serverless hosts: they fit under
+  // the request cap, and every staged file spends three of the blob store's
+  // metered operations. Only files that must be staged are.
+  const needsStaging = staged && cipher.size > DIRECT_MAX_BYTES;
+  if (needsStaging) {
     // Private: the staged ciphertext is readable only by our server, never by URL.
-    const put = await blobUpload(`tmp/${file.name}.stash`, cipher, {
+    let put;
+    try {
+      put = await blobUpload(`tmp/${file.name}.stash`, cipher, {
       access: "private",
       handleUploadUrl: "/api/blob",
       contentType: "application/octet-stream",
       abortSignal: opts.signal,
-    });
+      });
+    } catch (e) {
+      if (opts.signal?.aborted) throw e;
+      throw new Error(`Files over ${Math.round(DIRECT_MAX_BYTES / 1024 / 1024)} MB can't be added right now. Smaller files still work.`);
+    }
     r = await fetch("/api/files", {
       method: "POST",
       headers: { "content-type": "application/json" },

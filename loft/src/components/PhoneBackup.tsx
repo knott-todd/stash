@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Logo } from "./Logo";
+import { AppHeader } from "./AppHeader";
 import { PhoneBackupDemo } from "./PhoneBackupDemo";
 import { setRawKey } from "@/lib/crypto";
 import { demoMode } from "@/lib/demo-flag";
@@ -139,12 +139,7 @@ function RealBackup() {
 
   return (
     <main className="flex-1 flex flex-col mx-auto w-full max-w-md">
-      <header className="px-5 py-5 flex items-center justify-between">
-        <Logo />
-        <Link href="/drive" className="text-sm text-ink-2 hover:text-ink">
-          My drive →
-        </Link>
-      </header>
+      <AppHeader active="phone" />
 
       <input
         ref={input}

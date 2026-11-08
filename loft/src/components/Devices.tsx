@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Logo } from "./Logo";
+import { AppHeader } from "./AppHeader";
 import { fmtBytes, fmtDate } from "@/lib/format";
 import { STAGING } from "@/lib/stage";
 
@@ -71,14 +71,7 @@ export function Devices() {
 
   return (
     <main className="flex-1 flex flex-col">
-      <header className="mx-auto w-full max-w-5xl px-5 py-5 flex items-center justify-between gap-4">
-        <Logo />
-        <nav className="flex items-center gap-4 text-sm">
-          <Link href="/drive" className="text-ink-2 hover:text-ink underline-offset-4 hover:underline">
-            My drive
-          </Link>
-        </nav>
-      </header>
+      <AppHeader active="devices" />
 
       <div className="mx-auto w-full max-w-5xl px-5 pb-24 flex-1">
         <h1 className="text-3xl font-semibold">Devices</h1>

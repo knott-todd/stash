@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Logo } from "./Logo";
+import { AppHeader } from "./AppHeader";
 import { AskPasscode, ProtectionChoice, type Protection } from "./Protection";
-import { clearRawKey, getRawKey, recoveryCode, setRawKey, type WrappedKey } from "@/lib/crypto";
-import { cacheClear } from "@/lib/filecache";
+import { getRawKey, recoveryCode, setRawKey, type WrappedKey } from "@/lib/crypto";
+import { signOutEverywhereHere } from "@/lib/signout";
 import { fmtBytes } from "@/lib/format";
 import { exportAll, type ExportProgress } from "@/lib/export";
 import type { FileRow } from "./Drive";
@@ -32,30 +31,14 @@ export function Settings() {
     load();
   }, [load]);
 
-  async function signOut() {
-    await fetch("/api/auth/signout", { method: "POST" });
-    clearRawKey();
-    localStorage.removeItem("stash_gd_done_v1");
-    await cacheClear();
-    location.href = "/signin";
-  }
+  const signOut = signOutEverywhereHere;
 
   if (!me) return null;
   const raw = getRawKey();
 
   return (
     <main className="flex-1 flex flex-col">
-      <header className="mx-auto w-full max-w-5xl px-5 py-5 flex items-center justify-between gap-4">
-        <Logo />
-        <nav className="flex items-center gap-4 text-sm">
-          <Link href="/drive" className="text-ink-2 hover:text-ink underline-offset-4 hover:underline">
-            My drive
-          </Link>
-          <Link href="/devices" className="text-ink-2 hover:text-ink underline-offset-4 hover:underline">
-            Devices
-          </Link>
-        </nav>
-      </header>
+      <AppHeader active="settings" />
 
       <div className="mx-auto w-full max-w-3xl px-5 pb-24 flex-1">
         <h1 className="text-3xl font-semibold">Settings</h1>

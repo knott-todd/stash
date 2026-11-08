@@ -9,12 +9,12 @@ import { PairCard } from "./PairCard";
 import { SetupSteps } from "./SetupSteps";
 import { PhotosView } from "./PhotosView";
 import { MoveDialog } from "./MoveDialog";
+import { AppHeader } from "./AppHeader";
 import { ShareDialog } from "./ShareDialog";
 import { fmtBytes } from "@/lib/format";
 import { clearRawKey, decryptFile, getRawKey, setRawKey, type WrappedKey } from "@/lib/crypto";
 import { AskPasscode, ProtectionChoice } from "./Protection";
 import { rememberAccount } from "@/lib/accounts";
-import { STAGING } from "@/lib/stage";
 import Link from "next/link";
 import { doneKey, PROVIDER_LABEL, providerEndpoints, runProviderCopy, type CopyEvent, type Provider } from "@/lib/provider-client";
 import { cacheClear, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
@@ -414,17 +414,6 @@ export function Drive() {
     }
   }
 
-  // Sign out: the session ends and this browser forgets the key and its local
-  // copies. The files stay in the account; sign in anywhere to see them.
-  async function signOut() {
-    copyCtrl.current?.abort();
-    await fetch("/api/auth/signout", { method: "POST" });
-    clearRawKey();
-    for (const p of ["google-drive", "dropbox", "onedrive"] as Provider[]) localStorage.removeItem(doneKey(p));
-    await cacheClear();
-    location.href = "/signin";
-  }
-
   // Start fresh: delete every file in the account and start with a new key.
   // Reached via /drive?demo=1 so it never shows to a normal user.
   async function resetDemo() {
@@ -522,34 +511,7 @@ export function Drive() {
         if (e.dataTransfer.files.length) upload(e.dataTransfer.files);
       }}
     >
-      <header className="mx-auto w-full max-w-5xl px-5 py-5 flex items-center justify-between gap-4">
-        <span className="flex items-center gap-3">
-          <Logo />
-          {STAGING && <span className="rounded-full bg-cream-2 px-2.5 py-1 text-xs font-medium text-ink-2" title="This is the staging site">Staging</span>}
-        </span>
-        <nav className="flex items-center gap-4 text-sm" aria-label="Sections">
-          <Link href="/drive" className={`whitespace-nowrap underline-offset-4 hover:underline ${tab === "drive" ? "font-semibold text-ink" : "text-ink-2 hover:text-ink"}`} data-testid="nav-drive">
-            My drive
-          </Link>
-          <Link href="/drive?view=photos" className={`whitespace-nowrap underline-offset-4 hover:underline ${tab === "photos" ? "font-semibold text-ink" : "text-ink-2 hover:text-ink"}`} data-testid="nav-photos">
-            Photos
-          </Link>
-          <Link href="/devices" className="text-ink-2 hover:text-ink underline-offset-4 hover:underline" data-testid="nav-devices">
-            Devices
-          </Link>
-          <Link href="/settings" className="text-ink-2 hover:text-ink underline-offset-4 hover:underline" data-testid="nav-settings">
-            Settings
-          </Link>
-          {me && (
-            <span className="hidden md:inline text-ink-3" data-testid="usage">
-              {me.fileCount.toLocaleString()} files · {fmtBytes(me.bytes)}
-            </span>
-          )}
-          <button className="text-ink-3 hover:text-ink underline-offset-4 hover:underline" onClick={signOut} data-testid="sign-out">
-            Sign out
-          </button>
-        </nav>
-      </header>
+      <AppHeader active={tab} usage={me ? `${me.fileCount.toLocaleString()} files · ${fmtBytes(me.bytes)}` : null} onBeforeSignOut={() => copyCtrl.current?.abort()} />
 
       <div className="mx-auto w-full max-w-5xl px-5 pb-24 flex-1">
         {migration.phase === "done" && (

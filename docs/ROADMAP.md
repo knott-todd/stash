@@ -18,7 +18,7 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 | Open on another device | Email link (key in link, single-use, 24 h) via SMTP; QR for phones. Recovery code as last resort. |
 | Switch Google account | "Use a different Google account" + header "Sign out" (Google only). |
 | Demo controls | `?demo=1` sticks per tab: Start fresh, simulated camera roll on `/m`. |
-| Sign in from a new device | `/signin`: email → identity-only link → files listed; key by QR from a device that has it, or the recovery code. A device holding files without the key never mints a new one. |
+| Sign in from a new device | `/signin`: email → identity-only link → `/unlock`. Phone: in-page camera scans the code on a device that has the key. Laptop: shows a code; the phone scans it with its camera app and approves; the key travels sealed to a one-time keypair (ECDH + AES-GCM) through a relay that can't open it. Recovery code as last resort. A device holding files without the key never mints a new one. |
 | Phone photo backup | Real photo picker + encrypted upload (built in the parallel session). |
 
 ## In the works

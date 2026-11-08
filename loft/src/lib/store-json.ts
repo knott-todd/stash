@@ -10,6 +10,7 @@ type Data = {
   tokens: Record<string, LinkToken>;
   migrations: Record<string, Migration>;
   tgOffset: number;
+  kv?: Record<string, unknown>;
 };
 
 export function jsonStore(): Store {
@@ -97,6 +98,17 @@ export function jsonStore(): Store {
     },
     async setTgOffset(n) {
       load().tgOffset = n;
+      save();
+    },
+    async kvGet<T>(key: string) {
+      return (load().kv ??= {})[key] as T | undefined;
+    },
+    async kvSet(key, value) {
+      (load().kv ??= {})[key] = value;
+      save();
+    },
+    async kvDelete(key) {
+      delete (load().kv ??= {})[key];
       save();
     },
     async reset(uid) {

@@ -16,7 +16,8 @@ export function Claim() {
       .then((r) => r.json())
       .then((j) => {
         if (!j.ok) return setError(j.error ?? "This link didn't work.");
-        router.replace(hadKey ? "/drive" : "/drive?nokey=1");
+        // No key yet (sign-in link): go straight to the scanner.
+        router.replace(hadKey ? "/drive" : "/unlock");
       })
       .catch(() => setError("Couldn't reach Stash. Check your connection and open the link again."));
   }, [token, router]);

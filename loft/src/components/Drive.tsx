@@ -7,7 +7,7 @@ import { Logo } from "./Logo";
 import { MigrateDialog, type MigrationStatus } from "./MigrateDialog";
 import { PairCard } from "./PairCard";
 import { fmtBytes } from "@/lib/format";
-import { decryptBytes, ensureRawKey, getRawKey, keyFromRecoveryCode, setRawKey } from "@/lib/crypto";
+import { decryptBytes, ensureRawKey, getRawKey } from "@/lib/crypto";
 import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
 import { cacheClear, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { viewableMime } from "@/lib/view";
@@ -47,7 +47,6 @@ export function Drive() {
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; retry?: () => void; undo?: () => void } | null>(null);
   const [search, setSearch] = useState("");
-  const [recoveryInput, setRecoveryInput] = useState("");
   const [dragging, setDragging] = useState(false);
   const [pairOpen, setPairOpen] = useState<"card" | "qr" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -339,39 +338,15 @@ export function Drive() {
 
       <div className="mx-auto w-full max-w-5xl px-5 pb-24 flex-1">
         {missingKey && (
-          <form
-            className="card mb-5 p-4"
-            role="status"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const raw = keyFromRecoveryCode(recoveryInput);
-              if (!raw) return setToast({ text: "That code doesn't look right. It's 26 letters and numbers, dashes optional." });
-              setRawKey(raw);
-              setMissingKey(false);
-              router.replace("/drive");
-              setToast({ text: "Unlocked. Your files open on this device now." });
-            }}
-          >
-            <p className="font-semibold">Your files are here, but this device can&apos;t open them yet.</p>
-            <p className="text-sm text-ink-2 mt-1">
-              Fastest: on a device that already opens them, go to <strong>Open on another device → Scan with your phone</strong> and scan the code with this one. Or have that device email you a link. Lost every device? Enter your recovery code below.
-            </p>
-            <div className="mt-3 flex flex-col sm:flex-row gap-2">
-              <input
-                value={recoveryInput}
-                onChange={(e) => setRecoveryInput(e.target.value)}
-                placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-X"
-                autoCapitalize="characters"
-                spellCheck={false}
-                aria-label="Recovery code"
-                className="flex-1 rounded-full border border-line bg-white px-5 py-3 text-base tracking-wider outline-none focus:border-ink"
-                data-testid="recovery-input"
-              />
-              <button type="submit" className="btn-primary py-3 text-base">
-                Unlock
-              </button>
+          <div className="card mb-5 p-4 flex flex-wrap items-center gap-3" role="status" data-testid="missing-key">
+            <div className="flex-1 min-w-[16rem]">
+              <p className="font-semibold">Your files are here, but this device can&apos;t open them yet.</p>
+              <p className="text-sm text-ink-2 mt-1">Scan a code from a device that already opens them. Takes a few seconds.</p>
             </div>
-          </form>
+            <Link href="/unlock" className="btn-primary py-3 text-base" data-testid="go-unlock">
+              Unlock this device
+            </Link>
+          </div>
         )}
         {migration.phase === "done" && (
           <div className="card mb-5 p-4 flex flex-wrap items-center gap-3 bg-ok-soft border-ok/30" role="status" data-testid="migration-done">

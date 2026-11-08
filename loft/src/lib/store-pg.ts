@@ -113,6 +113,20 @@ export function pgStore(): Store {
       await sql`INSERT INTO kv (key, value) VALUES ('tgOffset', ${JSON.stringify(n)}::jsonb)
                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
     },
+    async kvGet<T>(key: string) {
+      await ensure();
+      const rows = await sql`SELECT value FROM kv WHERE key = ${key}`;
+      return rows[0] ? (rows[0].value as T) : undefined;
+    },
+    async kvSet(key, value) {
+      await ensure();
+      await sql`INSERT INTO kv (key, value) VALUES (${key}, ${JSON.stringify(value)}::jsonb)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+    },
+    async kvDelete(key) {
+      await ensure();
+      await sql`DELETE FROM kv WHERE key = ${key}`;
+    },
     async reset(uid) {
       await ensure();
       await sql`DELETE FROM files WHERE uid = ${uid}`;

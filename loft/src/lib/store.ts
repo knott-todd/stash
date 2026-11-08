@@ -63,6 +63,10 @@ export interface Store {
   putMigration(m: Migration): Promise<void>;
   getTgOffset(): Promise<number>;
   setTgOffset(n: number): Promise<void>;
+  // Small short-lived values (device-approval handshakes). Never the key.
+  kvGet<T>(key: string): Promise<T | undefined>;
+  kvSet(key: string, value: unknown): Promise<void>;
+  kvDelete(key: string): Promise<void>;
   reset(uid: string): Promise<void>; // forget a drive entirely
 }
 

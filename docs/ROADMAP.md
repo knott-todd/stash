@@ -53,6 +53,7 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 8. Desktop sync folder; Gmail attachment button; Android WhatsApp import.
 9. ~~Local Bot API server (~$5/mo)~~ **Out**: no paid infrastructure for this app (Olusanya, 2026-11-08 night). Chunking covers large files.
 10. Drag-to-move, multi-select, New folder, grid view; Dropbox; shared links.
+ 11. **Storage management** (Olusanya, 2026-11-08): a treemap of the account, exact duplicates by content hash (one-tap, provably safe), unused files (never opened, by catalogue fact), near-duplicate photos by on-device perceptual hash shown for a decision. Guarantee: nothing one-tap unless byte- or metadata-identical by construction; no model in the loop. See docs/DESIGN-REVIEW-2026-11-08.md section 4.
 
 Olusanya's order (2026-11-08 night): 5, 8, 6, 10, 0, 7. The thread through them: migrate from any provider → automatic backup of a computer's folders → connect the phone for automatic photo backup → a drive people trust because they can see it is automatic (Devices page) → then speed. Rich search (text in scans, objects and people in photos, Google Photos style) only if it can be genuinely good for free; otherwise not mentioned at all.
 

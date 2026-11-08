@@ -44,7 +44,7 @@
 .landing .wordmark {
   display: inline-flex;
   align-items: center;
-  font-size: 1.375rem;
+  font-size: 1.75rem;
   color: var(--l-ink);
   text-decoration: none;
 }

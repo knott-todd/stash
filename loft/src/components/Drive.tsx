@@ -15,7 +15,7 @@ import { clearRawKey, decryptFile, getRawKey, setRawKey, type WrappedKey } from 
 import { AskPasscode, ProtectionChoice } from "./Protection";
 import { rememberAccount } from "@/lib/accounts";
 import Link from "next/link";
-import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
+import { doneKey, PROVIDER_LABEL, providerEndpoints, runProviderCopy, type CopyEvent, type Provider } from "@/lib/provider-client";
 import { cacheClear, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { viewableMime } from "@/lib/view";
 import { demoMode } from "@/lib/demo-flag";
@@ -27,7 +27,7 @@ export type FileRow = {
   size: number;
   mime: string;
   folder: string;
-  source: "upload" | "google-drive" | "phone" | "desktop";
+  source: "upload" | "google-drive" | "dropbox" | "onedrive" | "phone" | "desktop";
   createdAt: number;
   encrypted: boolean;
   chunked: boolean;
@@ -44,6 +44,7 @@ type Me = {
   demo: boolean;
   google: boolean;
   googleConnected: boolean;
+  providers?: Record<"dropbox" | "onedrive", { enabled: boolean; connected: boolean }>;
   fileCount: number;
   bytes: number;
   email?: string | null;
@@ -161,28 +162,51 @@ export function Drive() {
   // What the copy is doing right now: action, file, where from, where to.
   const [activity, setActivity] = useState<CopyEvent | null>(null);
   const logEvent = useCallback((e: CopyEvent) => setActivity(e), []);
-  const startGoogleCopy = useCallback(() => {
-    copyCtrl.current?.abort();
-    const ctrl = new AbortController();
-    copyCtrl.current = ctrl;
-    runGoogleCopy(setMigration, refresh, ctrl.signal, logEvent).catch(() => {
-      if (!ctrl.signal.aborted) setToast({ text: "Google stopped answering. The copy resumes when you reopen Stash.", retry: () => location.reload() });
-    });
-  }, [refresh, logEvent]);
+  // Which drive the move is from. Google Drive has its own routes; Dropbox and
+  // OneDrive share the provider routes. One copy runs at a time.
+  const [provider, setProvider] = useState<Provider>("google-drive");
+  const providerReady = (p: Provider) => (p === "google-drive" ? realGoogle : !!me?.providers?.[p]?.enabled);
+  const providerConnected = (p: Provider) => (p === "google-drive" ? !!me?.googleConnected : !!me?.providers?.[p]?.connected);
+  const startGoogleCopy = useCallback(
+    (p: Provider = provider) => {
+      copyCtrl.current?.abort();
+      const ctrl = new AbortController();
+      copyCtrl.current = ctrl;
+      setProvider(p);
+      runProviderCopy(p, setMigration, refresh, ctrl.signal, logEvent).catch(() => {
+        if (!ctrl.signal.aborted) setToast({ text: `${PROVIDER_LABEL[p]} stopped answering. The copy resumes when you reopen Stash.`, retry: () => location.reload() });
+      });
+    },
+    [refresh, logEvent, provider],
+  );
   const stopGoogleCopy = () => copyCtrl.current?.abort();
 
+  // Back from a consent screen (?google=ok, or ?connected=dropbox&result=ok), or
+  // resuming a copy that was interrupted: start it.
+  const connectedFlag = params.get("connected");
+  const resultFlag = params.get("result");
   useEffect(() => {
-    if (!realGoogle || copyStarted.current) return;
-    if (googleFlag === "denied") setToast({ text: "Google didn't allow access. Try again or add files yourself." });
-    if (googleFlag === "failed") setToast({ text: "Couldn't connect to Google. Try again.", retry: () => (location.href = "/api/google/auth") });
-    const resuming = !!me?.googleConnected && !!localStorage.getItem("stash_gd_done_v1");
-    if (googleFlag !== "ok" && !resuming) return;
+    if (!me || copyStarted.current) return;
+    const came: Provider | null = googleFlag ? "google-drive" : connectedFlag === "dropbox" || connectedFlag === "onedrive" ? connectedFlag : null;
+    const result = googleFlag ?? resultFlag;
+    if (came && result === "denied") setToast({ text: `${PROVIDER_LABEL[came]} didn't allow access. Try again or add files yourself.` });
+    if (came && result === "failed") setToast({ text: `Couldn't connect to ${PROVIDER_LABEL[came]}. Try again.`, retry: () => (location.href = providerEndpoints(came).auth) });
+    let start: Provider | null = came && result === "ok" ? came : null;
+    if (!start) {
+      for (const p of ["google-drive", "dropbox", "onedrive"] as Provider[]) {
+        if (providerReady(p) && providerConnected(p) && localStorage.getItem(doneKey(p))) {
+          start = p;
+          break;
+        }
+      }
+    }
+    if (!start || !providerReady(start)) return;
     copyStarted.current = true;
-    setMigrateOpen(googleFlag === "ok");
-    startGoogleCopy();
+    setMigrateOpen(result === "ok");
+    startGoogleCopy(start);
     return () => copyCtrl.current?.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [realGoogle, googleFlag]);
+  }, [me, googleFlag, connectedFlag]);
 
   // Which files have a local copy (ciphertext in the browser cache).
   const [local, setLocal] = useState<Set<string>>(new Set());
@@ -210,13 +234,19 @@ export function Drive() {
   }, [toast]);
 
   async function startMigration() {
-    if (realGoogle) {
-      // Resume after a stop; otherwise real consent lives on Google's screen.
-      if (migration.phase === "stopped") return startGoogleCopy();
-      location.href = "/api/google/auth";
+    if (providerReady(provider)) {
+      // Resume after a stop; otherwise real consent lives on the provider's screen.
+      if (migration.phase === "stopped") return startGoogleCopy(provider);
+      location.href = providerEndpoints(provider).auth;
       return;
     }
     setMigration(await fetch("/api/migrate", { method: "POST" }).then((r) => r.json()));
+  }
+
+  // Open the move dialog for one provider.
+  function openMove(p: Provider) {
+    if (migration.phase === "idle" || migration.phase === "done") setProvider(p);
+    setMigrateOpen(true);
   }
 
   // Encrypt in the browser, then upload ciphertext with the original name and type.
@@ -389,7 +419,7 @@ export function Drive() {
     copyCtrl.current?.abort();
     await fetch("/api/auth/signout", { method: "POST" });
     clearRawKey();
-    localStorage.removeItem("stash_gd_done_v1");
+    for (const p of ["google-drive", "dropbox", "onedrive"] as Provider[]) localStorage.removeItem(doneKey(p));
     await cacheClear();
     location.href = "/signin";
   }
@@ -400,7 +430,7 @@ export function Drive() {
     if (!confirm("Start fresh? This deletes every file in this account.")) return;
     await fetch("/api/me", { method: "DELETE" });
     clearRawKey();
-    localStorage.removeItem("stash_gd_done_v1");
+    for (const p of ["google-drive", "dropbox", "onedrive"] as Provider[]) localStorage.removeItem(doneKey(p));
     await cacheClear();
     location.reload();
   }
@@ -517,9 +547,10 @@ export function Drive() {
           <ProgressBanner
             s={migration}
             activity={activity}
+            label={PROVIDER_LABEL[provider]}
             onGoToFolder={setFolder}
-            onStop={realGoogle ? stopGoogleCopy : undefined}
-            onResume={realGoogle ? startGoogleCopy : undefined}
+            onStop={providerReady(provider) ? stopGoogleCopy : undefined}
+            onResume={providerReady(provider) ? () => startGoogleCopy(provider) : undefined}
           />
         )}
 
@@ -538,7 +569,7 @@ export function Drive() {
           <SetupSteps
             state={setupState}
             big={false}
-            onGoogle={() => setMigrateOpen(true)}
+            onStart={openMove} providers={{ dropbox: !!me?.providers?.dropbox?.enabled, onedrive: !!me?.providers?.onedrive?.enabled }}
             onDismiss={() => {
               setSetupHidden(true);
               try {
@@ -629,7 +660,7 @@ export function Drive() {
                 </Link>
               </span>
               <span className="contents pointer-coarse:hidden">
-                <button className="btn-ghost whitespace-nowrap" onClick={() => setMigrateOpen(true)} data-testid="migrate-gdrive">
+                <button className="btn-ghost whitespace-nowrap" onClick={() => openMove("google-drive")} data-testid="migrate-gdrive">
                   Move from Google Drive
                 </button>
               </span>
@@ -677,7 +708,7 @@ export function Drive() {
 
         {empty && tab === "drive" && (
           <>
-            <SetupSteps state={setupState} big onGoogle={() => setMigrateOpen(true)} />
+            <SetupSteps state={setupState} big onStart={openMove} providers={{ dropbox: !!me?.providers?.dropbox?.enabled, onedrive: !!me?.providers?.onedrive?.enabled }} />
             <p className="mt-6 text-ink-2">
               Or just{" "}
               <button className="underline underline-offset-4" onClick={() => inputRef.current?.click()} data-testid="tile-upload">
@@ -765,22 +796,23 @@ export function Drive() {
       <MigrateDialog
         open={migrateOpen}
         status={migration}
-        real={realGoogle}
+        real={providerReady(provider)}
+        label={PROVIDER_LABEL[provider]}
         onClose={() => {
           setMigrateOpen(false);
           // One-time reassurance when they leave the dialog mid-copy.
           if (migration.phase === "copying" || migration.phase === "scanning") setToast({ text: "Keep using your drive. The copy continues in the background." });
         }}
         onStart={startMigration}
-        onStop={realGoogle ? stopGoogleCopy : undefined}
+        onStop={providerReady(provider) ? stopGoogleCopy : undefined}
         onSwitchAccount={
-          realGoogle
+          providerReady(provider)
             ? async () => {
-                // Forget the Google link and copy progress, then go to Google's account chooser.
+                // Forget the link and copy progress, then go to the provider's account chooser.
                 copyCtrl.current?.abort();
-                await fetch("/api/google", { method: "DELETE" });
-                localStorage.removeItem("stash_gd_done_v1");
-                location.href = "/api/google/auth?switch=1";
+                await fetch(providerEndpoints(provider).disconnect, { method: "DELETE" });
+                localStorage.removeItem(doneKey(provider));
+                location.href = providerEndpoints(provider).auth + (provider === "google-drive" ? "?switch=1" : "");
               }
             : undefined
         }
@@ -840,12 +872,14 @@ function ActivityFeed({ e, onGoToFolder }: { e: CopyEvent | null; onGoToFolder: 
 function ProgressBanner({
   s,
   activity,
+  label,
   onGoToFolder,
   onStop,
   onResume,
 }: {
   s: MigrationStatus;
   activity: CopyEvent | null;
+  label: string;
   onGoToFolder: (folder: string) => void;
   onStop?: () => void;
   onResume?: () => void;
@@ -866,7 +900,7 @@ function ProgressBanner({
     <div className="card mb-5 px-4 py-3" role="status" data-testid="migration-progress">
       <div className="flex items-center gap-3">
         <p className="font-medium truncate">
-          {stopped ? "Copy stopped" : "Copying from Google Drive"} · {s.copiedCount.toLocaleString()} of {s.total.toLocaleString()}
+          {stopped ? "Copy stopped" : `Copying from ${label}`} · {s.copiedCount.toLocaleString()} of {s.total.toLocaleString()}
         </p>
         <p className="ml-auto text-sm text-ink-2 shrink-0">
           {fmtBytes(s.copiedBytes)} / {fmtBytes(s.bytes)} · {s.percent}%

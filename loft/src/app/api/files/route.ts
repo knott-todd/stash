@@ -63,7 +63,7 @@ async function upload(req: Request) {
     size: Number(meta.size ?? 0),
     mime: String(meta.mime ?? "application/octet-stream"),
     folder: String(meta.folder ?? "").replace(/^\/+|\/+$/g, ""),
-    source: (["upload", "google-drive", "phone", "desktop"].includes(String(meta.source)) ? meta.source : "upload") as StashFile["source"],
+    source: (["upload", "google-drive", "dropbox", "onedrive", "phone", "desktop"].includes(String(meta.source)) ? meta.source : "upload") as StashFile["source"],
     createdAt: Date.now(),
     ...(Number(meta.modifiedAt) > 0 ? { modifiedAt: Number(meta.modifiedAt) } : {}),
     ...(s.deviceId ? { deviceId: s.deviceId } : {}),

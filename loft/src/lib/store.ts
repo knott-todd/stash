@@ -14,7 +14,7 @@ export type StashFile = {
   size: number;
   mime: string;
   folder: string; // "" = root, "Photos", "Work/2024"
-  source: "upload" | "google-drive" | "phone" | "desktop";
+  source: "upload" | "google-drive" | "dropbox" | "onedrive" | "phone" | "desktop";
   createdAt: number;
   modifiedAt?: number; // the file's own modified time, when the source knows it (desktop backup)
   encrypted?: boolean; // ciphertext produced in the browser; server can't read it
@@ -50,6 +50,8 @@ export type User = {
   keyWrapped?: WrappedKey; // passcode mode
   tgChatId?: number;
   google?: { accessToken: string; refreshToken?: string; expiresAt: number };
+  // Other drives connected for a move (Dropbox, OneDrive).
+  providers?: Partial<Record<"dropbox" | "onedrive", { accessToken: string; refreshToken?: string; expiresAt: number }>>;
   /** @deprecated moved to kv `glist:<uid>`; stripped on save */
   googleList?: unknown;
   createdAt: number;

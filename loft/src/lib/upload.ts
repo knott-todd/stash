@@ -31,7 +31,7 @@ export function uploadMode(): Promise<Mode> {
 
 export type UploadOpts = {
   folder?: string;
-  source?: "upload" | "phone" | "google-drive" | "desktop";
+  source?: "upload" | "phone" | "google-drive" | "dropbox" | "onedrive" | "desktop";
   signal?: AbortSignal;
   modifiedAt?: number;
   onProgress?: (sentBytes: number, totalBytes: number) => void;

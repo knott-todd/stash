@@ -9,7 +9,11 @@ import Link from "next/link";
 
 export type SetupState = { migrated: boolean; computer: boolean; phone: boolean };
 
-export function SetupSteps({ state, big, onGoogle, onDismiss }: { state: SetupState; big: boolean; onGoogle: () => void; onDismiss?: () => void }) {
+type Prov = "google-drive" | "dropbox" | "onedrive";
+
+export function SetupSteps({ state, big, onStart, providers, onDismiss }: { state: SetupState; big: boolean; onStart: (p: Prov) => void; providers: { dropbox: boolean; onedrive: boolean }; onDismiss?: () => void }) {
+  const others = (["dropbox", "onedrive"] as const).filter((p) => providers[p]);
+  const coming = (["dropbox", "onedrive"] as const).filter((p) => !providers[p]).map((p) => (p === "dropbox" ? "Dropbox" : "OneDrive"));
   const step2 = state.computer || state.phone;
   if (big) {
     return (
@@ -18,10 +22,15 @@ export function SetupSteps({ state, big, onGoogle, onDismiss }: { state: SetupSt
         <p className="mt-2 text-lg text-ink-2">Everything is encrypted before it is stored.</p>
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <StepCard n={1} title="Move my files here" done={state.migrated} body="Everything from your current provider, folders included. Nothing is deleted there.">
-            <button className="btn-primary w-full" onClick={onGoogle} data-testid="tile-gdrive">
+            <button className="btn-primary w-full" onClick={() => onStart("google-drive")} data-testid="tile-gdrive">
               <GDriveIcon /> Google Drive
             </button>
-            <p className="text-sm text-ink-3">OneDrive and Dropbox are coming.</p>
+            {others.map((p) => (
+              <button key={p} className="btn-ghost w-full border border-line text-ink" onClick={() => onStart(p)} data-testid={`tile-`}>
+                {p === "dropbox" ? "Dropbox" : "OneDrive"}
+              </button>
+            ))}
+            {coming.length > 0 && <p className="text-sm text-ink-3">{coming.join(" and ")} {coming.length > 1 ? "are" : "is"} coming.</p>}
           </StepCard>
           <StepCard n={2} title="Back up automatically" done={step2} body="Pick the folders and the devices once. From then on every new or changed file arrives on its own.">
             <Link href="/devices" className="btn-primary w-full" data-testid="tile-computer">
@@ -39,9 +48,17 @@ export function SetupSteps({ state, big, onGoogle, onDismiss }: { state: SetupSt
     <div className="card mb-5 px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm" role="region" aria-label="Set up Stash" data-testid="setup-strip">
       <span className="font-semibold">Set up</span>
       <Step done={state.migrated} label="Move my files here">
-        <button className="underline underline-offset-4 hover:text-ink" onClick={onGoogle}>
+        <button className="underline underline-offset-4 hover:text-ink" onClick={() => onStart("google-drive")}>
           Google Drive
         </button>
+        {others.map((p) => (
+          <span key={p}>
+            <span className="text-ink-3"> · </span>
+            <button className="underline underline-offset-4 hover:text-ink" onClick={() => onStart(p)}>
+              {p === "dropbox" ? "Dropbox" : "OneDrive"}
+            </button>
+          </span>
+        ))}
       </Step>
       <Step done={step2} label="Back up automatically">
         <Link href="/devices" className="underline underline-offset-4 hover:text-ink">

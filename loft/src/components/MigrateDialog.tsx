@@ -16,6 +16,7 @@ export function MigrateDialog({
   open,
   status,
   real = false,
+  label = "Google Drive",
   onClose,
   onStart,
   onStop,
@@ -24,6 +25,7 @@ export function MigrateDialog({
   open: boolean;
   status: MigrationStatus;
   real?: boolean;
+  label?: string;
   onClose: () => void;
   onStart: () => void;
   onStop?: () => void;
@@ -49,30 +51,30 @@ export function MigrateDialog({
         {step === "consent" && (
           <>
             <h2 id="migrate-title" className="text-2xl font-semibold">
-              Move my Google Drive
+              Move my {label}
             </h2>
             <p className="mt-2 text-ink-2">
-              Stash copies every file and folder from your Google Drive, encrypted on this device as it arrives. Nothing is
-              deleted from Google.
+              Stash copies every file and folder from your {label}, encrypted on this device as it arrives. Nothing is
+              deleted there.
             </p>
             {real ? (
               <div className="mt-4 text-sm text-ink-2">
                 <p className="flex items-center gap-2">
-                  <GoogleG /> Google will ask you to allow read-only access. Stash never gets your Google password.
+                  {label === "Google Drive" && <GoogleG />} {label} will ask you to allow read-only access. Stash never gets your {label} password.
                 </p>
                 {onSwitchAccount && (
                   <button className="mt-2 text-ink-3 hover:text-ink underline underline-offset-2" onClick={onSwitchAccount} data-testid="switch-google">
-                    Use a different Google account
+                    Use a different {label === "Google Drive" ? "Google" : label} account
                   </button>
                 )}
               </div>
             ) : (
               <div className="mt-5 rounded-2xl border border-line bg-white p-4 text-sm">
                 <p className="font-medium flex items-center gap-2">
-                  <GoogleG /> Stash wants to access your Google Drive
+                  <GoogleG /> Stash wants to access your {label}
                 </p>
                 <ul className="mt-2 text-ink-2 list-disc pl-5 space-y-1">
-                  <li>See and download all your Google Drive files</li>
+                  <li>See and download all your {label} files</li>
                 </ul>
                 <p className="mt-3 text-xs text-ink-3">Demo stand-in for Google&apos;s consent screen</p>
               </div>
@@ -107,7 +109,7 @@ export function MigrateDialog({
             {status.phase === "scanning" && (
               <p className="mt-2 text-ink-2 flex items-center gap-2">
                 <span className="inline-block size-4 rounded-full border-2 border-ink-3 border-t-ink animate-spin" aria-hidden />
-                Google lists files slowly. A large Drive takes a minute or two.
+                {label} lists files slowly. A large drive takes a minute or two.
               </p>
             )}
             {status.phase !== "idle" && status.total !== undefined && (

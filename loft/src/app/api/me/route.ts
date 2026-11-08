@@ -4,6 +4,7 @@ import { store } from "@/lib/store";
 import { DEMO } from "@/lib/telegram";
 import { MAX_BYTES } from "@/lib/files-limits";
 import { GOOGLE_ENABLED } from "@/lib/google";
+import { connected as providersConnected, PROVIDERS } from "@/lib/providers";
 import { AUTH_ENABLED, newFileKey } from "@/lib/auth";
 
 export async function GET(req: Request) {
@@ -44,6 +45,8 @@ export async function GET(req: Request) {
     google: GOOGLE_ENABLED,
     maxBytes: MAX_BYTES,
     googleConnected: !!u.google,
+    // Other drives: offered when the server has keys for them, connected once the user said yes.
+    providers: { dropbox: { enabled: PROVIDERS.dropbox.enabled, connected: providersConnected(u).dropbox }, onedrive: { enabled: PROVIDERS.onedrive.enabled, connected: providersConnected(u).onedrive } },
     fileCount: files.length,
     bytes,
     photoBackup: u.photoBackup ?? null,

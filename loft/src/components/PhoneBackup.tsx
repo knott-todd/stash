@@ -7,6 +7,7 @@ import { Logo } from "./Logo";
 import { PhoneBackupDemo } from "./PhoneBackupDemo";
 import { adoptKeyFromFragment } from "@/lib/crypto";
 import { fingerprint, MAX_BYTES, uploadEncrypted } from "@/lib/upload";
+import { fmtBytes } from "@/lib/format";
 
 const HISTORY_KEY = "loft_photos_v1";
 const FOLDER = "Phone photos";
@@ -42,8 +43,24 @@ function RealBackup() {
   const [items, setItems] = useState<Item[]>([]);
   const [history, setHistory] = useState<History>({ fps: [], last: 0 });
   const [paired, setPaired] = useState(false);
+  // Between tapping the button and the files arriving. Phones can take a while
+  // here: iOS converts long videos after "Add", with nothing shown on the page.
+  const [preparing, setPreparing] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const urls = useRef<string[]>([]);
+
+  function choose() {
+    setPreparing(true);
+    input.current?.click();
+  }
+
+  useEffect(() => {
+    // Picker closed without choosing anything (Safari 16.4+, Chrome 113+).
+    const el = input.current;
+    const cancel = () => setPreparing(false);
+    el?.addEventListener("cancel", cancel);
+    return () => el?.removeEventListener("cancel", cancel);
+  }, []);
 
   useEffect(() => {
     // Arrived by QR from a laptop? Adopt that drive and its key, then carry on.
@@ -63,7 +80,7 @@ function RealBackup() {
     async function worker() {
       for (let it = queue.shift(); it; it = queue.shift()) {
         if (it.file.size > MAX_BYTES) {
-          patch(it.key, { state: "error", error: "Over 50 MB" });
+          patch(it.key, { state: "error", error: `Too big · ${fmtBytes(it.file.size)}` });
           continue;
         }
         patch(it.key, { state: "uploading" });
@@ -88,6 +105,7 @@ function RealBackup() {
   }
 
   function picked(files: FileList | null) {
+    setPreparing(false);
     if (!files?.length) return;
     const next = Array.from(files, (file, i) => {
       const url = URL.createObjectURL(file);
@@ -107,8 +125,10 @@ function RealBackup() {
   const n = (s: ItemState) => items.filter((x) => x.state === s).length;
   const finished = n("done") + n("skipped") + n("error");
   const running = items.length > 0 && finished < items.length;
-  const failed = n("error");
-  const retryable = items.some((x) => x.state === "error" && x.file.size <= MAX_BYTES);
+  const tooBig = items.filter((x) => x.state === "error" && x.file.size > MAX_BYTES).length;
+  const failed = n("error") - tooBig; // network or server trouble; worth retrying
+  const retryable = failed > 0;
+  const saved = n("done") + n("skipped");
   const returning = history.fps.length > 0;
 
   return (
@@ -134,7 +154,18 @@ function RealBackup() {
       />
 
       <section className="px-5 pb-4">
-        {items.length === 0 ? (
+        {preparing ? (
+          <div className="card p-4" role="status" aria-live="polite" data-testid="backup-preparing">
+            <p className="font-semibold">Getting your photos ready…</p>
+            <div className="mt-2 h-2 rounded-full bg-cream-2 overflow-hidden">
+              <div className="h-full w-1/3 bg-ok/60 rounded-full animate-pulse" />
+            </div>
+            <p className="mt-2 text-sm text-ink-2">Long videos can take a minute while your phone prepares them.</p>
+            <button className="btn-ghost mt-2 px-0 text-sm" onClick={() => setPreparing(false)}>
+              Cancel
+            </button>
+          </div>
+        ) : items.length === 0 ? (
           <>
             {paired && (
               <p className="rise mb-3 inline-flex items-center gap-2 rounded-full bg-ok-soft text-ok px-3 py-1 text-sm font-medium" role="status">
@@ -155,7 +186,7 @@ function RealBackup() {
                 <p className="rise-2 mt-2 text-ink-2">Pick your photos. Each one is encrypted on this phone before it leaves.</p>
               </>
             )}
-            <button className="btn-primary rise-3 mt-6 w-full" onClick={() => input.current?.click()} data-testid="backup-photos">
+            <button className="btn-primary rise-3 mt-6 w-full" onClick={choose} data-testid="backup-photos">
               {returning ? "Back up new photos" : "Back up my photos"}
             </button>
             <p className="mt-3 text-center text-sm text-ink-3">
@@ -166,7 +197,15 @@ function RealBackup() {
           <div className="card p-4" role="status" aria-live="polite" data-testid="backup-status">
             <div className="flex items-center justify-between">
               <p className="font-semibold">
-                {running ? "Backing up…" : failed ? `${failed} didn't back up.` : "All backed up."}
+                {running
+                  ? "Backing up…"
+                  : failed
+                  ? `${failed} didn't back up.`
+                  : tooBig
+                  ? saved
+                    ? `Done, except ${tooBig} too big.`
+                    : "Too big to back up."
+                  : "All backed up."}
               </p>
               <p className="text-sm text-ink-2">
                 {finished} of {items.length}
@@ -178,9 +217,14 @@ function RealBackup() {
             <p className="mt-2 text-sm text-ink-2">
               {running
                 ? "Keep this page open until it finishes."
-                : failed
-                ? `${n("done") ? `${n("done")} backed up. ` : ""}Check your connection, then try again.`
-                : `${n("done")} new ${n("done") === 1 ? "photo" : "photos"} safe in your drive.${n("skipped") ? ` ${n("skipped")} were already backed up.` : ""} Open Loft to back up new ones.`}
+                : [
+                    n("done") && `${n("done")} new ${n("done") === 1 ? "photo" : "photos"} safe in your drive.`,
+                    n("skipped") && `${n("skipped")} ${n("skipped") === 1 ? "was" : "were"} already backed up.`,
+                    tooBig && `Files over 50 MB, usually long videos, can't be backed up yet.`,
+                    failed ? "Check your connection, then try again." : "Open Loft to back up new ones.",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
             </p>
             {!running && (
               <div className="mt-3 flex gap-2">
@@ -189,7 +233,7 @@ function RealBackup() {
                     Try again
                   </button>
                 )}
-                <button className="btn-ghost flex-1 border border-line" onClick={() => input.current?.click()}>
+                <button className="btn-ghost flex-1 border border-line" onClick={choose}>
                   Back up more
                 </button>
               </div>

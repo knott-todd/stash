@@ -40,3 +40,15 @@ export async function makeThumb(filePath, mime) {
     return null;
   }
 }
+
+// Locked accounts: the key arrives wrapped with a passcode (PBKDF2-SHA256 → AES-GCM).
+export async function unwrapKey(w, passcode) {
+  try {
+    const base = await subtle.importKey("raw", new TextEncoder().encode(passcode.normalize("NFKC")), "PBKDF2", false, ["deriveKey"]);
+    const k = await subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt: unb64url(w.salt), iterations: w.iter }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+    const raw = await subtle.decrypt({ name: "AES-GCM", iv: unb64url(w.iv) }, k, unb64url(w.ct));
+    return Buffer.from(raw).toString("base64url");
+  } catch {
+    return null;
+  }
+}

@@ -40,9 +40,12 @@ export type User = {
   email?: string;
   name?: string;
   picture?: string;
-  // The account.s file key (AES-GCM, base64url). Files are encrypted in the browser
-  // with it; it is handed to a device only after a sign-in.
-  key?: string;
+  // How the file key is kept. "standard": Stash holds it (`key`) and hands it to
+  // any signed-in device. "passcode": Stash holds only a copy wrapped with a
+  // passcode it never sees (`keyWrapped`); the browser unwraps it.
+  protection?: "standard" | "passcode";
+  key?: string; // AES-GCM key, base64url (standard mode)
+  keyWrapped?: WrappedKey; // passcode mode
   tgChatId?: number;
   google?: { accessToken: string; refreshToken?: string; expiresAt: number };
   /** @deprecated moved to kv `glist:<uid>`; stripped on save */
@@ -50,6 +53,9 @@ export type User = {
   createdAt: number;
   photoBackup?: { on: boolean; total: number; startedAt: number };
 };
+
+// The file key encrypted with a key derived from the passcode (PBKDF2-SHA256).
+export type WrappedKey = { salt: string; iv: string; ct: string; iter: number; hint?: string };
 
 export type LinkToken = { token: string; uid: string; createdAt: number; used: boolean };
 

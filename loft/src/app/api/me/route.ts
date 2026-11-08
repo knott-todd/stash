@@ -35,7 +35,10 @@ export async function GET(req: Request) {
     email: u.email ?? null,
     name: u.name ?? null,
     picture: u.picture ?? null,
-    key: u.key ?? null,
+    // Standard: the key itself. Passcode: only the wrapped copy; the browser asks for the passcode.
+    protection: u.protection ?? null,
+    key: u.protection === "passcode" ? null : (u.key ?? null),
+    keyWrapped: u.protection === "passcode" ? (u.keyWrapped ?? null) : null,
     legacy,
     demo: DEMO,
     google: GOOGLE_ENABLED,
@@ -54,9 +57,11 @@ export async function DELETE() {
   if (!s) return unauthorized();
   const db = store();
   await db.reset(s.uid);
-  // A new key for whatever comes next.
+  // A new key for whatever comes next, in standard keeping.
   const u = await db.getUser(s.uid);
   u.key = newFileKey();
+  delete u.keyWrapped;
+  u.protection = "standard";
   await db.saveUser(u);
   return NextResponse.json({ ok: true });
 }

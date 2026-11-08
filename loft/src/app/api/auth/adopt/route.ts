@@ -14,9 +14,10 @@ export async function POST(req: Request) {
   if (s.legacyUid && s.legacyUid !== s.uid) {
     const mine = await db.filesFor(s.uid);
     const theirs = await db.filesFor(s.legacyUid);
-    if (mine.length === 0 && theirs.length > 0 && typeof key === "string" && /^[A-Za-z0-9_-]{16,64}$/.test(key)) {
+    const u = await db.getUser(s.uid);
+    const validKey = typeof key === "string" && /^[A-Za-z0-9_-]{16,64}$/.test(key);
+    if (mine.length === 0 && theirs.length > 0 && u.protection !== "passcode" && validKey) {
       moved = await db.moveFiles(s.legacyUid, s.uid);
-      const u = await db.getUser(s.uid);
       u.key = key;
       await db.saveUser(u);
       await db.kvDelete(`glist:${s.legacyUid}`);

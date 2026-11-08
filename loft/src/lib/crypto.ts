@@ -77,3 +77,64 @@ export async function decryptFile(blob: ArrayBuffer, chunked: boolean) {
 }
 
 export { CHUNK_PLAIN_BYTES, CHUNK_CIPHER_BYTES };
+
+// ---- Passcode protection ("Locked"): the key wrapped with a passcode-derived key.
+// Stash stores only the wrapped form and cannot open it.
+
+export type WrappedKey = { salt: string; iv: string; ct: string; iter: number; hint?: string };
+const PBKDF2_ITER = 600_000;
+
+function b64url(bytes: Uint8Array) {
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function passcodeKey(passcode: string, salt: Uint8Array, iter: number) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(passcode.normalize("NFKC")), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt: salt as BufferSource, iterations: iter }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+
+export async function wrapKey(raw: string, passcode: string, hint?: string): Promise<WrappedKey> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const k = await passcodeKey(passcode, salt, PBKDF2_ITER);
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, k, unb64url(raw) as BufferSource);
+  return { salt: b64url(salt), iv: b64url(iv), ct: b64url(new Uint8Array(ct)), iter: PBKDF2_ITER, ...(hint ? { hint } : {}) };
+}
+
+// null when the passcode is wrong.
+export async function unwrapKey(w: WrappedKey, passcode: string): Promise<string | null> {
+  try {
+    const k = await passcodeKey(passcode, unb64url(w.salt), w.iter);
+    const raw = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64url(w.iv) as BufferSource }, k, unb64url(w.ct) as BufferSource);
+    return b64url(new Uint8Array(raw));
+  } catch {
+    return null;
+  }
+}
+
+// ---- Recovery code: the key itself, written so a person can copy it down.
+// Crockford base32: no I, L, O or U, so it survives handwriting and reading aloud.
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+export function recoveryCode(raw: string) {
+  const bytes = unb64url(raw);
+  let bits = "";
+  for (const b of bytes) bits += b.toString(2).padStart(8, "0");
+  let out = "";
+  for (let i = 0; i < bits.length; i += 5) out += CROCKFORD[parseInt(bits.slice(i, i + 5).padEnd(5, "0"), 2)];
+  return out.match(/.{1,5}/g)!.join("-");
+}
+
+export function keyFromRecoveryCode(code: string): string | null {
+  const fixed = code.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
+  if (fixed.length !== 26) return null;
+  let bits = "";
+  for (const ch of fixed) {
+    const i = CROCKFORD.indexOf(ch);
+    if (i < 0) return null;
+    bits += i.toString(2).padStart(5, "0");
+  }
+  const bytes = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) bytes[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+  return b64url(bytes);
+}

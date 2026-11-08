@@ -159,7 +159,8 @@ try {
   log("Stash Desktop");
   if (!cfg.token) await link();
   if (!cfg.folders.length) await chooseFolders();
-  await runAgent({ cfg, dir, once: flag("--once"), log });
+  const askPasscode = flag("--yes") ? null : async (hint) => ask(hint ? `This account is locked. Passcode (hint: ${hint}): ` : "This account is locked. Passcode: ", "");
+  await runAgent({ cfg, dir, once: flag("--once"), log, askPasscode });
 } catch (e) {
   console.error(e.message ?? e);
   process.exit(1);

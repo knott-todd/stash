@@ -7,7 +7,8 @@ import { Logo } from "./Logo";
 import { MigrateDialog, type MigrationStatus } from "./MigrateDialog";
 import { PairCard } from "./PairCard";
 import { fmtBytes } from "@/lib/format";
-import { clearRawKey, decryptFile, getRawKey, setRawKey } from "@/lib/crypto";
+import { clearRawKey, decryptFile, getRawKey, setRawKey, type WrappedKey } from "@/lib/crypto";
+import { AskPasscode, ProtectionChoice } from "./Protection";
 import { rememberAccount } from "@/lib/accounts";
 import Link from "next/link";
 import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
@@ -44,6 +45,8 @@ type Me = {
   name?: string | null;
   picture?: string | null;
   key?: string | null;
+  protection?: "standard" | "passcode" | null;
+  keyWrapped?: WrappedKey | null;
   legacy?: { fileCount: number } | null;
 };
 
@@ -69,6 +72,10 @@ export function Drive() {
   const [pairOpen, setPairOpen] = useState<"card" | "qr" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const demoTools = demoMode(params);
+  // Locked account on a device without the key: ask for the passcode before anything else.
+  const [needPasscode, setNeedPasscode] = useState(false);
+  // First sign-in: choose how the files are protected.
+  const [chooseProtection, setChooseProtection] = useState(false);
 
   const refresh = useCallback(async () => {
     const [m, f] = await Promise.all([fetch("/api/me").then((r) => r.json()), fetch("/api/files").then((r) => r.json())]);
@@ -97,6 +104,8 @@ export function Drive() {
       }
       // The account key opens the files on this device.
       if (m.key) setRawKey(m.key);
+      if (m.protection === "passcode" && !getRawKey()) setNeedPasscode(true);
+      if (!m.protection) setChooseProtection(true);
       // Simulated migration status only applies when Google isn't configured.
       if (!m.google)
         fetch("/api/migrate")
@@ -358,6 +367,9 @@ export function Drive() {
           <Link href="/devices" className="text-ink-2 hover:text-ink underline-offset-4 hover:underline" data-testid="nav-devices">
             Devices
           </Link>
+          <Link href="/settings" className="text-ink-2 hover:text-ink underline-offset-4 hover:underline" data-testid="nav-settings">
+            Settings
+          </Link>
           <button className="text-ink-3 hover:text-ink underline-offset-4 hover:underline" onClick={signOut} data-testid="sign-out">
             Sign out
           </button>
@@ -365,6 +377,21 @@ export function Drive() {
       </header>
 
       <div className="mx-auto w-full max-w-5xl px-5 pb-24 flex-1">
+        {chooseProtection && me && !needPasscode && (
+          <section className="card mb-5 p-5" aria-labelledby="choose-protection" data-testid="choose-protection">
+            <h2 id="choose-protection" className="text-xl font-semibold">How should your files be protected?</h2>
+            <p className="mt-1 text-sm text-ink-2">Every file is encrypted before it is stored either way. You can change this later in Settings.</p>
+            <div className="mt-4">
+              <ProtectionChoice
+                current={null}
+                onChanged={() => {
+                  setChooseProtection(false);
+                  refresh();
+                }}
+              />
+            </div>
+          </section>
+        )}
         {migration.phase === "done" && (
           <div className="card mb-5 p-4 flex flex-wrap items-center gap-3 bg-ok-soft border-ok/30" role="status" data-testid="migration-done">
             <div className="flex-1">
@@ -613,6 +640,14 @@ export function Drive() {
             : undefined
         }
       />
+
+      {needPasscode && me && (
+        <AskPasscode
+          body="Your files are locked with a passcode. Enter it once on this device."
+          wrapped={me.keyWrapped ?? null}
+          onUnlocked={() => setNeedPasscode(false)}
+        />
+      )}
 
       {demoTools && (
         <button onClick={resetDemo} className="fixed bottom-4 right-4 text-xs text-ink-3 hover:text-ink underline" title="Forget this device's drive, key and Google connection" data-testid="start-fresh">

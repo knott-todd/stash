@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Api, sleep } from "./api.mjs";
-import { importKey, makeThumb } from "./crypto.mjs";
+import { importKey, makeThumb, unwrapKey } from "./crypto.mjs";
 import { changed, mimeOf } from "./scan.mjs";
-import { loadState, saveState } from "./config.mjs";
+import { loadState, saveConfig, saveState } from "./config.mjs";
 
 // The loop: scan the watched folders, send what is new or changed (two at a
 // time), remember what was sent, tell the server how things stand, watch for
@@ -14,11 +14,30 @@ const RESCAN_MS = 10 * 60 * 1000;
 const REPORT_MS = 60 * 1000;
 const VERSION = "0.1.0";
 
-export async function runAgent({ cfg, dir, once = false, log = console.log }) {
+export async function runAgent({ cfg, dir, once = false, log = console.log, askPasscode }) {
   const api = new Api(cfg.server, cfg.token);
   const me = await api.me();
-  if (!me.key) throw new Error("The account has no key yet. Sign in to Stash in a browser once, then try again.");
-  const key = await importKey(me.key);
+  let raw = me.key;
+  if (!raw && me.keyWrapped) {
+    // Locked account: the passcode opens the key here, once; it is kept with the link.
+    raw = cfg.key ?? null;
+    if (!raw) {
+      if (!askPasscode) throw new Error("This account is locked with a passcode. Run without --yes once to enter it.");
+      for (let tries = 0; !raw && tries < 3; tries++) {
+        const pc = await askPasscode(me.keyWrapped.hint);
+        raw = await unwrapKey(me.keyWrapped, pc);
+        if (!raw) log("That passcode didn't open the files.");
+      }
+      if (!raw) throw new Error("Couldn't open the files with that passcode.");
+      cfg.key = raw;
+      saveConfig(dir, cfg);
+    }
+  } else if (raw && cfg.key) {
+    delete cfg.key; // back to standard keeping: nothing to remember here
+    saveConfig(dir, cfg);
+  }
+  if (!raw) throw new Error("The account has no key yet. Sign in to Stash in a browser once, then try again.");
+  const key = await importKey(raw);
   const state = loadState(dir);
   const stats = new Map(cfg.folders.map((f) => [f.path, { ...f, files: 0, bytes: 0, pending: 0, failed: 0, lastUpload: lastUploadFor(state, f.path) }]));
   let status = "idle";

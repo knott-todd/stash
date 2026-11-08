@@ -121,6 +121,34 @@
   color: var(--l-ink-2);
 }
 
+/* Scroll cue at the foot of the hero: quiet text and a chevron, no motion. */
+.landing .more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: center;
+  margin-top: 40px;
+  font-size: 0.875rem;
+  color: var(--l-ink-2);
+  text-decoration: none;
+}
+.landing .more:hover {
+  color: var(--l-ink);
+}
+.landing .more:focus-visible {
+  outline: 2px solid var(--l-focus);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+html {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 /* Answers: one short paragraph per word. Headings repeat the promise, bodies say how. */
 .landing .answers {
   display: grid;
@@ -151,6 +179,13 @@
   line-height: 1.5;
   color: var(--l-ink-2);
 }
+.landing footer p {
+  margin: 0;
+}
+.landing footer .thanks {
+  margin-top: 8px;
+  color: var(--l-ink-3, var(--l-ink-2));
+}
 
 /* No motion. The page is static on purpose; nothing here needs to move to be understood. */
 
@@ -168,6 +203,15 @@
     min-height: calc(100dvh - 84px);
     align-items: center;
     padding-block: 0 48px;
+    position: relative;
+  }
+  /* On the full-height hero the cue sits at the bottom edge, where the eye looks for "more". */
+  .landing .more {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 0;
   }
   .landing .promise {
     font-size: clamp(3.25rem, 4.6vw, 4.25rem);

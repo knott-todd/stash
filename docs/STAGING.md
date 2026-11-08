@@ -21,9 +21,11 @@ real URL.
 2. **Porkbun DNS:** CNAME `staging.stash` → `cname.vercel-dns.com`.
 3. **Vercel → Settings → Environment Variables**, scope **Preview** only:
    - `NEXT_PUBLIC_STASH_STAGE` = `staging`
-   - `DATABASE_URL` = a separate Neon branch, so staging data never touches real
-     data: Neon console → project `broad-hall-47002201` → Branches → Create from
-     `production` named `staging` → copy its pooled connection string.
+   - `DATABASE_URL` = a separate **database** in the same Neon project (the free
+     plan refuses a new branch: "quota exceeded"): Neon console → project
+     `broad-hall-47002201` → Databases → New database named `staging` → copy its
+     pooled connection string. Tables are created on first use. Staging shares the
+     project's compute and 5 GB egress with production, so no bulk copies on staging.
    - `STASH_STORAGE_CHAT_ID`: optional separate chat so staging uploads are
      easy to purge; the same bot works. Everything else (Google, Telegram token)
      can be copied from Production.

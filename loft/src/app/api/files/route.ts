@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { getUid } from "@/lib/session";
+import { getUid, unauthorized } from "@/lib/session";
 import { newId, store, type StashFile } from "@/lib/store";
 import { putFile, putFileFromUrl, STAGED_MAX_BYTES, StorageBusy } from "@/lib/telegram";
 
 export async function GET() {
   const uid = await getUid();
+  if (!uid) return unauthorized();
   const files = await store().filesFor(uid);
   return NextResponse.json({ files: files.map(pub) });
 }
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
 
 async function upload(req: Request) {
   const uid = await getUid();
+  if (!uid) return unauthorized();
   const id = newId();
   let meta: Record<string, string>;
   let stored: { tg?: StashFile["tg"]; blob?: string };

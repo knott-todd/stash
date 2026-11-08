@@ -7,13 +7,14 @@ import { Logo } from "./Logo";
 import { MigrateDialog, type MigrationStatus } from "./MigrateDialog";
 import { PairCard } from "./PairCard";
 import { fmtBytes } from "@/lib/format";
-import { decryptBytes, ensureRawKey, getRawKey } from "@/lib/crypto";
+import { clearRawKey, decryptBytes, getRawKey, setRawKey } from "@/lib/crypto";
+import { rememberAccount } from "@/lib/accounts";
+import Link from "next/link";
 import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
 import { cacheClear, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { viewableMime } from "@/lib/view";
 import { demoMode } from "@/lib/demo-flag";
 import { uploadEncrypted, uploadMode } from "@/lib/upload";
-import Link from "next/link";
 
 export type FileRow = {
   id: string;
@@ -27,7 +28,19 @@ export type FileRow = {
   stored: boolean;
 };
 
-type Me = { demo: boolean; google: boolean; googleConnected: boolean; fileCount: number; bytes: number; email?: string | null };
+type Me = {
+  signedIn: boolean;
+  demo: boolean;
+  google: boolean;
+  googleConnected: boolean;
+  fileCount: number;
+  bytes: number;
+  email?: string | null;
+  name?: string | null;
+  picture?: string | null;
+  key?: string | null;
+  legacy?: { fileCount: number } | null;
+};
 
 const DISMISS_KEY = "stash_pair_dismissed";
 
@@ -50,7 +63,6 @@ export function Drive() {
   const [dragging, setDragging] = useState(false);
   const [pairOpen, setPairOpen] = useState<"card" | "qr" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const noKey = params.get("nokey") === "1";
   const demoTools = demoMode(params);
 
   const refresh = useCallback(async () => {
@@ -60,18 +72,26 @@ export function Drive() {
     return m as Me;
   }, []);
 
-  // Decided from the drive, not the URL: a device with files it can't open must
-  // never mint a fresh key (that would silently make every file unreadable here).
-  // Only an empty drive gets a new key.
-  const [missingKey, setMissingKey] = useState(false);
   useEffect(() => {
-    refresh().then((m) => {
-      if (!getRawKey()) {
-        if (m.fileCount > 0 || noKey) setMissingKey(true);
-        else ensureRawKey();
+    refresh().then(async (m) => {
+      // Not signed in: the sign-in page, then back here.
+      if (!m.signedIn) return router.replace("/signin?next=" + encodeURIComponent(location.pathname + location.search));
+      if (m.email) rememberAccount({ email: m.email, name: m.name, picture: m.picture });
+      // A device from before accounts holds a drive of its own: fold it into this
+      // account (its files and its key) the first time, if the account is empty.
+      if (m.legacy && m.legacy.fileCount > 0 && getRawKey()) {
+        const r = await fetch("/api/auth/adopt", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: getRawKey() }) })
+          .then((x) => x.json())
+          .catch(() => null);
+        if (r?.moved) {
+          setToast({ text: `Your ${r.moved} files from this device are now in your account.` });
+          const m2 = await refresh();
+          if (m2.key) setRawKey(m2.key);
+          return;
+        }
       }
-      // Simulated migration status only applies when Google isn't configured.
-      if (!m.google)
+      // The account key opens the files on this device.
+      if (m.key) setRawKey(m.key);
       // Simulated migration status only applies when Google isn't configured.
       if (!m.google)
         fetch("/api/migrate")
@@ -79,7 +99,7 @@ export function Drive() {
           .then(setMigration)
           .catch(() => {});
     });
-  }, [refresh]);
+  }, [refresh, router]);
 
   // Real Google flow: back from consent → list, copy in the browser, resume if interrupted.
   const googleFlag = params.get("google");
@@ -235,7 +255,7 @@ export function Drive() {
       if (f.encrypted) {
         if (!getRawKey()) {
           tab?.close();
-          setToast({ text: "This device doesn't have your key. Open the link from your other device first." });
+          setToast({ text: "Couldn't open this file. Sign out and back in, then try again." });
           return;
         }
         bytes = await decryptBytes(bytes);
@@ -258,23 +278,26 @@ export function Drive() {
     }
   }
 
-  // Sign out = sign out of Google, the only sign-in Stash has. The drive, key and
-  // files stay on this device (a device that holds the key is trusted).
+  // Sign out: the session ends and this browser forgets the key and its local
+  // copies. The files stay in the account; sign in anywhere to see them.
   async function signOut() {
     copyCtrl.current?.abort();
-    await fetch("/api/google", { method: "DELETE" });
+    await fetch("/api/auth/signout", { method: "POST" });
+    clearRawKey();
     localStorage.removeItem("stash_gd_done_v1");
-    location.href = "/";
+    await cacheClear();
+    location.href = "/signin";
   }
 
-  // Start fresh: forget this device's drive, key, local copies and Google link.
+  // Start fresh: delete every file in the account and start with a new key.
   // Reached via /drive?demo=1 so it never shows to a normal user.
   async function resetDemo() {
-    if (!confirm("Start fresh? This forgets every file, the key and the Google connection on this device.")) return;
+    if (!confirm("Start fresh? This deletes every file in this account.")) return;
     await fetch("/api/me", { method: "DELETE" });
-    localStorage.clear();
+    clearRawKey();
+    localStorage.removeItem("stash_gd_done_v1");
     await cacheClear();
-    location.href = "/";
+    location.reload();
   }
 
   const all = files ?? [];
@@ -337,17 +360,6 @@ export function Drive() {
       </header>
 
       <div className="mx-auto w-full max-w-5xl px-5 pb-24 flex-1">
-        {missingKey && (
-          <div className="card mb-5 p-4 flex flex-wrap items-center gap-3" role="status" data-testid="missing-key">
-            <div className="flex-1 min-w-[16rem]">
-              <p className="font-semibold">Your files are here, but this device can&apos;t open them yet.</p>
-              <p className="text-sm text-ink-2 mt-1">Scan a code from a device that already opens them. Takes a few seconds.</p>
-            </div>
-            <Link href="/unlock" className="btn-primary py-3 text-base" data-testid="go-unlock">
-              Unlock this device
-            </Link>
-          </div>
-        )}
         {migration.phase === "done" && (
           <div className="card mb-5 p-4 flex flex-wrap items-center gap-3 bg-ok-soft border-ok/30" role="status" data-testid="migration-done">
             <div className="flex-1">

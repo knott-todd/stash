@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import { getUid } from "@/lib/session";
-import { authUrl, GOOGLE_ENABLED } from "@/lib/google";
+import { beginOAuth } from "@/lib/auth";
+import { GOOGLE_ENABLED } from "@/lib/google";
+import { requestOrigin } from "@/lib/public-url";
 
-function originOf(req: Request) {
-  const h = req.headers;
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? new URL(req.url).host;
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
-
+// Connect Google Drive (read-only) to the signed-in account, for the migration.
 export async function GET(req: Request) {
   if (!GOOGLE_ENABLED) return NextResponse.json({ error: "Google isn't configured" }, { status: 503 });
   const uid = await getUid();
-  return NextResponse.redirect(authUrl(originOf(req), uid));
+  const origin = requestOrigin(req);
+  if (!uid) return NextResponse.redirect(`${origin}/signin?next=${encodeURIComponent("/api/google/auth")}`);
+  return NextResponse.redirect(await beginOAuth(origin, { kind: "drive", uid }));
 }

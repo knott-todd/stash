@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import fs from "node:fs";
-import { getUid } from "@/lib/session";
+import { getUid, unauthorized } from "@/lib/session";
 import { store } from "@/lib/store";
 import { deleteStored } from "@/lib/telegram";
 
@@ -8,6 +8,7 @@ import { deleteStored } from "@/lib/telegram";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const uid = await getUid();
+  if (!uid) return unauthorized();
   const { id } = await params;
   const db = store();
   const f = await db.getFile(uid, id);
@@ -21,6 +22,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const uid = await getUid();
+  if (!uid) return unauthorized();
   const { id } = await params;
   const f = await store().deleteFile(uid, id);
   if (!f) return NextResponse.json({ error: "not found" }, { status: 404 });

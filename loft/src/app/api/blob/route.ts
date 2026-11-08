@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
-import { getUid } from "@/lib/session";
+import { getUid, unauthorized } from "@/lib/session";
 import { STAGED_MAX_BYTES } from "@/lib/telegram";
 
 // Issues short-lived tokens so the browser can put ciphertext straight into the
@@ -8,6 +8,7 @@ import { STAGED_MAX_BYTES } from "@/lib/telegram";
 export async function POST(req: Request) {
   if (!process.env.BLOB_READ_WRITE_TOKEN) return NextResponse.json({ error: "staged uploads are off" }, { status: 404 });
   const uid = await getUid();
+  if (!uid) return unauthorized();
   const body = (await req.json()) as HandleUploadBody;
   try {
     const json = await handleUpload({

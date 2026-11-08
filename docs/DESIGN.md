@@ -14,8 +14,8 @@ One screen, no scroll on a phone. Top: wordmark, "Sign in". Middle: the three-wo
 | Promise | Free. / Unlimited. / Private. / Storage. | all three, said once; the noun closes the sentence |
 | Support | (none) | the headline is the whole claim; "storage, that's it" |
 | Button | Switch to Loft in 3 easy steps | ease of setup, the fourth selling point; 3 = Switch → Move my Google Drive → Allow |
-| Reassurance | No account. No card. | answers the "scam" fear |
-| Footer | Encrypted on your phone before it leaves. | Private (true once client-side encryption ships) |
+| Reassurance | Sign in with Google. No card. | answers the "scam" fear; names the one thing asked for |
+| Footer | Encrypted before it is stored. | Private |
 | Header link | Sign in | returning users → /drive |
 
 ## Tokens (`loft/src/app/landing.css`, scoped to `.landing`)
@@ -39,7 +39,7 @@ One brand colour, used once, so the noun stands apart from the three adjectives.
 Three headings that repeat the promise, each with one paragraph that says how, without saying "how we deliver":
 - **Free.** There is no plan to upgrade to. The storage behind Loft costs us nothing to give, so there is no bill to pass on. No tiers, no trial, no card.
 - **Unlimited.** No quota. Add a file today and ten thousand next year; the price stays the same. You will never see "storage full" again.
-- **Private.** Every file is encrypted on your device before it leaves. Only your device holds the key. We cannot read your files, and neither can anyone we store them with.
+- **Private.** Every file is encrypted before it is stored, so the companies holding the bytes cannot read them. Only you, signed in, can open your files. We never scan them, sell them or train anything on them.
 Desktop: three equal columns in a 64rem centred row under a hairline; mobile: stacked. Headings 1.75rem/1.5rem, body ink-2, max 28rem.
 
 ## Type
@@ -64,18 +64,18 @@ The page has no data, so no loading/empty/error states. Links: `Get started` →
 ## Rules for anything added later
 Each addition must name which of the three words it proves. If it can't, it doesn't go on this page. Keep one typeface, two colours of text, one button.
 
-## Recovery model (decided 2026-11-08)
+## Account model (decided 2026-11-08, evening; replaces the device-key recovery model)
 
-The key exists only on the user's devices. Adding a device means carrying the key, never fetching it from Stash.
+An account is a Google sign-in. The file key belongs to the account and is held by Stash; a browser receives it after sign-in and drops it on sign out. There is nothing for the user to save and nothing to lose.
 
-| Situation | How the key arrives | User steps |
+| Situation | What happens | User steps |
 | --- | --- | --- |
-| New phone of the same kind (same Apple ID / Google account), native app | OS keychain backup restores it | 0 |
-| Second device, or switching iPhone ↔ Android | QR from a device that has it, or the emailed link (key in the link, single-use, 24 h) | 1 |
-| Everything lost | Recovery code (26 chars, shown once, Crockford base32) | type it |
-| Later | PIN-protected escrow in hardware (Signal/WhatsApp pattern) or passkeys (WebAuthn PRF) | PIN or Face ID |
+| New or second device, any kind | Sign in with Google; files appear | 1 |
+| Shared device | Sign out (key and local copies cleared); next person signs in | 1 each |
+| Everything lost | Sign in with Google on anything | 1 |
+| Later, opt-in | "Lock with a passcode": key wrapped by a passcode Stash never sees; forgetting it loses the files (Apple's Advanced Data Protection pattern) | passcode |
 
-An email on file names the drive (which one is yours); it never carries the key by itself. This is what "account" means in Stash: passwordless, identity only.
+The honest cost: Stash can technically read files, as Google Drive can. The landing copy says so in plain words rather than claiming otherwise.
 
 ## Journeys (end state first; steps counted honestly, OS prompts included)
 

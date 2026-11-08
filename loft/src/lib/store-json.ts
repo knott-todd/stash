@@ -80,6 +80,17 @@ export function jsonStore(): Store {
       save();
       return f;
     },
+    async moveFiles(from, to) {
+      const d = load();
+      let n = 0;
+      for (const f of d.files) {
+        if (f.uid !== from) continue;
+        f.uid = to;
+        n++;
+      }
+      if (n) save();
+      return n;
+    },
     async getToken(token) {
       return load().tokens[token];
     },
@@ -116,7 +127,12 @@ export function jsonStore(): Store {
       const d = load();
       d.files = d.files.filter((f) => f.uid !== uid);
       delete d.migrations[uid];
-      delete d.users[uid];
+      const u = d.users[uid];
+      if (u) {
+        delete u.key;
+        delete u.google;
+        delete u.photoBackup;
+      }
       for (const [k, t] of Object.entries(d.tokens)) if (t.uid === uid) delete d.tokens[k];
       delete (d.kv ??= {})[`glist:${uid}`];
       save();

@@ -29,7 +29,7 @@ Apple, Arc, Nothing: space, one thing at a time, few words, no decoration, the p
 6. Mobile is the design; desktop is the adaptation.
 
 ## Product truth
-"Private" is earned by **client-side encryption**: files are encrypted on the device before upload (WebCrypto, AES-GCM), the key stays on the device, a recovery phrase is shown once. Telegram and Loft only ever hold ciphertext. Decision: Olusanya, 2026-11-07, option A.
+"Private" is earned by **encryption before storage**: files are encrypted in the browser (WebCrypto, AES-GCM) before upload, so the storage supplier only ever holds ciphertext. The key belongs to the account and is held by Stash, so sign in works anywhere and sign out is clean. Say this plainly: "only you, signed in, can open your files", never "we cannot read your files". Decision: Olusanya, 2026-11-07 option A; revised 2026-11-08 to accounts.
 
 ## Mechanism stays backstage
 Users don't need to know how Loft works. Telegram is not named on the landing page; inside the product it's named only where the user has to act on it (the "Open Telegram" step).

@@ -14,7 +14,7 @@ Seldon hackathon, 2026-11-07. Replaces Google Drive / Google One storage with th
 cd loft && npm install && npm run dev
 ```
 
-There is no sign-in: the device is the identity (`loft_uid` cookie). Files are AES-GCM encrypted in the browser before upload (`src/lib/crypto.ts`); the key lives in the device's localStorage and travels to another device only in a URL fragment (email link or QR from "Open on another device"). The server and the storage supplier hold ciphertext only; "What Stash holds" in the drive shows the raw bytes.
+Sign in is with Google (`src/lib/auth.ts`; session cookie `stash_sid`). Files are AES-GCM encrypted in the browser before upload (`src/lib/crypto.ts`); the key belongs to the account, is handed to the browser by `/api/me` after sign-in and cleared on sign out. Set `STASH_DEV_SIGNIN=1` locally to sign in without Google via `POST /api/auth/dev {email}`. The server and the storage supplier hold ciphertext only; "What Stash holds" in the drive shows the raw bytes.
 
 Demo mode is on when `TELEGRAM_BOT_TOKEN` is unset: ciphertext goes to `loft/.data/blobs`, migration and photo backup are simulated. With a token (operator-side, from BotFather; users never see it), ciphertext goes to a Stash-operated chat (`LOFT_STORAGE_CHAT_ID`, or the first chat that sends the bot `/start`).
 

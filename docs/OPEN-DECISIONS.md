@@ -10,6 +10,8 @@ Today the app runs in **demo mode**: "Open Telegram" opens a stand-in Telegram s
 - If unanswered: I keep going with A's code path ready and demo B.
 
 ## 2. RESOLVED (2026-11-07, option A): bot chat + client-side encryption
+**Revised 2026-11-08 (evening):** accounts with Google sign-in; the key belongs to the account and is held by Stash (see docs/DESIGN.md, Account model). The paragraph below describes the superseded device-key design.
+
 Files are AES-GCM encrypted in the browser before upload; the key lives only on the device (localStorage) and travels to other devices inside a URL fragment: by QR (no server involved) or by email link (decided 2026-11-07 evening: the key is written into the email by the server and never stored, so the claim is "Loft never stores your key"; links are single-use, 24 h). A recovery code remains as the lost-every-device fallback. Passkeys are the roadmap for a zero-knowledge email path. Storage is Loft-operated (a Loft-owned chat); Loft and the supplier only ever hold ciphertext. The user never hears "Telegram". The "files outlive Loft" claim is dropped.
 
 <details><summary>Original question</summary>

@@ -1,15 +1,12 @@
 "use client";
 
-// Client-side encryption. The key is generated on this device and never sent to
-// Stash. Files are AES-GCM encrypted in the browser before upload; the server and
-// the storage supplier only ever hold ciphertext. The key travels to another
-// device only inside a URL fragment (#k=...), which browsers never send to servers.
+// Client-side encryption. Files are AES-GCM encrypted in the browser before
+// upload and decrypted after download, so storage only ever holds ciphertext.
+// The key belongs to the account: the server hands it to this browser after a
+// sign-in, and signing out removes it from here again.
 
 const KEY_STORE = "stash_key_v1";
 
-function b64url(bytes: Uint8Array) {
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
 function unb64url(s: string) {
   const b = atob(s.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(s.length / 4) * 4, "="));
   return Uint8Array.from(b, (c) => c.charCodeAt(0));
@@ -29,46 +26,10 @@ export function setRawKey(raw: string) {
   } catch {}
 }
 
-export function ensureRawKey(): string {
-  let raw = getRawKey();
-  if (!raw) {
-    raw = b64url(crypto.getRandomValues(new Uint8Array(16))); // AES-128-GCM
-    setRawKey(raw);
-  }
-  return raw;
-}
-
-// Crockford base32: no I, L, O or U, so the code survives handwriting and reading aloud.
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-
-// Human-readable form of the key for the recovery card: 26 chars in groups of 4-5.
-export function recoveryCode(raw = ensureRawKey()) {
-  const alphabet = CROCKFORD;
-  const bytes = unb64url(raw);
-  let bits = "";
-  for (const b of bytes) bits += b.toString(2).padStart(8, "0");
-  let out = "";
-  for (let i = 0; i + 5 <= bits.length || i < bits.length; i += 5) {
-    out += alphabet[parseInt(bits.slice(i, i + 5).padEnd(5, "0"), 2)];
-  }
-  return out.match(/.{1,5}/g)!.join("-");
-}
-
-// Inverse of recoveryCode(): typed on a new device to unlock files. Tolerant of
-// case, spaces, dashes and the usual 0/O 1/I/L confusions.
-export function keyFromRecoveryCode(code: string): string | null {
-  const alphabet = CROCKFORD;
-  const fixed = code.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
-  if (fixed.length !== 26) return null;
-  let bits = "";
-  for (const ch of fixed) {
-    const i = alphabet.indexOf(ch);
-    if (i < 0) return null;
-    bits += i.toString(2).padStart(5, "0");
-  }
-  const bytes = new Uint8Array(16);
-  for (let i = 0; i < 16; i++) bytes[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
-  return b64url(bytes);
+export function clearRawKey() {
+  try {
+    localStorage.removeItem(KEY_STORE);
+  } catch {}
 }
 
 async function importKey(raw: string) {
@@ -76,7 +37,9 @@ async function importKey(raw: string) {
 }
 
 export async function encryptBytes(plain: ArrayBuffer): Promise<Blob> {
-  const key = await importKey(ensureRawKey());
+  const raw = getRawKey();
+  if (!raw) throw new Error("no-key");
+  const key = await importKey(raw);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plain);
   return new Blob([iv, ct], { type: "application/octet-stream" });
@@ -88,20 +51,4 @@ export async function decryptBytes(blob: ArrayBuffer): Promise<ArrayBuffer> {
   const key = await importKey(raw);
   const iv = new Uint8Array(blob.slice(0, 12));
   return crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, blob.slice(12));
-}
-
-// Build a link that carries the device identity (token) and the key (fragment only).
-export function pairingUrl(path: string, token: string, origin = location.origin) {
-  return `${origin}${path}?t=${token}#k=${ensureRawKey()}`;
-}
-
-// On a new device: adopt the key from the URL fragment, if present.
-export function adoptKeyFromFragment() {
-  const m = location.hash.match(/k=([A-Za-z0-9_-]+)/);
-  if (m) {
-    setRawKey(m[1]);
-    history.replaceState(null, "", location.pathname + location.search);
-    return true;
-  }
-  return false;
 }

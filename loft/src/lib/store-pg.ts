@@ -96,6 +96,11 @@ export function pgStore(): Store {
       const rows = await sql`DELETE FROM files WHERE id = ${id} AND uid = ${uid} RETURNING data`;
       return rows[0] ? rowFile(rows[0]) : undefined;
     },
+    async moveFiles(from, to) {
+      await ensure();
+      const rows = await sql`UPDATE files SET uid = ${to} WHERE uid = ${from} RETURNING id`;
+      return rows.length;
+    },
     async getToken(token) {
       await ensure();
       const rows = await sql`SELECT data FROM tokens WHERE token = ${token}`;
@@ -145,7 +150,7 @@ export function pgStore(): Store {
       await sql`DELETE FROM files WHERE uid = ${uid}`;
       await sql`DELETE FROM migrations WHERE uid = ${uid}`;
       await sql`DELETE FROM tokens WHERE uid = ${uid}`;
-      await sql`DELETE FROM users WHERE uid = ${uid}`;
+      await sql`UPDATE users SET data = data - 'key' - 'google' - 'photoBackup' WHERE uid = ${uid}`;
       await sql`DELETE FROM kv WHERE key = ${"glist:" + uid}`;
     },
   };

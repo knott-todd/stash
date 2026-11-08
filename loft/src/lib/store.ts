@@ -23,10 +23,15 @@ export type StashFile = {
 };
 
 export type User = {
-  uid: string;
+  uid: string; // "g:<google sub>" for accounts
   linked: boolean;
   firstName?: string;
   email?: string;
+  name?: string;
+  picture?: string;
+  // The account.s file key (AES-GCM, base64url). Files are encrypted in the browser
+  // with it; it is handed to a device only after a sign-in.
+  key?: string;
   tgChatId?: number;
   google?: { accessToken: string; refreshToken?: string; expiresAt: number };
   /** @deprecated moved to kv `glist:<uid>`; stripped on save */
@@ -58,6 +63,8 @@ export interface Store {
   addFile(f: StashFile): Promise<StashFile>;
   updateFile(f: StashFile): Promise<void>;
   deleteFile(uid: string, id: string): Promise<StashFile | undefined>;
+  // Fold a pre-account device drive into an account.
+  moveFiles(fromUid: string, toUid: string): Promise<number>;
   getToken(token: string): Promise<LinkToken | undefined>;
   putToken(t: LinkToken): Promise<void>;
   getMigration(uid: string): Promise<Migration | undefined>;
@@ -68,7 +75,7 @@ export interface Store {
   kvGet<T>(key: string): Promise<T | undefined>;
   kvSet(key: string, value: unknown): Promise<void>;
   kvDelete(key: string): Promise<void>;
-  reset(uid: string): Promise<void>; // forget a drive entirely
+  reset(uid: string): Promise<void>; // forget every file and key; keeps who the account is
 }
 
 export const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), ".data");

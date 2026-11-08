@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { getUid } from "@/lib/session";
+import { getSession, unauthorized } from "@/lib/session";
 import { store } from "@/lib/store";
 import { DEMO, STAGED_MAX_BYTES } from "@/lib/telegram";
 import { GOOGLE_ENABLED } from "@/lib/google";
+import { AUTH_ENABLED, newFileKey } from "@/lib/auth";
 
 export async function GET(req: Request) {
   // Names only, never values: which settings the running server can see.
@@ -13,15 +14,28 @@ export async function GET(req: Request) {
     const raw = process.env.DATABASE_URL ?? "";
     let dbHost = "unset";
     try { dbHost = raw ? new URL(raw.replace(/^"|"$/g, "")).host.split(".")[0] : "unset"; } catch { dbHost = "unparseable"; }
-    return NextResponse.json({ present, demo: DEMO, blobUploads: !!process.env.BLOB_READ_WRITE_TOKEN, dbHost, dbQuoted: /^".*"$/.test(raw) });
+    return NextResponse.json({ present, demo: DEMO, auth: AUTH_ENABLED, blobUploads: !!process.env.BLOB_READ_WRITE_TOKEN, dbHost, dbQuoted: /^".*"$/.test(raw) });
   }
-  const uid = await getUid();
+  const s = await getSession();
+  if (!s) return NextResponse.json({ signedIn: false, auth: AUTH_ENABLED, demo: DEMO }, { status: 200 });
+  const uid = s.uid;
   const db = store();
   const [u, files, migration] = await Promise.all([db.getUser(uid), db.filesFor(uid), db.getMigration(uid)]);
   const bytes = files.reduce((n, f) => n + f.size, 0);
+  // A device from before accounts: how many files it holds, if the account is still empty.
+  let legacy: { fileCount: number } | null = null;
+  if (s.legacyUid && s.legacyUid !== uid && files.length === 0) {
+    const n = (await db.filesFor(s.legacyUid)).length;
+    legacy = { fileCount: n };
+  }
   return NextResponse.json({
+    signedIn: true,
     linked: true,
     email: u.email ?? null,
+    name: u.name ?? null,
+    picture: u.picture ?? null,
+    key: u.key ?? null,
+    legacy,
     demo: DEMO,
     google: GOOGLE_ENABLED,
     // How the browser should send files: staged through the blob store on serverless hosts.
@@ -35,9 +49,15 @@ export async function GET(req: Request) {
   });
 }
 
-// Start fresh: forget this device's drive entirely.
+// Start fresh: forget every file and the key. The account itself stays.
 export async function DELETE() {
-  const uid = await getUid();
-  await store().reset(uid);
+  const s = await getSession();
+  if (!s) return unauthorized();
+  const db = store();
+  await db.reset(s.uid);
+  // A new key for whatever comes next.
+  const u = await db.getUser(s.uid);
+  u.key = newFileKey();
+  await db.saveUser(u);
   return NextResponse.json({ ok: true });
 }

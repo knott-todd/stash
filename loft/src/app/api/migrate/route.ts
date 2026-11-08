@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUid } from "@/lib/session";
+import { getUid, unauthorized } from "@/lib/session";
 import { newId, store } from "@/lib/store";
 import { GDRIVE_BYTES, GDRIVE_TOTAL, gdriveFiles } from "@/lib/demo-data";
 
@@ -11,6 +11,7 @@ const COPY_MS = 17500;
 
 export async function POST() {
   const uid = await getUid();
+  if (!uid) return unauthorized();
   const db = store();
   if (!(await db.getMigration(uid))) {
     await db.putMigration({
@@ -28,6 +29,7 @@ export async function POST() {
 
 export async function GET() {
   const uid = await getUid();
+  if (!uid) return unauthorized();
   return NextResponse.json(await status(uid));
 }
 

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Logo } from "./Logo";
 import { phonePhotos } from "@/lib/demo-data";
-import { adoptKeyFromFragment } from "@/lib/crypto";
 
 type Status = { on: boolean; total: number; uploaded: number; done?: boolean };
 
@@ -19,11 +18,8 @@ export function PhoneBackupDemo() {
   }
   const [paired, setPaired] = useState(false);
   useEffect(() => {
-    // Arrived by QR from a laptop? Adopt that drive and its key, then carry on.
-    adoptKeyFromFragment();
-    const t = new URLSearchParams(location.search).get("t");
-    const ready = t ? fetch(`/api/claim?t=${encodeURIComponent(t)}`).then(() => setPaired(true)) : Promise.resolve();
-    ready.then(poll);
+    setPaired(true);
+    poll();
   }, []);
   useEffect(() => {
     if (!s.on || s.done) return;

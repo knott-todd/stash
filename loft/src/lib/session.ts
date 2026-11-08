@@ -1,15 +1,62 @@
 import { cookies } from "next/headers";
-import { newId } from "./store";
+import { NextResponse } from "next/server";
+import { newId, store } from "./store";
 
-const COOKIE = "stash_uid";
+// Who is making this request. Identity is an account (Google sign-in); the
+// browser holds only an opaque session id. Signing out deletes the session.
 
-// Anonymous device identity. Linking to Telegram attaches a name/chat to it.
-export async function getUid(): Promise<string> {
+const SID = "stash_sid";
+const LEGACY = "stash_uid"; // pre-account device identity; adopted into the account once
+const YEAR = 60 * 60 * 24 * 365;
+
+export type Session = { uid: string; createdAt: number; legacyUid?: string };
+
+export const sessionKey = (sid: string) => `sess:${sid}`;
+
+export async function getSession(): Promise<Session | null> {
   const jar = await cookies();
-  let uid = jar.get(COOKIE)?.value;
-  if (!uid) {
-    uid = newId();
-    jar.set(COOKIE, uid, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 365 });
-  }
-  return uid;
+  const sid = jar.get(SID)?.value;
+  if (!sid) return null;
+  const s = await store().kvGet<Session>(sessionKey(sid));
+  return s ?? null;
+}
+
+// The signed-in account's id, or null. Routes answer 401 on null.
+export async function getUid(): Promise<string | null> {
+  return (await getSession())?.uid ?? null;
+}
+
+export function unauthorized() {
+  return NextResponse.json({ error: "Sign in to continue.", signedIn: false }, { status: 401 });
+}
+
+// Start a session for an account. Remembers the device's pre-account drive, if
+// any, so it can be folded into the account on first sight.
+export async function startSession(uid: string) {
+  const jar = await cookies();
+  const sid = newId() + newId() + newId();
+  const legacyUid = jar.get(LEGACY)?.value;
+  const s: Session = { uid, createdAt: Date.now(), ...(legacyUid ? { legacyUid } : {}) };
+  await store().kvSet(sessionKey(sid), s);
+  jar.set(SID, sid, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: YEAR });
+  return s;
+}
+
+export async function endSession() {
+  const jar = await cookies();
+  const sid = jar.get(SID)?.value;
+  if (sid) await store().kvDelete(sessionKey(sid));
+  jar.delete(SID);
+}
+
+export async function updateSession(patch: Partial<Session>) {
+  const jar = await cookies();
+  const sid = jar.get(SID)?.value;
+  if (!sid) return;
+  const s = await store().kvGet<Session>(sessionKey(sid));
+  if (s) await store().kvSet(sessionKey(sid), { ...s, ...patch });
+}
+
+export async function clearLegacyCookie() {
+  (await cookies()).delete(LEGACY);
 }

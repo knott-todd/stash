@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { getUid } from "@/lib/session";
+import { getUid, unauthorized } from "@/lib/session";
 import { accessTokenFor, GOOGLE_ENABLED, listAll, type GFile } from "@/lib/google";
 import { store } from "@/lib/store";
 
 // Everything in the user's Drive, with folder paths. The browser does the copying.
 export async function GET() {
   const uid = await getUid();
+  if (!uid) return unauthorized();
   if (!GOOGLE_ENABLED) return NextResponse.json({ connected: false, configured: false });
   const token = await accessTokenFor(uid).catch(() => null);
   if (!token) return NextResponse.json({ connected: false, configured: true });

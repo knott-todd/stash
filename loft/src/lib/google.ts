@@ -1,22 +1,23 @@
 import { store } from "./store";
 
-// Google Drive, read-only. Tokens are kept server-side per device identity;
-// file bytes pass through the server to the browser, which encrypts them before
-// they go to storage. Google never sees Stash's key; Stash never sees plaintext at rest.
+// Google OAuth, two jobs: sign-in (OpenID, who you are) and Drive read-only for
+// the migration. Drive tokens are kept per account; file bytes pass through the
+// server to the browser, which encrypts them before they go to storage.
 
 export const GOOGLE_ENABLED = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
-const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 
-export function authUrl(origin: string, state: string) {
+export function googleAuthUrl(origin: string, state: string, o: { scope?: string; prompt?: string; loginHint?: string; offline?: boolean } = {}) {
   const p = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
     redirect_uri: `${origin}/api/google/callback`,
     response_type: "code",
-    scope: SCOPE,
-    access_type: "offline",
-    prompt: "select_account consent", // always offer the account chooser, so a demo account can be picked
+    scope: o.scope ?? DRIVE_SCOPE,
     state,
   });
+  if (o.offline) p.set("access_type", "offline");
+  if (o.prompt) p.set("prompt", o.prompt);
+  if (o.loginHint) p.set("login_hint", o.loginHint);
   return `https://accounts.google.com/o/oauth2/v2/auth?${p}`;
 }
 
@@ -34,7 +35,7 @@ export async function exchangeCode(origin: string, code: string) {
   });
   const j = await r.json();
   if (!r.ok) throw new Error(j.error_description ?? j.error ?? "token exchange failed");
-  return j as { access_token: string; refresh_token?: string; expires_in: number };
+  return j as { access_token: string; refresh_token?: string; expires_in: number; id_token?: string };
 }
 
 async function refresh(refreshToken: string) {

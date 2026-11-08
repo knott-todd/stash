@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { getUid } from "@/lib/session";
+import { getUid, unauthorized } from "@/lib/session";
 import { store } from "@/lib/store";
 import { getFileStream } from "@/lib/telegram";
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const uid = await getUid();
+  if (!uid) return unauthorized();
   const { id } = await params;
   const f = await store().getFile(uid, id);
   if (!f) return NextResponse.json({ error: "not found" }, { status: 404 });

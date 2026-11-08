@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Logo } from "./Logo";
 import { PhoneBackupDemo } from "./PhoneBackupDemo";
-import { adoptKeyFromFragment } from "@/lib/crypto";
+import { setRawKey } from "@/lib/crypto";
 import { demoMode } from "@/lib/demo-flag";
 import { fingerprint, MAX_BYTES, uploadEncrypted } from "@/lib/upload";
 import { fmtBytes } from "@/lib/format";
@@ -64,10 +64,15 @@ function RealBackup() {
   }, []);
 
   useEffect(() => {
-    // Arrived by QR from a laptop? Adopt that drive and its key, then carry on.
-    adoptKeyFromFragment();
-    const t = new URLSearchParams(location.search).get("t");
-    if (t) fetch(`/api/claim?t=${encodeURIComponent(t)}`).then(() => setPaired(true));
+    // Signed in? The account key opens the files; otherwise go sign in and come back here.
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((m) => {
+        if (!m.signedIn) return location.replace("/signin?next=" + encodeURIComponent(location.pathname + location.search));
+        if (m.key) setRawKey(m.key);
+        setPaired(true);
+      })
+      .catch(() => {});
     setHistory(loadHistory()); // eslint-disable-line react-hooks/set-state-in-effect -- localStorage only exists after mount
     const made = urls.current;
     return () => made.forEach(URL.revokeObjectURL);

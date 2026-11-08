@@ -15,7 +15,7 @@ const answers = [
   },
   {
     h: "Private.",
-    p: "Every file is encrypted on your device before it leaves. Only your device holds the key. We cannot read your files, and neither can anyone we store them with.",
+    p: "Every file is encrypted before it is stored, so the companies holding the bytes cannot read them. Only you, signed in, can open your files. We never scan them, sell them or train anything on them.",
   },
 ];
 
@@ -42,7 +42,7 @@ export default function Landing() {
           <Link href="/start" className="cta" data-testid="cta-start">
             Switch to Stash in 3 easy steps
           </Link>
-          <p className="reassure">No account. No card.</p>
+          <p className="reassure">Sign in with Google. No card.</p>
         </div>
         {/* Scroll cue: the hero fills the screen, so say there is more. */}
         <a href="#answers" className="more" aria-label="Read what that means">

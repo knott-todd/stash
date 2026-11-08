@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUid } from "@/lib/session";
+import { getUid, unauthorized } from "@/lib/session";
 import { newId, store } from "@/lib/store";
 import { phonePhotos } from "@/lib/demo-data";
 
@@ -8,6 +8,7 @@ const PER_PHOTO_MS = 400;
 
 export async function POST(req: Request) {
   const uid = await getUid();
+  if (!uid) return unauthorized();
   const db = store();
   const u = await db.getUser(uid);
   const body = await req.json().catch(() => ({}));
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
 
 export async function GET() {
   const uid = await getUid();
+  if (!uid) return unauthorized();
   return NextResponse.json(await status(uid));
 }
 

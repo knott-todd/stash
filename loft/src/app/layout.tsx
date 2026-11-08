@@ -8,7 +8,7 @@ const fraunces = Fraunces({ variable: "--font-fraunces", subsets: ["latin"], axe
 
 export const metadata: Metadata = {
   title: "Stash — Free. Unlimited. Private. Storage.",
-  description: "Storage that is free, unlimited and private. No account. No card. Encrypted on your phone before it leaves.",
+  description: "Storage that is free, unlimited and private. Sign in with Google. No card. Encrypted before it is stored.",
 };
 
 export const viewport: Viewport = { themeColor: "#fffbf5" };

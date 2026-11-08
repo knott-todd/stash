@@ -17,9 +17,11 @@ export default function Privacy() {
         <div>
           <h2 className="text-xl font-semibold">What Stash stores</h2>
           <p className="mt-2 text-ink-2">
-            Your files are encrypted on your device before they leave it, with a key that exists only on your devices.
-            Stash and the storage providers it uses hold the encrypted form and cannot read your files. Stash keeps file
-            names, sizes, folder names and dates so it can show you your drive.
+            Your files are encrypted in your browser before they are stored, with a key that belongs to your account.
+            The storage providers Stash uses hold only the encrypted form and cannot read your files. Stash holds the
+            key so that any device you sign in on can open them; we never use it to look at your files. Stash keeps
+            file names, sizes, folder names and dates so it can show you your drive, and your Google account&apos;s email,
+            name and picture so it can show you who is signed in.
           </p>
         </div>
         <div>
@@ -29,8 +31,7 @@ export default function Privacy() {
             that access only to list your files and copy them into Stash, encrypted on your device as each one arrives.
             Stash never deletes, changes or shares anything in your Google Drive, and never uses Google data for
             advertising or for building profiles. You can remove Stash&apos;s access at any time at
-            myaccount.google.com/permissions, or with &ldquo;Sign out&rdquo; in Stash, which discards the Google
-            connection.
+            myaccount.google.com/permissions, or in Stash from the migration dialog, which discards the Google connection.
           </p>
           <p className="mt-2 text-ink-2">
             Stash&apos;s use of information received from Google APIs follows the Google API Services User Data Policy,

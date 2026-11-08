@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { getUid } from "@/lib/session";
+import { getUid, unauthorized } from "@/lib/session";
 import { accessTokenFor, fetchFile } from "@/lib/google";
 
 // Proxies one file's bytes from Google to the browser (which encrypts them).
 export async function GET(req: Request) {
   const uid = await getUid();
+  if (!uid) return unauthorized();
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   const exportAs = url.searchParams.get("export") ?? undefined;

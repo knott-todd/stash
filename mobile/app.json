@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Stash",
+    "slug": "stash",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "stash",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.olusanyatodd.stash",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Stash backs up your photos and videos automatically.",
+        "UIBackgroundModes": ["fetch", "processing"],
+        "BGTaskSchedulerPermittedIdentifiers": ["com.olusanyatodd.stash.backup"]
+      }
+    },
+    "android": {
+      "package": "com.olusanyatodd.stash",
+      "permissions": ["READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO", "READ_EXTERNAL_STORAGE"]
+    },
+    "plugins": [
+      ["expo-media-library", { "photosPermission": "Stash backs up your photos and videos automatically.", "savePhotosPermission": false, "isAccessMediaLocationEnabled": false }],
+      "expo-background-task",
+      "expo-secure-store"
+    ]
+  }
+}

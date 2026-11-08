@@ -5,7 +5,8 @@ import type { LinkToken, StashFile, Migration, Store, User } from "./store";
 // Rows are small: the catalogue only, never file bytes or keys.
 
 export function pgStore(): Store {
-  const sql = neon(process.env.DATABASE_URL!);
+  // Tolerate a value pasted with the quotes .env files wrap it in.
+  const sql = neon(process.env.DATABASE_URL!.trim().replace(/^["']|["']$/g, ""));
   let ready: Promise<void> | null = null;
 
   // Create tables on first use; cheap and idempotent.

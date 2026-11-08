@@ -1,6 +1,6 @@
 # Stash — feature tracker
 
-Live at: https://github.com/knott-todd/loft/blob/main/docs/ROADMAP.md
+Live at: https://github.com/knott-todd/stash/blob/main/docs/ROADMAP.md
 Rule: nothing moves to **Complete** until it's verified on the production URL, not localhost.
 
 ## Complete (verified)

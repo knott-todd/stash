@@ -218,7 +218,7 @@ export function Drive() {
     // the browser doesn't treat the later navigation as a popup.
     const viewAs = forceDownload ? null : viewableMime(f.mime, f.name);
     const tab = viewAs ? window.open("", "_blank") : null;
-    if (tab) tab.document.title = f.name;
+    if (tab) showLoading(tab, f.name);
     setOpening(f.id);
     try {
       // Local copy first; otherwise download and keep a copy for next time.
@@ -648,4 +648,20 @@ function GDriveIcon() {
       <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00" />
     </svg>
   );
+}
+
+// The viewer tab opens inside the click (so it isn't blocked as a popup) but the
+// file still has to download and decrypt. Show that instead of a blank page.
+function showLoading(tab: Window, name: string) {
+  const d = tab.document;
+  d.title = name;
+  d.body.innerHTML = `<style>
+    body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fafafa;color:#111;font:16px/1.4 system-ui,-apple-system,sans-serif}
+    @media (prefers-color-scheme:dark){body{background:#111;color:#f5f5f5}}
+    .s{width:28px;height:28px;margin:0 auto 16px;border:3px solid currentColor;border-right-color:transparent;border-radius:50%;opacity:.6;animation:r .8s linear infinite}
+    @keyframes r{to{transform:rotate(1turn)}}
+    p{margin:0;text-align:center;padding:0 24px;word-break:break-word}
+    small{display:block;margin-top:4px;opacity:.6}
+  </style><div role="status"><div class="s"></div><p></p><small>Decrypting on this device</small></div>`;
+  d.querySelector("p")!.textContent = `Opening ${name}…`;
 }

@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileBrowser } from "./FileBrowser";
+import { DRAG_TYPE, FileBrowser } from "./FileBrowser";
 import { Logo } from "./Logo";
 import { MigrateDialog, type MigrationStatus } from "./MigrateDialog";
 import { PairCard } from "./PairCard";
+import { SetupSteps } from "./SetupSteps";
+import { PhotosView } from "./PhotosView";
+import { MoveDialog } from "./MoveDialog";
 import { fmtBytes } from "@/lib/format";
 import { clearRawKey, decryptFile, getRawKey, setRawKey, type WrappedKey } from "@/lib/crypto";
 import { AskPasscode, ProtectionChoice } from "./Protection";
@@ -72,15 +75,47 @@ export function Drive() {
   const [pairOpen, setPairOpen] = useState<"card" | "qr" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const demoTools = demoMode(params);
+  // Which screen: the folders, or every picture and video at once.
+  const tab = params.get("view") === "photos" ? "photos" : "drive";
+  // List or grid, remembered on this browser.
+  const [view, setView] = useState<"list" | "grid">("list");
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("stash_view_v1") === "grid") setView("grid"); // eslint-disable-line react-hooks/set-state-in-effect -- localStorage exists only after mount
+    } catch {}
+  }, []);
+  const chooseView = (v: "list" | "grid") => {
+    setView(v);
+    try {
+      localStorage.setItem("stash_view_v1", v);
+    } catch {}
+  };
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [extraFolders, setExtraFolders] = useState<string[]>([]);
+  const [computers, setComputers] = useState(0);
+  const [moveIds, setMoveIds] = useState<string[] | null>(null);
+  const [setupHidden, setSetupHidden] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("stash_setup_hidden_v1") === "1") setSetupHidden(true); // eslint-disable-line react-hooks/set-state-in-effect -- localStorage exists only after mount
+    } catch {}
+  }, []);
   // Locked account on a device without the key: ask for the passcode before anything else.
   const [needPasscode, setNeedPasscode] = useState(false);
   // First sign-in: choose how the files are protected.
   const [chooseProtection, setChooseProtection] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [m, f] = await Promise.all([fetch("/api/me").then((r) => r.json()), fetch("/api/files").then((r) => r.json())]);
+    const [m, f, fo, dv] = await Promise.all([
+      fetch("/api/me").then((r) => r.json()),
+      fetch("/api/files").then((r) => r.json()),
+      fetch("/api/folders").then((r) => r.json()).catch(() => ({ folders: [] })),
+      fetch("/api/devices").then((r) => r.json()).catch(() => ({ devices: [] })),
+    ]);
     setMe(m);
-    setFiles(f.files);
+    setFiles(f.files ?? []);
+    setExtraFolders(fo.folders ?? []);
+    setComputers(((dv.devices ?? []) as { kind: string }[]).filter((d) => d.kind === "desktop").length);
     return m as Me;
   }, []);
 
@@ -221,28 +256,81 @@ export function Drive() {
   }
 
   // Trash is optimistic with Undo; the server delete happens when the toast expires.
+  // Trashing one of several selected files trashes them all.
   const pendingTrash = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   function trash(f: FileRow) {
-    setFiles((fs) => fs && fs.filter((x) => x.id !== f.id));
+    const ids = selected.has(f.id) && selected.size > 1 ? [...selected].filter((k) => !k.startsWith("d:")) : [f.id];
+    const batch = (files ?? []).filter((x) => ids.includes(x.id));
+    setFiles((fs) => fs && fs.filter((x) => !ids.includes(x.id)));
+    setSelected(new Set());
     const t = setTimeout(async () => {
-      pendingTrash.current.delete(f.id);
-      const r = await fetch(`/api/files/${f.id}`, { method: "DELETE" });
-      if (!r.ok) {
-        setToast({ text: `Couldn't delete ${f.name}.` });
+      let failed = 0;
+      for (const x of batch) {
+        pendingTrash.current.delete(x.id);
+        const r = await fetch(`/api/files/${x.id}`, { method: "DELETE" });
+        if (!r.ok) failed++;
+      }
+      if (failed) {
+        setToast({ text: failed === 1 ? `Couldn't delete ${batch[0].name}.` : `Couldn't delete ${failed} files.` });
         refresh();
       }
     }, 6000);
-    pendingTrash.current.set(f.id, t);
+    for (const x of batch) pendingTrash.current.set(x.id, t);
     setToast({
-      text: `${f.name} moved to trash.`,
+      text: batch.length === 1 ? `${f.name} moved to trash.` : `${batch.length} files moved to trash.`,
       undo: () => {
         clearTimeout(t);
-        pendingTrash.current.delete(f.id);
+        for (const x of batch) pendingTrash.current.delete(x.id);
         setToast(null);
         refresh();
       },
     });
   }
+
+  // Move files into a folder (drag, or the Move dialog).
+  async function moveFiles(ids: string[], target: string) {
+    const moving = (files ?? []).filter((x) => ids.includes(x.id) && x.folder !== target);
+    if (!moving.length) return;
+    setFiles((fs) => fs && fs.map((x) => (ids.includes(x.id) ? { ...x, folder: target } : x)));
+    setSelected(new Set());
+    setMoveIds(null);
+    const r = await fetch("/api/files", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids: moving.map((x) => x.id), folder: target }) });
+    if (!r.ok) setToast({ text: "Couldn't move those. Try again." });
+    else setToast({ text: moving.length === 1 ? `${moving[0].name} moved to ${target ? target.split("/").pop() : "My drive"}.` : `${moving.length} files moved to ${target ? target.split("/").pop() : "My drive"}.` });
+    refresh();
+  }
+
+  async function newFolder() {
+    const name = prompt("Folder name");
+    if (!name?.trim()) return;
+    const path = [folder, name.trim().replace(/\//g, " ")].filter(Boolean).join("/");
+    const r = await fetch("/api/folders", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) });
+    if (!r.ok) return setToast({ text: "Couldn't make that folder." });
+    await refresh();
+    setFolder(path);
+  }
+
+  // Folders people can move things into: every one that holds a file, plus the empty ones.
+  const allFolders = Array.from(
+    new Set([...(files ?? []).map((f) => f.folder), ...extraFolders].filter(Boolean).flatMap((p) => p.split("/").map((_, i, a) => a.slice(0, i + 1).join("/")))),
+  );
+
+  // Drop onto a crumb (or the "My drive" root) to move there.
+  const crumbDrop = (path: string) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    },
+    onDrop: (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        moveFiles(JSON.parse(e.dataTransfer.getData(DRAG_TYPE)), path);
+      } catch {}
+    },
+  });
 
   // Fetch ciphertext, decrypt here, hand the browser a real file.
   async function open(f: FileRow, forceDownload = false) {
@@ -315,6 +403,12 @@ export function Drive() {
   }
 
   const all = files ?? [];
+  // The two setup steps, judged from what has actually happened.
+  const setupState = {
+    migrated: !!me?.googleConnected || all.some((f) => f.source === "google-drive") || migration.phase === "done",
+    computer: computers > 0 || all.some((f) => f.source === "desktop"),
+    phone: all.some((f) => f.source === "phone"),
+  };
   const empty = files !== null && all.length === 0;
 
   // A phone code may be showing (tile or "Open on another device"): follow the phone. When its first photo lands,
@@ -350,30 +444,41 @@ export function Drive() {
         setDragging(true);
       }}
       onDragLeave={() => setDragging(false)}
+      onDragOverCapture={(e) => {
+        // Moving rows inside the drive is not a file drop from the desktop.
+        if (e.dataTransfer.types.includes(DRAG_TYPE)) setDragging(false);
+      }}
       onDrop={(e) => {
         e.preventDefault();
         setDragging(false);
+        if (e.dataTransfer.types.includes(DRAG_TYPE)) return;
         if (e.dataTransfer.files.length) upload(e.dataTransfer.files);
       }}
     >
       <header className="mx-auto w-full max-w-5xl px-5 py-5 flex items-center justify-between gap-4">
         <Logo />
-        <div className="flex items-center gap-4 text-sm">
-          {me && (
-            <span className="hidden sm:inline text-ink-2" data-testid="usage">
-              {me.fileCount} files · {fmtBytes(me.bytes)} of <span className="font-semibold text-ink">unlimited</span>
-            </span>
-          )}
+        <nav className="flex items-center gap-4 text-sm" aria-label="Sections">
+          <Link href="/drive" className={`whitespace-nowrap underline-offset-4 hover:underline ${tab === "drive" ? "font-semibold text-ink" : "text-ink-2 hover:text-ink"}`} data-testid="nav-drive">
+            My drive
+          </Link>
+          <Link href="/drive?view=photos" className={`whitespace-nowrap underline-offset-4 hover:underline ${tab === "photos" ? "font-semibold text-ink" : "text-ink-2 hover:text-ink"}`} data-testid="nav-photos">
+            Photos
+          </Link>
           <Link href="/devices" className="text-ink-2 hover:text-ink underline-offset-4 hover:underline" data-testid="nav-devices">
             Devices
           </Link>
           <Link href="/settings" className="text-ink-2 hover:text-ink underline-offset-4 hover:underline" data-testid="nav-settings">
             Settings
           </Link>
+          {me && (
+            <span className="hidden md:inline text-ink-3" data-testid="usage">
+              {me.fileCount.toLocaleString()} files · {fmtBytes(me.bytes)}
+            </span>
+          )}
           <button className="text-ink-3 hover:text-ink underline-offset-4 hover:underline" onClick={signOut} data-testid="sign-out">
             Sign out
           </button>
-        </div>
+        </nav>
       </header>
 
       <div className="mx-auto w-full max-w-5xl px-5 pb-24 flex-1">
@@ -426,9 +531,31 @@ export function Drive() {
           />
         )}
 
+        {!empty && files && !setupHidden && !(setupState.migrated && (setupState.computer || setupState.phone)) && tab === "drive" && (
+          <SetupSteps
+            state={setupState}
+            big={false}
+            onGoogle={() => setMigrateOpen(true)}
+            onDismiss={() => {
+              setSetupHidden(true);
+              try {
+                localStorage.setItem("stash_setup_hidden_v1", "1");
+              } catch {}
+            }}
+          />
+        )}
+
+        {tab === "photos" && files && (
+          <>
+            <h1 className="text-lg font-semibold mb-4">Photos</h1>
+            <PhotosView files={all} opening={opening} onOpen={(f) => open(f)} />
+          </>
+        )}
+
+        {tab === "drive" && (
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <nav className="flex items-center gap-1 text-lg" aria-label="Folder path">
-            <button className="font-semibold hover:underline" onClick={() => setFolder("")}>
+            <button className="font-semibold hover:underline rounded px-1 -mx-1" onClick={() => setFolder("")} {...crumbDrop("")}>
               My drive
             </button>
             {folder
@@ -437,13 +564,33 @@ export function Drive() {
               .map((part, i, arr) => (
                 <span key={i} className="flex items-center gap-1">
                   <span className="text-ink-3">/</span>
-                  <button className="hover:underline" onClick={() => setFolder(arr.slice(0, i + 1).join("/"))}>
+                  <button className="hover:underline rounded px-1 -mx-1" onClick={() => setFolder(arr.slice(0, i + 1).join("/"))} {...crumbDrop(arr.slice(0, i + 1).join("/"))}>
                     {part}
                   </button>
                 </span>
               ))}
           </nav>
-          {!empty && (
+          {!empty && selected.size > 0 && (
+            <div className="flex items-center gap-3 text-sm w-full sm:w-auto" data-testid="selection-bar">
+              <span className="font-medium">{selected.size} selected</span>
+              <button className="underline underline-offset-4 hover:text-ink text-ink-2" onClick={() => setMoveIds([...selected].filter((k) => !k.startsWith("d:")))}>
+                Move to…
+              </button>
+              <button
+                className="underline underline-offset-4 hover:text-ink text-ink-2"
+                onClick={() => {
+                  const first = all.find((x) => selected.has(x.id));
+                  if (first) trash(first);
+                }}
+              >
+                Trash
+              </button>
+              <button className="text-ink-3 hover:text-ink" onClick={() => setSelected(new Set())} aria-label="Clear selection">
+                Clear
+              </button>
+            </div>
+          )}
+          {!empty && selected.size === 0 && (
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <label className="relative w-full sm:w-auto order-last sm:order-none">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" width="14" height="14" viewBox="0 0 14 14" aria-hidden>
@@ -460,11 +607,17 @@ export function Drive() {
                   data-testid="search"
                 />
               </label>
-              <span className="hidden sm:inline">
-                <button className="btn-ghost" onClick={addSample} data-testid="add-sample">
-                  Add a sample file
+              <span className="hidden sm:inline-flex items-center rounded-full border border-line bg-white p-0.5" role="group" aria-label="View">
+                <button className={`rounded-full px-2.5 py-1 text-xs ${view === "list" ? "bg-ink text-white" : "text-ink-2 hover:text-ink"}`} onClick={() => chooseView("list")} aria-pressed={view === "list"} data-testid="view-list">
+                  List
+                </button>
+                <button className={`rounded-full px-2.5 py-1 text-xs ${view === "grid" ? "bg-ink text-white" : "text-ink-2 hover:text-ink"}`} onClick={() => chooseView("grid")} aria-pressed={view === "grid"} data-testid="view-grid">
+                  Grid
                 </button>
               </span>
+              <button className="btn-ghost whitespace-nowrap" onClick={newFolder} data-testid="new-folder">
+                New folder
+              </button>
               {/* On a phone the job is its own camera roll; Google Drive moves are a laptop job.
                   Chosen in CSS (pointer-coarse) so the right one is there on first paint. */}
               <span className="hidden pointer-coarse:contents">
@@ -493,8 +646,9 @@ export function Drive() {
             </div>
           )}
         </div>
+        )}
 
-        {!empty && files && (
+        {!empty && files && tab === "drive" && (
           <button
             className="hidden pointer-coarse:flex fixed right-5 bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] z-30 size-14 items-center justify-center rounded-full bg-ink text-white text-3xl leading-none shadow-lg active:scale-95 transition disabled:opacity-50"
             onClick={() => inputRef.current?.click()}
@@ -518,43 +672,21 @@ export function Drive() {
           </ul>
         )}
 
-        {empty && (
-          <section className="pt-6">
-            <h1 className="rise text-4xl sm:text-5xl font-semibold">Where should we start?</h1>
-            <p className="rise-2 mt-2 text-lg text-ink-2">
-              Pick one. Everything is encrypted on this device before it leaves.{" "}
-              <button className="underline" onClick={addSample} data-testid="add-sample">
-                Add a sample file
+        {empty && tab === "drive" && (
+          <>
+            <SetupSteps state={setupState} big onGoogle={() => setMigrateOpen(true)} />
+            <p className="mt-6 text-ink-2">
+              Or just{" "}
+              <button className="underline underline-offset-4" onClick={() => inputRef.current?.click()} data-testid="tile-upload">
+                add a file
               </button>
-              .
+              , drag one onto this page, or{" "}
+              <button className="underline underline-offset-4" onClick={addSample} data-testid="add-sample">
+                add a sample file
+              </button>{" "}
+              to see how it works.
             </p>
-            <div className="rise-3 mt-8 grid gap-4 sm:grid-cols-3">
-              <button className="tile" onClick={() => setMigrateOpen(true)} data-testid="tile-gdrive">
-                <GDriveIcon />
-                <span className="text-xl font-semibold">Move my Google Drive</span>
-                <span className="text-ink-2">Everything, folders included. Then cancel Google One.</span>
-              </button>
-              <span className="hidden pointer-coarse:contents">
-                <Link href="/m" className="tile" data-testid="tile-photos-phone">
-                  <PhoneIcon />
-                  <span className="text-xl font-semibold">Back up this phone&apos;s photos</span>
-                  <span className="text-ink-2">Pick them once. Encrypted here before they leave.</span>
-                </Link>
-              </span>
-              <span className="contents pointer-coarse:hidden">
-                <button className="tile" onClick={() => setPairOpen("qr")} data-testid="tile-photos">
-                  <PhoneIcon />
-                  <span className="text-xl font-semibold">Back up my phone photos</span>
-                  <span className="text-ink-2">Point your phone camera at a code. One tap after that.</span>
-                </button>
-              </span>
-              <button className="tile" onClick={() => inputRef.current?.click()} data-testid="tile-upload">
-                <FileIcon />
-                <span className="text-xl font-semibold">Add a file</span>
-                <span className="text-ink-2">Or drag a file onto this page.</span>
-              </button>
-            </div>
-          </section>
+          </>
         )}
 
         {pairOpen === "qr" && (
@@ -573,23 +705,31 @@ export function Drive() {
           </div>
         )}
 
-        {!empty && files && (
+        {!empty && files && tab === "drive" && (
           <FileBrowser
             files={all}
+            extraFolders={extraFolders}
             folder={folder}
             search={search}
+            view={view}
             local={local}
             opening={opening}
+            selected={selected}
+            onSelect={setSelected}
             onOpenFolder={(p) => {
               setSearch("");
+              setSelected(new Set());
               setFolder(p);
             }}
             onOpen={(f) => open(f)}
             onDownload={(f) => open(f, true)}
             onRename={rename}
             onTrash={trash}
+            onMoveTo={(ids) => setMoveIds(ids)}
+            onDropMove={moveFiles}
           />
         )}
+        {moveIds && <MoveDialog folders={allFolders} count={moveIds.length} current={folder} onMove={(target) => moveFiles(moveIds, target)} onClose={() => setMoveIds(null)} />}
         {/* Room under the last row so the floating + never covers its menu. */}
         {!empty && files && <div className="hidden pointer-coarse:block h-20" aria-hidden />}
       </div>
@@ -760,36 +900,6 @@ export function IconButton({ label, onClick, icon, testId }: { label: string; on
   );
 }
 
-function PhoneIcon() {
-  return (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-      <rect x="9" y="3" width="14" height="26" rx="3" />
-      <path d="M14 25h4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function FileIcon() {
-  return (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-      <path d="M8 3h11l6 6v20H8z" strokeLinejoin="round" />
-      <path d="M19 3v6h6" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function GDriveIcon() {
-  return (
-    <svg width="32" height="32" viewBox="0 0 87.3 78" aria-hidden>
-      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da" />
-      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47" />
-      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335" />
-      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d" />
-      <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc" />
-      <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00" />
-    </svg>
-  );
-}
 
 // The viewer tab opens inside the click (so it isn't blocked as a popup) but the
 // file still has to download and decrypt. Show that instead of a blank page.

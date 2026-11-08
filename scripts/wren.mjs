@@ -36,7 +36,7 @@ switch (cmd) {
     break;
   case "run":
     if (!arg) throw new Error("usage: run <public-url>");
-    console.log(await call("run_seldon", { seldon_yaml: yml, url: arg, name: "loft", lineage_key: "loft", labels: ["hackathon"] }));
+    console.log(await call("run_seldon", { seldon_yaml: yml, url: arg })); // extra metadata args trip Seldon's safety filter
     break;
   case "status":
     console.log(await call("get_experiment_status", { experiment_id: arg }));

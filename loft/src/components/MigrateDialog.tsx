@@ -19,6 +19,7 @@ export function MigrateDialog({
   onClose,
   onStart,
   onStop,
+  onSwitchAccount,
 }: {
   open: boolean;
   status: MigrationStatus;
@@ -26,6 +27,7 @@ export function MigrateDialog({
   onClose: () => void;
   onStart: () => void;
   onStop?: () => void;
+  onSwitchAccount?: () => void;
 }) {
   const [step, setStep] = useState<"consent" | "progress">("consent");
 
@@ -54,9 +56,16 @@ export function MigrateDialog({
               deleted from Google.
             </p>
             {real ? (
-              <p className="mt-4 text-sm text-ink-2 flex items-center gap-2">
-                <GoogleG /> Google will ask you to allow read-only access. Loft never gets your Google password.
-              </p>
+              <div className="mt-4 text-sm text-ink-2">
+                <p className="flex items-center gap-2">
+                  <GoogleG /> Google will ask you to allow read-only access. Loft never gets your Google password.
+                </p>
+                {onSwitchAccount && (
+                  <button className="mt-2 text-ink-3 hover:text-ink underline underline-offset-2" onClick={onSwitchAccount} data-testid="switch-google">
+                    Use a different Google account
+                  </button>
+                )}
+              </div>
             ) : (
               <div className="mt-5 rounded-2xl border border-line bg-white p-4 text-sm">
                 <p className="font-medium flex items-center gap-2">

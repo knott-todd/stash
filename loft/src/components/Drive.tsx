@@ -592,6 +592,17 @@ export function Drive() {
         }}
         onStart={startMigration}
         onStop={realGoogle ? stopGoogleCopy : undefined}
+        onSwitchAccount={
+          realGoogle
+            ? async () => {
+                // Forget the Google link and copy progress, then go to Google's account chooser.
+                copyCtrl.current?.abort();
+                await fetch("/api/google", { method: "DELETE" });
+                localStorage.removeItem("loft_gd_done_v1");
+                location.href = "/api/google/auth";
+              }
+            : undefined
+        }
       />
 
       {demoTools && (

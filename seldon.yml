@@ -10,14 +10,14 @@ testCases:
       - click the "Switch to Loft in 3 easy steps" button
     criteria: the very next screen is the drive, asking "Where should we start?" with three choices — "Move my Google Drive", "Back up my phone photos" and "Add a file" — and no sign-in, sign-up, email or password form appeared at any point
 
-  - name: Google Drive migration hands off to Google's real consent screen
+  - name: Google Drive migration opens Google's own permission page
     id: gdrive-consent
     steps:
       - go to /drive
       - click "Move my Google Drive"
-      - read the dialog, then click "Allow"
-      - wait for the page that loads next; do not enter any credentials
-    criteria: the browser is on a Google-owned page (accounts.google.com) asking to sign in or to allow access to Google Drive, which shows Loft uses Google's real authorisation rather than a fake form
+      - click "Allow" in the Loft dialog
+      - wait for the next page to load, then stop
+    criteria: the next page is hosted by Google (the address begins with accounts.google.com) and is about Google Drive access for Loft
 
   - name: Added file is encrypted, listed, and opens readable
     id: upload-file

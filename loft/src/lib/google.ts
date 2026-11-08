@@ -14,7 +14,7 @@ export function authUrl(origin: string, state: string) {
     response_type: "code",
     scope: SCOPE,
     access_type: "offline",
-    prompt: "consent",
+    prompt: "select_account consent", // always offer the account chooser, so a demo account can be picked
     state,
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${p}`;

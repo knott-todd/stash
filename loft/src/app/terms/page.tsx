@@ -14,8 +14,13 @@ export default function Terms() {
       <section className="mt-8 space-y-6 leading-relaxed text-ink-2">
         <p>Stash is free storage, offered as it is, while it is in early release.</p>
         <p>
-          Your files are encrypted with a key that only your devices hold. If you lose every device and every link
-          without your recovery code, nobody, including Stash, can recover your files.
+          Your files are encrypted before they are stored. On a Standard account they open wherever you sign in with
+          Google. On a Locked account only you can open them: if you forget the passcode and lose the recovery code,
+          nobody, including Stash, can recover your files.
+        </p>
+        <p>
+          A shared link lets anyone who has it download that file until you remove the link. A linked computer or
+          phone sends files to your account until you unlink it.
         </p>
         <p>
           Don&apos;t store anything illegal, and don&apos;t use Stash to harm other people. Stash may remove content or

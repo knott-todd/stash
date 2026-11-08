@@ -1,11 +1,81 @@
 {
   "name": "stash-desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Keeps folders on this computer backed up to Stash, encrypted, automatically.",
   "type": "module",
-  "bin": { "stash-desktop": "./cli.mjs" },
-  "files": ["cli.mjs", "lib/", "README.md"],
-  "engines": { "node": ">=20" },
-  "optionalDependencies": { "sharp": "^0.34.0" },
+  "main": "app/main.mjs",
+  "bin": {
+    "stash-desktop": "./cli.mjs"
+  },
+  "files": [
+    "cli.mjs",
+    "lib/",
+    "app/",
+    "build/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "app": "electron .",
+    "icons": "node scripts/icons.mjs",
+    "dist:win": "electron-builder --win nsis",
+    "dist:mac": "electron-builder --mac dmg",
+    "test:app": "node scripts/test-app.mjs"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.34.0"
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "playwright": "^1.65.0"
+  },
+  "build": {
+    "appId": "com.olusanyatodd.stash",
+    "productName": "Stash",
+    "artifactName": "Stash-Setup.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "app/**",
+      "lib/**",
+      "cli.mjs",
+      "build/tray.png",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/sharp/**",
+      "node_modules/@img/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "Stash"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.utilities"
+    }
+  },
   "license": "MIT"
 }

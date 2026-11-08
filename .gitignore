@@ -5,3 +5,6 @@ node_modules/
 *.log
 .claude/worktrees/
 exports/
+desktop/node_modules/
+desktop/dist/
+mobile/node_modules/

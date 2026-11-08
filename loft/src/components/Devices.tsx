@@ -201,10 +201,18 @@ function StatusText({ d, stale }: { d: Device; stale: boolean }) {
 }
 
 function AddComputer({ origin }: { origin: string }) {
-  const server = origin && !/localhost/.test(origin) ? ` --server ${origin}` : "";
+  const server = origin && !/localhost/.test(origin) ? ` --server ` : "";
   return (
     <div className="mt-3 text-sm">
-      <ol className="list-decimal pl-5 space-y-1.5 text-ink-2">
+      <p className="text-ink-2">
+        <a className="btn-primary inline-flex text-sm py-2" href="https://github.com/knott-todd/stash/releases/latest/download/Stash-Setup.exe" data-testid="download-windows">
+          Download Stash for Windows
+        </a>
+      </p>
+      <p className="mt-2 text-ink-2">Open it, click <span className="font-semibold text-ink">Link this computer</span>, say yes in the browser, tick the folders. That is the whole setup. Mac is next.</p>
+      <details className="mt-3">
+        <summary className="cursor-pointer text-ink-3">Without the installer (developer route)</summary>
+      <ol className="list-decimal pl-5 mt-2 space-y-1.5 text-ink-2">
         <li>
           On that computer, install Node.js if it isn&apos;t there (<a className="underline" href="https://nodejs.org" target="_blank" rel="noreferrer">nodejs.org</a>).
         </li>
@@ -219,8 +227,9 @@ function AddComputer({ origin }: { origin: string }) {
         <li>Choose the folders to keep backed up. Documents and Pictures are suggested. Leave it running.</li>
       </ol>
       <p className="mt-2 text-ink-3">
-        To have it start with the computer: <code className="rounded bg-cream-2 px-1.5 py-0.5 text-ink">node desktop/cli.mjs --install-startup</code>. An installer with no terminal is coming; this is the developer preview.
+        To have it start with the computer: <code className="rounded bg-cream-2 px-1.5 py-0.5 text-ink">node desktop/cli.mjs --install-startup</code>.
       </p>
+      </details>
     </div>
   );
 }

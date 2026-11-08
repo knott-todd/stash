@@ -22,7 +22,7 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 | Phone photo backup | Real photo picker + encrypted upload (built in the parallel session). |
 | Files of any size | Overnight 2026-11-09. Encrypted in fixed 4,000,000-byte pieces, one request per piece; download concatenates. Vercel Blob staging removed. |
 | Linked devices | Six-letter code approved in the browser, device tokens, Devices page with per-device folders, counts, state, last seen, rename, unlink. |
-| Stash Desktop | `desktop/cli.mjs`: links, suggests Documents and Pictures, watches folders, encrypts and sends new or changed files, replaces changed ones, reports to Devices, `--install-startup`. Developer preview (terminal). |
+| Stash Desktop | An installable app (Electron, `desktop/app`): one button to link, Documents and Pictures ticked by default, status per folder, tray icon, starts at sign-in. Windows installer built (`desktop/dist/Stash-Setup.exe`, unsigned); Mac build needs a Mac. Verified by driving the real app. Staging only until the installer is published and signed. The CLI stays for development. |
 | Standard vs Locked | First-run choice and Settings: Stash holds the key (Standard) or only a passcode-wrapped copy (Locked, PBKDF2 600k + AES-GCM), recovery code shown at lock time and in Settings. Desktop agent and phone app ask for the passcode once. |
 | Two-step setup | Move my files here (Google Drive; Dropbox and OneDrive when keys are set) and Back up automatically (this computer, my phone). Big on an empty drive, a strip with ticks afterwards. |
 | Photos view | Every picture and video by month, newest first, file's own date when known. |
@@ -74,7 +74,8 @@ Also from the frontier list, not yet turned into product ideas: on-device search
 
 ## Known limits (say them out loud)
 
-- Stash Desktop is a terminal program for now (`node desktop/cli.mjs`); the npm package is not published and there is no installer or tray icon.
+- Stash Desktop's installer is unsigned: Windows SmartScreen shows "Windows protected your PC" until a code-signing certificate (about /month via Azure Trusted Signing) or Microsoft Store distribution; macOS needs an Apple developer account for notarization. The installer must also be published as a GitHub Release for the download button to work.
+- Production shows "This computer (soon)"; the desktop setup lives on staging until the above is done.
 - The phone app is a scaffold nobody has run; automatic phone backup still means opening the web page and picking photos.
 - Dropbox and OneDrive need app registrations (keys in `.env.example`) and a first real run.
 - Shared links and the server-side preview on the link page work only for Standard accounts; Locked accounts get a clear refusal.

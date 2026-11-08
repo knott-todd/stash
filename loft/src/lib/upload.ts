@@ -1,28 +1,65 @@
 "use client";
 
+import { upload as blobUpload } from "@vercel/blob/client";
 import { encryptBytes } from "./crypto";
 import { cachePut } from "./filecache";
+
+// The one upload path for every file (drag-in, phone photos, Google copy).
+// Encrypt in the browser, then hand the ciphertext to the server one of two ways:
+//   - direct: multipart to /api/files (local dev, hosts without body limits)
+//   - staged: browser → temporary blob store → the server tells storage to fetch it
+//     (serverless hosts cap request bodies; files never pass through the function)
+// The server says which, and the size cap, via /api/me.
 
 export const MAX_BYTES = 50 * 1024 * 1024;
 
 export type UploadedFile = { id: string; name: string; size: number; folder: string };
 
-// Encrypt in the browser, then upload ciphertext with the original name and type.
+type Mode = { staged: boolean; maxBytes: number };
+let mode: Promise<Mode> | null = null;
+export function uploadMode(): Promise<Mode> {
+  return (mode ??= fetch("/api/me")
+    .then((r) => r.json())
+    .then((m) => ({ staged: !!m.blobUploads, maxBytes: Number(m.maxBytes) || MAX_BYTES }))
+    .catch(() => ({ staged: false, maxBytes: MAX_BYTES })));
+}
+
 export async function uploadEncrypted(
   file: File,
-  opts: { folder?: string; source?: "upload" | "phone" } = {},
+  opts: { folder?: string; source?: "upload" | "phone" | "google-drive"; signal?: AbortSignal } = {},
 ): Promise<UploadedFile> {
-  if (file.size > MAX_BYTES) throw new Error("too-big");
+  const { staged, maxBytes } = await uploadMode();
+  if (file.size > maxBytes) throw new Error("too-big");
   const cipher = await encryptBytes(await file.arrayBuffer());
-  const fd = new FormData();
-  fd.set("file", cipher, `${file.name}.loft`);
-  fd.set("name", file.name);
-  fd.set("mime", file.type || "application/octet-stream");
-  fd.set("size", String(file.size));
-  fd.set("folder", opts.folder ?? "");
-  fd.set("source", opts.source ?? "upload");
-  fd.set("encrypted", "1");
-  const r = await fetch("/api/files", { method: "POST", body: fd });
+  const meta = {
+    name: file.name,
+    mime: file.type || "application/octet-stream",
+    size: String(file.size),
+    folder: opts.folder ?? "",
+    source: opts.source ?? "upload",
+    encrypted: "1",
+  };
+
+  let r: Response;
+  if (staged) {
+    const put = await blobUpload(`tmp/${file.name}.loft`, cipher, {
+      access: "public",
+      handleUploadUrl: "/api/blob",
+      contentType: "application/octet-stream",
+      abortSignal: opts.signal,
+    });
+    r = await fetch("/api/files", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...meta, blobUrl: put.url }),
+      signal: opts.signal,
+    });
+  } else {
+    const fd = new FormData();
+    fd.set("file", cipher, `${file.name}.loft`);
+    for (const [k, v] of Object.entries(meta)) fd.set(k, v);
+    r = await fetch("/api/files", { method: "POST", body: fd, signal: opts.signal });
+  }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error ?? "upload-failed");
   if (j.file?.id) cachePut(j.file.id, cipher); // it's on this device already

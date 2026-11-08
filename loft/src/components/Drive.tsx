@@ -7,11 +7,12 @@ import { Logo } from "./Logo";
 import { MigrateDialog, type MigrationStatus } from "./MigrateDialog";
 import { PairCard } from "./PairCard";
 import { fmtBytes } from "@/lib/format";
-import { decryptBytes, encryptBytes, ensureRawKey, getRawKey, keyFromRecoveryCode, setRawKey } from "@/lib/crypto";
+import { decryptBytes, ensureRawKey, getRawKey, keyFromRecoveryCode, setRawKey } from "@/lib/crypto";
 import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
 import { cacheClear, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { viewableMime } from "@/lib/view";
 import { demoMode } from "@/lib/demo-flag";
+import { uploadEncrypted, uploadMode } from "@/lib/upload";
 import Link from "next/link";
 
 export type FileRow = {
@@ -141,29 +142,19 @@ export function Drive() {
 
   // Encrypt in the browser, then upload ciphertext with the original name and type.
   async function uploadOne(file: File) {
-    if (file.size > 50 * 1024 * 1024) {
-      setToast({ text: `${file.name} is over 50 MB. Files that big aren't supported yet.` });
+    const { maxBytes } = await uploadMode();
+    if (file.size > maxBytes) {
+      setToast({ text: `${file.name} is over ${Math.round(maxBytes / 1024 / 1024)} MB. Files that big aren't supported yet.` });
       return;
     }
     setBusy(file.name);
     try {
-      const cipher = await encryptBytes(await file.arrayBuffer());
-      const fd = new FormData();
-      fd.set("file", cipher, `${file.name}.loft`);
-      fd.set("name", file.name);
-      fd.set("mime", file.type || "application/octet-stream");
-      fd.set("size", String(file.size));
-      fd.set("folder", folder);
-      fd.set("encrypted", "1");
-      const r = await fetch("/api/files", { method: "POST", body: fd });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "Upload failed");
-      if (j.file?.id) cachePut(j.file.id, cipher); // it's on this device already
+      await uploadEncrypted(file, { folder });
       const first = (files?.length ?? 0) === 0;
       setToast({ text: "Safe. Encrypted on this device before it left." });
       await refresh();
       if (first && !localStorage.getItem(DISMISS_KEY)) setPairOpen("card");
-    } catch (e) {
+    } catch {
       setToast({ text: `Couldn't upload ${file.name}. Check your connection.`, retry: () => uploadOne(file) });
     } finally {
       setBusy(null);

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUid } from "@/lib/session";
 import { store } from "@/lib/store";
-import { DEMO } from "@/lib/telegram";
+import { DEMO, STAGED_MAX_BYTES } from "@/lib/telegram";
 import { GOOGLE_ENABLED } from "@/lib/google";
 
 export async function GET() {
@@ -14,6 +14,9 @@ export async function GET() {
     email: u.email ?? null,
     demo: DEMO,
     google: GOOGLE_ENABLED,
+    // How the browser should send files: staged through the blob store on serverless hosts.
+    blobUploads: !!process.env.BLOB_READ_WRITE_TOKEN,
+    maxBytes: process.env.BLOB_READ_WRITE_TOKEN ? STAGED_MAX_BYTES : 50 * 1024 * 1024,
     googleConnected: !!u.google,
     fileCount: files.length,
     bytes,

@@ -57,6 +57,30 @@ export async function putFile(uid: string, id: string, name: string, bytes: Buff
   return { tg: { fileId: r.document.file_id, messageId: r.message_id } };
 }
 
+// Staged path: the browser put the ciphertext in a temporary public blob; storage
+// fetches it by URL (Telegram allows up to 20 MB that way), then the blob is deleted.
+export const STAGED_MAX_BYTES = 20 * 1024 * 1024;
+
+export async function putFileFromUrl(uid: string, id: string, name: string, url: string) {
+  const { del } = await import("@vercel/blob");
+  try {
+    const chatId = (await getStorageChatId().catch(() => null)) ?? (await store().getUser(uid)).tgChatId;
+    if (DEMO || !chatId) {
+      // No storage configured: pull the bytes down and keep them locally.
+      const bytes = Buffer.from(await (await fetch(url)).arrayBuffer());
+      return putFile(uid, id, name, bytes);
+    }
+    const r = await call<{ message_id: number; document: { file_id: string } }>("sendDocument", {
+      chat_id: chatId,
+      document: url,
+      caption: `${uid}/${name}`,
+    });
+    return { tg: { fileId: r.document.file_id, messageId: r.message_id } };
+  } finally {
+    del(url).catch(() => {});
+  }
+}
+
 export async function getFileStream(f: { tg?: { fileId: string }; blob?: string }): Promise<ReadableStream | null> {
   if (f.blob) {
     if (!fs.existsSync(f.blob)) return null;

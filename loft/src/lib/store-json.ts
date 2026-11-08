@@ -12,9 +12,9 @@ type Data = {
   tgOffset: number;
 };
 
-const FILE = path.join(DATA_DIR, "store.json");
-
 export function jsonStore(): Store {
+  // Resolved here, not at module load: store.ts and this file import each other.
+  const FILE = path.join(DATA_DIR, "store.json");
   let cache: Data | null = null;
   const load = (): Data => {
     if (cache) return cache;

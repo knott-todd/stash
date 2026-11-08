@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUid } from "@/lib/session";
 import { newId, store, type LoftFile } from "@/lib/store";
-import { putFile } from "@/lib/telegram";
+import { putFile, putFileFromUrl, STAGED_MAX_BYTES } from "@/lib/telegram";
 
 export async function GET() {
   const uid = await getUid();
@@ -9,31 +9,46 @@ export async function GET() {
   return NextResponse.json({ files: files.map(pub) });
 }
 
+// Two shapes: multipart with the ciphertext in the body, or JSON with a blobUrl
+// the browser already staged (serverless hosts cap request bodies).
 export async function POST(req: Request) {
   const uid = await getUid();
-  const form = await req.formData();
-  const file = form.get("file");
-  if (!(file instanceof File)) return NextResponse.json({ error: "no file" }, { status: 400 });
-  // The browser sends ciphertext plus the original name and type; we never see the plaintext.
-  const name = String(form.get("name") ?? file.name);
-  const mime = String(form.get("mime") ?? file.type ?? "application/octet-stream");
-  const encrypted = form.get("encrypted") === "1";
-  if (file.size > 50 * 1024 * 1024) {
-    return NextResponse.json({ error: "Files over 50 MB need the local Bot API server (coming soon)." }, { status: 413 });
-  }
   const id = newId();
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const stored = await putFile(uid, id, encrypted ? `${name}.loft` : name, bytes);
+  let meta: Record<string, string>;
+  let stored: { tg?: LoftFile["tg"]; blob?: string };
+
+  if (req.headers.get("content-type")?.includes("application/json")) {
+    const body = await req.json().catch(() => ({}));
+    meta = body;
+    if (typeof body.blobUrl !== "string") return NextResponse.json({ error: "no file" }, { status: 400 });
+    if (Number(body.size) > STAGED_MAX_BYTES) {
+      return NextResponse.json({ error: `Files over ${Math.round(STAGED_MAX_BYTES / 1024 / 1024)} MB aren't supported yet.` }, { status: 413 });
+    }
+    stored = await putFileFromUrl(uid, id, `${body.name}.loft`, body.blobUrl);
+  } else {
+    const form = await req.formData();
+    const file = form.get("file");
+    if (!(file instanceof File)) return NextResponse.json({ error: "no file" }, { status: 400 });
+    if (file.size > 50 * 1024 * 1024) {
+      return NextResponse.json({ error: "Files over 50 MB aren't supported yet." }, { status: 413 });
+    }
+    meta = Object.fromEntries([...form.entries()].filter(([, v]) => typeof v === "string") as [string, string][]);
+    meta.name ??= file.name;
+    meta.size ??= String(file.size);
+    const bytes = Buffer.from(await file.arrayBuffer());
+    stored = await putFile(uid, id, meta.encrypted === "1" ? `${meta.name}.loft` : meta.name, bytes);
+  }
+
   const f: LoftFile = {
     id,
     uid,
-    name,
-    size: Number(form.get("size") ?? file.size),
-    mime,
-    folder: String(form.get("folder") ?? ""),
-    source: String(form.get("source") ?? "upload") as LoftFile["source"],
+    name: String(meta.name),
+    size: Number(meta.size ?? 0),
+    mime: String(meta.mime ?? "application/octet-stream"),
+    folder: String(meta.folder ?? ""),
+    source: (meta.source as LoftFile["source"]) ?? "upload",
     createdAt: Date.now(),
-    encrypted,
+    encrypted: meta.encrypted === "1",
     ...stored,
   };
   await store().addFile(f);

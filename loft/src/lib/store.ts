@@ -1,4 +1,6 @@
 import path from "node:path";
+import { jsonStore } from "./store-json";
+import { pgStore } from "./store-pg";
 
 // The catalogue: who owns which file and where its bytes went. Bytes live in
 // storage (Telegram), the key lives on the device; this is only the index.
@@ -66,16 +68,9 @@ export const BLOB_DIR = path.join(DATA_DIR, "blobs");
 
 export const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
-// Chosen once per process. Imports are lazy so the JSON backend never loads the pg driver.
+// Chosen once per process. Both backends construct lazily, so the pg driver only
+// opens a connection when DATABASE_URL is set.
 let chosen: Store | null = null;
 export function store(): Store {
-  if (chosen) return chosen;
-  if (process.env.DATABASE_URL) {
-    const { pgStore } = require("./store-pg") as typeof import("./store-pg");
-    chosen = pgStore();
-  } else {
-    const { jsonStore } = require("./store-json") as typeof import("./store-json");
-    chosen = jsonStore();
-  }
-  return chosen;
+  return (chosen ??= process.env.DATABASE_URL ? pgStore() : jsonStore());
 }

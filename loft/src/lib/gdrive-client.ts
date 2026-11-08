@@ -1,7 +1,6 @@
 "use client";
 
-import { encryptBytes } from "./crypto";
-import { cachePut } from "./filecache";
+import { uploadEncrypted, uploadMode } from "./upload";
 import type { GFile } from "./google";
 
 // Browser-side Google Drive copy: list → for each file, fetch bytes through our
@@ -16,7 +15,6 @@ export type CopyStatus =
 export type CopyEvent = { action: string; name?: string; from: string; path?: string; to?: string };
 
 const DONE_KEY = "loft_gd_done_v1";
-const MAX = 50 * 1024 * 1024;
 
 function doneSet(): Set<string> {
   try {
@@ -67,6 +65,7 @@ export async function runGoogleCopy(
   // Smallest first so the drive fills visibly within seconds; big videos last.
   // Empty files are real but uninteresting, so they go after everything else.
   const rank = (f: GFile) => (f.size === 0 ? Number.MAX_SAFE_INTEGER : f.size);
+  const { maxBytes: MAX } = await uploadMode();
   const queue = files.filter((f) => !done.has(f.id)).sort((a, b) => rank(a) - rank(b));
   let sinceRefresh = 0;
   const worker = async () => {
@@ -74,7 +73,7 @@ export async function runGoogleCopy(
       const f = queue.shift()!;
       if (f.size > MAX) {
         skipped++;
-        onEvent({ action: "Skipped (over 50 MB)", name: f.name, from: "Google Drive", path: f.folder });
+        onEvent({ action: `Skipped (over ${Math.round(MAX / 1024 / 1024)} MB)`, name: f.name, from: "Google Drive", path: f.folder });
         emit("copying");
         continue;
       }
@@ -85,21 +84,9 @@ export async function runGoogleCopy(
         const r = await fetch(`/api/google/file?${p}`, { signal });
         if (!r.ok) throw new Error("fetch");
         const plain = await r.arrayBuffer();
-        const cipher = await encryptBytes(plain);
-        const fd = new FormData();
-        fd.set("file", cipher, `${f.name}.loft`);
-        fd.set("name", f.name);
-        fd.set("mime", f.mimeType);
-        fd.set("size", String(plain.byteLength));
-        fd.set("folder", f.folder);
-        fd.set("encrypted", "1");
-        fd.set("source", "google-drive");
-        const u = await fetch("/api/files", { method: "POST", body: fd, signal });
-        if (!u.ok) throw new Error("upload");
+        // One upload path for everything; it encrypts and keeps a local copy.
+        await uploadEncrypted(new File([plain], f.name, { type: f.mimeType }), { folder: f.folder, source: "google-drive", signal });
         markDone(done, f.id);
-        // We already hold the ciphertext: keep it so the file opens instantly.
-        const { file: stored } = await u.json();
-        if (stored?.id) cachePut(stored.id, cipher);
         onEvent({ action: "Saved", name: f.name, from: "Google Drive", path: f.folder, to: f.folder });
         copiedCount++;
         copiedBytes += plain.byteLength || f.size;

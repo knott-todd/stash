@@ -412,20 +412,27 @@ export function Drive() {
                   Move from Google Drive
                 </button>
               </span>
-              {/* On a phone neither action outranks the files, so both are quiet. */}
-              <span className="hidden pointer-coarse:contents">
-                <button className="btn-ghost flex-1 border border-line text-ink" onClick={() => inputRef.current?.click()} data-testid="upload-phone" disabled={!!busy}>
-                  {busy ? "Working…" : "+ Add"}
-                </button>
-              </span>
+              {/* On a phone, Add is the floating button below. */}
               <span className="contents pointer-coarse:hidden">
-                <button className="btn-primary py-3 text-base" onClick={() => inputRef.current?.click()} data-testid="upload" disabled={!!busy}>
+                <button className="btn-primary px-4 py-2 text-sm" onClick={() => inputRef.current?.click()} data-testid="upload" disabled={!!busy}>
                   {busy ? "Working…" : "+ Add"}
                 </button>
               </span>
             </div>
           )}
         </div>
+
+        {!empty && files && (
+          <button
+            className="hidden pointer-coarse:flex fixed right-5 bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] z-30 size-14 items-center justify-center rounded-full bg-ink text-white text-3xl leading-none shadow-lg active:scale-95 transition disabled:opacity-50"
+            onClick={() => inputRef.current?.click()}
+            aria-label="Add a file"
+            data-testid="upload-phone"
+            disabled={!!busy}
+          >
+            {busy ? <span className="size-5 rounded-full border-2 border-white border-r-transparent animate-spin" /> : "+"}
+          </button>
+        )}
 
         <input ref={inputRef} type="file" multiple className="sr-only" onChange={(e) => e.target.files && upload(e.target.files)} aria-label="Choose files to add" />
 
@@ -507,6 +514,8 @@ export function Drive() {
             onTrash={trash}
           />
         )}
+        {/* Room under the last row so the floating + never covers its menu. */}
+        {!empty && files && <div className="hidden pointer-coarse:block h-20" aria-hidden />}
       </div>
 
       {dragging && (
@@ -516,7 +525,7 @@ export function Drive() {
       )}
 
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-ink text-cream px-5 py-3 rounded-full shadow-lg rise flex items-center gap-4" role="status">
+        <div className="fixed bottom-6 pointer-coarse:bottom-24 left-1/2 -translate-x-1/2 bg-ink text-cream px-5 py-3 rounded-full shadow-lg rise flex items-center gap-4" role="status">
           {toast.text}
           {toast.retry && (
             <button className="underline" onClick={toast.retry}>

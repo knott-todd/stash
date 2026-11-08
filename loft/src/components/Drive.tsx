@@ -469,6 +469,31 @@ export function Drive() {
     return () => clearInterval(t);
   }, [pairOpen, folder, setFolder]);
 
+  // First sign-in: one decision, on its own screen, before anything else.
+  if (chooseProtection && me && !needPasscode) {
+    return (
+      <main className="flex-1 flex flex-col" data-testid="choose-protection">
+        <header className="mx-auto w-full max-w-5xl px-5 py-5">
+          <Logo />
+        </header>
+        <section className="mx-auto w-full max-w-3xl px-5 pb-16 flex-1 flex flex-col justify-center">
+          <p className="text-sm text-ink-3">One question before your files</p>
+          <h1 className="mt-2 text-4xl sm:text-5xl font-semibold">How private should your files be?</h1>
+          <p className="mt-3 text-lg text-ink-2">Every file is encrypted before it is stored either way. You can change this later in Settings.</p>
+          <div className="mt-8">
+            <ProtectionChoice
+              current={null}
+              onChanged={() => {
+                setChooseProtection(false);
+                refresh();
+              }}
+            />
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main
       className="flex-1 flex flex-col"
@@ -515,21 +540,6 @@ export function Drive() {
       </header>
 
       <div className="mx-auto w-full max-w-5xl px-5 pb-24 flex-1">
-        {chooseProtection && me && !needPasscode && (
-          <section className="card mb-5 p-5" aria-labelledby="choose-protection" data-testid="choose-protection">
-            <h2 id="choose-protection" className="text-xl font-semibold">How should your files be protected?</h2>
-            <p className="mt-1 text-sm text-ink-2">Every file is encrypted before it is stored either way. You can change this later in Settings.</p>
-            <div className="mt-4">
-              <ProtectionChoice
-                current={null}
-                onChanged={() => {
-                  setChooseProtection(false);
-                  refresh();
-                }}
-              />
-            </div>
-          </section>
-        )}
         {migration.phase === "done" && (
           <div className="card mb-5 p-4 flex flex-wrap items-center gap-3 bg-ok-soft border-ok/30" role="status" data-testid="migration-done">
             <div className="flex-1">

@@ -46,6 +46,8 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
           action={current === "standard" ? null : current === "passcode" ? () => setUnlocking(true) : chooseStandard}
           actionLabel={current === "passcode" ? "Switch to Standard" : "Use Standard"}
           testId="protection-standard"
+          big={current === null}
+          primary
         />
         <Option
           selected={current === "passcode"}
@@ -55,6 +57,7 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
           action={current === "passcode" ? null : () => setLocking(true)}
           actionLabel="Lock my files"
           testId="protection-passcode"
+          big={current === null}
         />
       </div>
       {error && (
@@ -79,7 +82,7 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
   );
 }
 
-function Option({ selected, title, tag, body, action, actionLabel, testId }: { selected: boolean; title: string; tag: string; body: string; action: (() => void) | null; actionLabel: string; testId: string }) {
+function Option({ selected, title, tag, body, action, actionLabel, testId, big = false, primary = false }: { selected: boolean; title: string; tag: string; body: string; action: (() => void) | null; actionLabel: string; testId: string; big?: boolean; primary?: boolean }) {
   return (
     <div className={`card p-5 ${selected ? "border-ink" : ""}`} data-testid={testId} aria-current={selected ? "true" : undefined}>
       <div className="flex items-center justify-between gap-3">
@@ -87,7 +90,12 @@ function Option({ selected, title, tag, body, action, actionLabel, testId }: { s
         <span className={`text-xs rounded-full px-2.5 py-1 ${selected ? "bg-ink text-white" : "bg-cream-2 text-ink-2"}`}>{selected ? "Current" : tag}</span>
       </div>
       <p className="mt-2 text-sm text-ink-2">{body}</p>
-      {action && (
+      {action && big && (
+        <button className={`mt-5 w-full `} onClick={action}>
+          {actionLabel}
+        </button>
+      )}
+      {action && !big && (
         <button className="btn-ghost mt-3 px-0 text-ink underline underline-offset-4" onClick={action}>
           {actionLabel}
         </button>

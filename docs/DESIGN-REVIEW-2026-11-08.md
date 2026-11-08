@@ -19,7 +19,7 @@ What the person wants: to know where they are and to get anywhere in one click. 
 
 Proposal:
 - Order: **My drive · Photos · Backup · Settings** on the left of the right-hand group, then the usage pill, then Sign out. The usage pill sits at the far right of the links so it has nothing to its right to push; it animates width and opacity (200 ms) in and out instead of popping.
-- "Devices" becomes **Backup** (see section 2.5).
+- The page name: **Devices** stays if it reads more naturally; the proposal is about the page being one device-agnostic list, not the label.
 - Current page: bold, no underline on hover for the current one.
 
 ### Sign-in and the privacy choice
@@ -35,7 +35,7 @@ Proposal:
 What the person wants: find a file, open it, add files. Secondary: organise. Now: the toolbar reads as a feature list (search, List/Grid, New folder, Move from Google Drive, + Add), the column headers do not line up with the cells, images show a generic icon, Google Drive is a toolbar button although it is a setup step.
 
 Proposal:
-- **Toolbar as one composed row.** Left: breadcrumbs. Right, one group with consistent sizes: search (grows on focus), a view toggle, then a single primary **Upload** button. "New folder" moves into a small `+` menu beside Upload (Upload files, Upload folder, New folder). "Move from Google Drive" leaves the toolbar entirely: it lives in the setup strip until done, and in Backup afterwards.
+- **Toolbar as one composed row.** Left: breadcrumbs. Right, one group with consistent sizes: search (grows on focus), a view toggle, then a single primary **Upload** button. "New folder" moves into a small `+` menu beside Upload (Upload files, Upload folder, New folder). "Move from Google Drive" leaves the toolbar entirely: it lives in the setup strip until done, and afterwards under Settings as Imports ("Google Drive · 1,234 files · moved 8 Nov · Move again · Disconnect"). It is a one-time import, not backup.
 - **Columns aligned**: the header and the rows use the same grid, so Modified and Size headers sit over their cells (today the header grid and row grid differ by the badge column). Right-align Size; both header and cell.
 - **Images show a thumbnail** in the list instead of the type icon (same encrypted preview the grid uses, at 28 px). Videos too.
 - **Selection strip** stays in the header row (done). Add **Download** and **Keep on this device / Remove from this device** to the strip and the menu; the badge becomes an action, not just a state.
@@ -56,7 +56,16 @@ What the person wants: "is my stuff backed up?" answered in one glance, and a wa
 Proposal, device-agnostic:
 - Title **Backup**. One line under it only if there is nothing yet: "Link a device and choose what it keeps backed up."
 - **One list of devices**, newest first, each a card: Lucide `laptop` or `smartphone` at the left, name with a pencil icon beside it (click to rename inline), status line (green dot, "Up to date · last file 7 min ago"), files · size at the right. **Sources indented** under the name with a left rule: Documents, Pictures, Camera roll, WhatsApp. Each source: name, count · size, state. At the row's end a `link-2-off` (broken chain) icon to unlink, with a confirm.
-- **Link a device** button, top right, always. It opens the installers page: it detects the visitor's platform and puts that first (Windows installer on Windows, "Open this page on your phone" with a QR on a laptop, the phone flow on a phone), the others folded below.
+- **Link a device** button, top right, always. The rule behind it: **the device being added always finishes the link on itself.** A laptop links by running the app, which opens the approval page in that laptop's own browser; a phone links by opening Stash on the phone and signing in. So the device you are on has one job: hand the other device the address. The page guesses the two most likely intents from the platform of the browser, whether this browser approved a computer link before, and what is already in the device list:
+
+  | You are on | We know | Primary | Secondary |
+  | --- | --- | --- | --- |
+  | Laptop, not linked | no computer in the list, and this browser never approved one | **This computer**: download the installer | **My phone**: a QR to the sign-in page with a from=laptop hint |
+  | Laptop, already linked | this browser approved a computer, or a computer is in the list | **My phone**: the QR | **Another computer**: copy or email the download link |
+  | Phone, not linked | no phone source yet | **This phone**: the phone flow here | **My computer**: email me the download link |
+  | Phone, already linked | a phone source exists | **My computer**: email me the link | **Another phone**: a QR for it |
+
+  Laptop to another laptop and phone to another phone sit under a small "Something else" link. The one wrong guess: a second browser on an already-linked laptop shows "This computer" first; the cost is one click and no harm.
 - Phone card leads with Camera roll and WhatsApp; computer card leads with Documents and Pictures. Same card, different default sources.
 - The "Phone" section with explanatory copy disappears; a phone is a device like any other.
 

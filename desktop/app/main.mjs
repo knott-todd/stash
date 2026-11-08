@@ -16,6 +16,7 @@ const argValue = (n) => {
 const dir = configDir(argValue("--config") ?? process.env.STASH_CONFIG_DIR);
 const cfg = loadConfig(dir);
 if (argValue("--server") ?? process.env.STASH_SERVER) cfg.server = argValue("--server") ?? process.env.STASH_SERVER;
+if (argValue("--bypass") ?? process.env.STASH_BYPASS) cfg.bypass = argValue("--bypass") ?? process.env.STASH_BYPASS;
 cfg.server ??= DEFAULT_SERVER;
 // Staging sits behind Vercel's login; a bypass secret in the config or STASH_BYPASS lets the app through.
 const bypassHeaders = () => (cfg.bypass ?? process.env.STASH_BYPASS ? { "x-vercel-protection-bypass": cfg.bypass ?? process.env.STASH_BYPASS } : {});

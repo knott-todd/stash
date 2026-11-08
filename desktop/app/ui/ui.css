@@ -10,8 +10,8 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--cream); color: var(--ink); font: 15px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
-main { padding: 28px 28px 24px; min-height: 100%; display: flex; flex-direction: column; }
-.brand { font-weight: 700; font-size: 20px; letter-spacing: -0.02em; margin-bottom: 28px; display: flex; align-items: center; gap: 8px; }
+main { padding: 28px 28px 24px; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.brand { font-weight: 700; font-size: 20px; letter-spacing: -0.02em; margin-bottom: 28px; }
 .brand .dot { color: #0066da; }
 h1 { font-size: 26px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 8px; }
 p { margin: 0 0 14px; color: var(--ink-2); }
@@ -23,12 +23,14 @@ p { margin: 0 0 14px; color: var(--ink-2); }
 .link { background: none; border: 0; padding: 0; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font: inherit; }
 .link:hover { color: var(--ink); }
 .code { font-family: "Cascadia Mono", Consolas, monospace; font-size: 34px; letter-spacing: 0.25em; text-align: center; margin: 18px 0 6px; }
-.card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+.card.scroll { overflow-y: auto; flex: 0 1 auto; min-height: 0; }
 .row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .row:last-child { border-bottom: 0; }
 .row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--ink); }
 .row .name { font-weight: 600; }
-.row .path { font-size: 12px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.row .path { font-size: 12px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%; }
+.row > span:first-of-type { min-width: 0; flex: 1; }
 .row .right { margin-left: auto; text-align: right; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
 .status { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
 .status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); }

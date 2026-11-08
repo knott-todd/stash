@@ -6,6 +6,8 @@ const [server, scratch, outDir] = process.argv.slice(2);
 const J = { "content-type": "application/json" };
 const cfgDir = path.join(scratch, "cfg-shots");
 const watch = path.join(scratch, "watch-shots");
+fs.rmSync(cfgDir, { recursive: true, force: true });
+fs.rmSync(watch, { recursive: true, force: true });
 fs.mkdirSync(path.join(watch, "Holiday 2026"), { recursive: true });
 fs.writeFileSync(path.join(watch, "Tax return.pdf"), "x");
 fs.writeFileSync(path.join(watch, "Holiday 2026", "IMG_0412.jpg"), "x");

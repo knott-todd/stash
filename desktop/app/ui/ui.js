@@ -73,10 +73,10 @@ function foldersScreen() {
   return `${brand()}
     <h1>Which folders?</h1>
     <p>Everything in these folders, and everything added later, stays backed up.</p>
-    <div class="card" data-testid="folders">
+    <div class="card scroll" data-testid="folders">
       ${all
         .map(
-          (f) => `<label class="row"><input type="checkbox" data-path="${esc(f.path)}" data-label="${esc(f.label)}" ${chosen.some((c) => c.path === f.path) ? "checked" : ""}>
+          (f) => `<label class="row"><input type="checkbox" style="flex:none" data-path="${esc(f.path)}" data-label="${esc(f.label)}" ${chosen.some((c) => c.path === f.path) ? "checked" : ""}>
             <span><span class="name">${esc(f.label)}</span><br><span class="path">${esc(f.path)}</span></span></label>`,
         )
         .join("")}
@@ -106,7 +106,7 @@ function statusScreen() {
   });
   return `${brand()}
     <div class="status"><span class="dot ${dot}"></span><span data-testid="status">${text}</span></div>
-    <div class="card" data-testid="status-folders">${rows.join("") || `<p class="small">No folders yet.</p>`}</div>
+    <div class="card scroll" data-testid="status-folders">${rows.join("") || `<p class="small">No folders yet.</p>`}</div>
     <div class="actions">
       <button class="link" data-act="editFolders">Change folders</button>
       ${a.paused ? `<button class="link" data-act="resume">Resume</button>` : `<button class="link" data-act="pause">Pause</button>`}

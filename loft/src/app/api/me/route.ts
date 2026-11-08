@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession, unauthorized } from "@/lib/session";
 import { store } from "@/lib/store";
-import { DEMO, STAGED_MAX_BYTES } from "@/lib/telegram";
+import { DEMO } from "@/lib/telegram";
+import { MAX_BYTES } from "@/lib/files-limits";
 import { GOOGLE_ENABLED } from "@/lib/google";
 import { AUTH_ENABLED, newFileKey } from "@/lib/auth";
 
@@ -14,7 +15,7 @@ export async function GET(req: Request) {
     const raw = process.env.DATABASE_URL ?? "";
     let dbHost = "unset";
     try { dbHost = raw ? new URL(raw.replace(/^"|"$/g, "")).host.split(".")[0] : "unset"; } catch { dbHost = "unparseable"; }
-    return NextResponse.json({ present, demo: DEMO, auth: AUTH_ENABLED, blobUploads: !!process.env.BLOB_READ_WRITE_TOKEN, dbHost, dbQuoted: /^".*"$/.test(raw) });
+    return NextResponse.json({ present, demo: DEMO, auth: AUTH_ENABLED, dbHost, dbQuoted: /^".*"$/.test(raw) });
   }
   const s = await getSession();
   if (!s) return NextResponse.json({ signedIn: false, auth: AUTH_ENABLED, demo: DEMO }, { status: 200 });
@@ -38,9 +39,7 @@ export async function GET(req: Request) {
     legacy,
     demo: DEMO,
     google: GOOGLE_ENABLED,
-    // How the browser should send files: staged through the blob store on serverless hosts.
-    blobUploads: !!process.env.BLOB_READ_WRITE_TOKEN,
-    maxBytes: process.env.BLOB_READ_WRITE_TOKEN ? STAGED_MAX_BYTES : 50 * 1024 * 1024,
+    maxBytes: MAX_BYTES,
     googleConnected: !!u.google,
     fileCount: files.length,
     bytes,

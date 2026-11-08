@@ -7,7 +7,7 @@ import { Logo } from "./Logo";
 import { MigrateDialog, type MigrationStatus } from "./MigrateDialog";
 import { PairCard } from "./PairCard";
 import { fmtBytes } from "@/lib/format";
-import { clearRawKey, decryptBytes, getRawKey, setRawKey } from "@/lib/crypto";
+import { clearRawKey, decryptFile, getRawKey, setRawKey } from "@/lib/crypto";
 import { rememberAccount } from "@/lib/accounts";
 import Link from "next/link";
 import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
@@ -22,11 +22,16 @@ export type FileRow = {
   size: number;
   mime: string;
   folder: string;
-  source: "upload" | "google-drive" | "phone";
+  source: "upload" | "google-drive" | "phone" | "desktop";
   createdAt: number;
   encrypted: boolean;
+  chunked: boolean;
+  thumb: boolean;
+  modifiedAt: number | null;
+  deviceId: string | null;
   stored: boolean;
 };
+
 
 type Me = {
   signedIn: boolean;
@@ -258,7 +263,7 @@ export function Drive() {
           setToast({ text: "Couldn't open this file. Sign out and back in, then try again." });
           return;
         }
-        bytes = await decryptBytes(bytes);
+        bytes = await decryptFile(bytes, f.chunked);
       }
       const url = URL.createObjectURL(new Blob([bytes], { type: viewAs ?? f.mime }));
       if (tab) {
@@ -603,7 +608,7 @@ export function Drive() {
                 copyCtrl.current?.abort();
                 await fetch("/api/google", { method: "DELETE" });
                 localStorage.removeItem("stash_gd_done_v1");
-                location.href = "/api/google/auth";
+                location.href = "/api/google/auth?switch=1";
               }
             : undefined
         }

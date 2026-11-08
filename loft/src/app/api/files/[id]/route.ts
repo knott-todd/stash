@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
-import fs from "node:fs";
-import { getUid, unauthorized } from "@/lib/session";
+import { getSession, unauthorized } from "@/lib/session";
 import { store } from "@/lib/store";
-import { deleteStored } from "@/lib/telegram";
+import { deleteObjects } from "@/lib/telegram";
 
 // Rename / move (PATCH) and trash (DELETE) one file.
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const uid = await getUid();
-  if (!uid) return unauthorized();
+  const s = await getSession();
+  if (!s) return unauthorized();
   const { id } = await params;
   const db = store();
-  const f = await db.getFile(uid, id);
+  const f = await db.getFile(s.uid, id);
   if (!f) return NextResponse.json({ error: "not found" }, { status: 404 });
   const body = await req.json().catch(() => ({}));
   if (typeof body.name === "string" && body.name.trim()) f.name = body.name.trim().slice(0, 255);
@@ -21,13 +20,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
-  const uid = await getUid();
-  if (!uid) return unauthorized();
+  const s = await getSession();
+  if (!s) return unauthorized();
   const { id } = await params;
-  const f = await store().deleteFile(uid, id);
+  const f = await store().deleteFile(s.uid, id);
   if (!f) return NextResponse.json({ error: "not found" }, { status: 404 });
   // Best effort: remove the bytes too. The index entry is already gone either way.
-  if (f.blob) fs.rm(f.blob, { force: true }, () => {});
-  if (f.tg) deleteStored(f.tg.messageId).catch(() => {});
+  deleteObjects(f).catch(() => {});
   return NextResponse.json({ ok: true });
 }

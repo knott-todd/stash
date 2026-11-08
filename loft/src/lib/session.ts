@@ -9,7 +9,7 @@ const SID = "stash_sid";
 const LEGACY = "stash_uid"; // pre-account device identity; adopted into the account once
 const YEAR = 60 * 60 * 24 * 365;
 
-export type Session = { uid: string; createdAt: number; legacyUid?: string };
+export type Session = { uid: string; createdAt: number; legacyUid?: string; deviceId?: string };
 
 export const sessionKey = (sid: string) => `sess:${sid}`;
 

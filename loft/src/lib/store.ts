@@ -14,13 +14,24 @@ export type StashFile = {
   size: number;
   mime: string;
   folder: string; // "" = root, "Photos", "Work/2024"
-  source: "upload" | "google-drive" | "phone";
+  source: "upload" | "google-drive" | "phone" | "desktop";
   createdAt: number;
+  modifiedAt?: number; // the file's own modified time, when the source knows it (desktop backup)
   encrypted?: boolean; // ciphertext produced in the browser; server can't read it
-  // storage pointer: telegram file_id, or local blob path in demo mode
+  // Storage pointer for a file sent in one piece: telegram file_id, or a local blob path in demo mode.
   tg?: { fileId: string; messageId: number };
   blob?: string;
+  // A file sent in pieces: each piece is its own stored object, in order. Pieces are
+  // a fixed size (CHUNK_CIPHER_BYTES) except the last, so a reader needs no index.
+  parts?: StoredPart[];
+  // Small encrypted preview (images and videos), stored like a one-piece file.
+  thumb?: StoredPart;
+  deviceId?: string; // which linked device sent it
 };
+
+export type StoredPart = { tg?: { fileId: string; messageId: number }; blob?: string; size: number };
+
+export { CHUNK_CIPHER_BYTES, CHUNK_PLAIN_BYTES } from "./files-limits";
 
 export type User = {
   uid: string; // "g:<google sub>" for accounts

@@ -16,7 +16,7 @@ const STATE_COOKIE = "stash_oauth";
 export type OAuthState = { kind: "signin" | "drive"; nonce: string; next?: string; uid?: string };
 
 // One short-lived cookie carries what the callback needs to trust the response.
-export async function beginOAuth(origin: string, s: Omit<OAuthState, "nonce">, opts: { hint?: string } = {}) {
+export async function beginOAuth(origin: string, s: Omit<OAuthState, "nonce">, opts: { hint?: string; chooser?: boolean } = {}) {
   const state: OAuthState = { ...s, nonce: randomBytes(12).toString("base64url") };
   const jar = await cookies();
   jar.set(STATE_COOKIE, JSON.stringify(state), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 600 });
@@ -29,7 +29,9 @@ export async function beginOAuth(origin: string, s: Omit<OAuthState, "nonce">, o
       offline: false,
     });
   }
-  return googleAuthUrl(origin, state.nonce, { offline: true, prompt: "select_account consent" });
+  // Drive access for the migration: the signed-in account is pre-selected, so Google
+  // only asks for the Drive permission. "Use a different Google account" forces the chooser.
+  return googleAuthUrl(origin, state.nonce, { offline: true, prompt: opts.chooser ? "select_account consent" : "consent", loginHint: opts.chooser ? undefined : opts.hint });
 }
 
 export async function takeOAuthState(nonce: string | null): Promise<OAuthState | null> {

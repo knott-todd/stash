@@ -1,9 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { BLOB_DIR, store } from "./store";
+import { BLOB_DIR, store, type StoredPart } from "./store";
 
 // Storage backend. Real mode talks to the Telegram Bot API: ciphertext is sent to a
 // Stash-operated chat. Demo mode (no token) mimics the same shape with local blobs.
+// Every stored object is at most one piece (≤ 4 MB from the browser, up to 20 MB
+// from a server-side source); large files are many pieces.
 
 export const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 export const DEMO = !TOKEN;
@@ -57,57 +59,87 @@ export async function getStorageChatId() {
   return storageChatId;
 }
 
-export async function putFile(uid: string, id: string, name: string, bytes: Buffer) {
+// Store one object. The name is a label in the storage chat only.
+export async function putObject(uid: string, objectId: string, name: string, bytes: Buffer): Promise<StoredPart> {
   const chatId = (await getStorageChatId().catch(() => null)) ?? (await store().getUser(uid)).tgChatId;
   if (DEMO || !chatId) {
     fs.mkdirSync(BLOB_DIR, { recursive: true });
-    const p = path.join(BLOB_DIR, id);
+    const p = path.join(BLOB_DIR, objectId);
     fs.writeFileSync(p, bytes);
-    return { blob: p };
+    return { blob: p, size: bytes.length };
   }
   const fd = new FormData();
   fd.set("chat_id", String(chatId));
   fd.set("caption", `${uid}/${name}`);
   fd.set("document", new Blob([new Uint8Array(bytes)]), name);
   const r = await call<{ message_id: number; document: { file_id: string } }>("sendDocument", fd);
-  return { tg: { fileId: r.document.file_id, messageId: r.message_id } };
+  return { tg: { fileId: r.document.file_id, messageId: r.message_id }, size: bytes.length };
 }
 
-// Staged path: the browser put the ciphertext in a temporary *private* blob (only
-// our server can read it). The server pulls it and sends it on to storage, then
-// deletes the blob. Capped so one function invocation comfortably finishes.
-export const STAGED_MAX_BYTES = 20 * 1024 * 1024;
-
-export async function putFileFromUrl(uid: string, id: string, name: string, url: string) {
-  const { get, del } = await import("@vercel/blob");
-  try {
-    const got = await get(url, { access: "private", useCache: false });
-    if (!got || got.statusCode !== 200 || !got.stream) throw new Error("staged blob not readable");
-    const bytes = Buffer.from(await new Response(got.stream).arrayBuffer());
-    return putFile(uid, id, name, bytes);
-  } finally {
-    del(url).catch(() => {});
-  }
+// One-piece files keep the older row shape.
+export async function putFile(uid: string, id: string, name: string, bytes: Buffer) {
+  const p = await putObject(uid, id, name, bytes);
+  return p.blob ? { blob: p.blob } : { tg: p.tg };
 }
 
-export async function getFileStream(f: { tg?: { fileId: string }; blob?: string }): Promise<ReadableStream | null> {
-  if (f.blob) {
-    if (!fs.existsSync(f.blob)) return null;
-    const bytes = fs.readFileSync(f.blob);
+export async function objectStream(p: { tg?: { fileId: string }; blob?: string }): Promise<ReadableStream | null> {
+  if (p.blob) {
+    if (!fs.existsSync(p.blob)) return null;
+    const bytes = fs.readFileSync(p.blob);
     return new Blob([new Uint8Array(bytes)]).stream();
   }
-  if (f.tg) {
-    const info = await call<{ file_path: string }>("getFile", { file_id: f.tg.fileId });
+  if (p.tg) {
+    const info = await call<{ file_path: string }>("getFile", { file_id: p.tg.fileId });
     const r = await fetch(`https://api.telegram.org/file/bot${TOKEN}/${info.file_path}`);
     return r.body;
   }
   return null;
 }
 
-// Remove a stored object. Bot API can delete the bot's own messages in the storage chat.
+// The whole file: one piece, or every piece in order, as one stream.
+export async function getFileStream(f: { tg?: { fileId: string }; blob?: string; parts?: StoredPart[] }): Promise<ReadableStream | null> {
+  if (f.parts?.length) {
+    const parts = f.parts;
+    let i = 0;
+    let current: ReadableStreamDefaultReader<Uint8Array> | null = null;
+    return new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        for (;;) {
+          if (!current) {
+            if (i >= parts.length) return controller.close();
+            const s = await objectStream(parts[i++]);
+            if (!s) return controller.error(new Error("piece missing"));
+            current = s.getReader();
+          }
+          const { value, done } = await current.read();
+          if (done) {
+            current = null;
+            continue;
+          }
+          controller.enqueue(value);
+          return;
+        }
+      },
+      cancel() {
+        current?.cancel().catch(() => {});
+      },
+    });
+  }
+  return objectStream(f);
+}
+
+// Remove stored objects. Bot API can delete the bot's own messages in the storage chat.
 export async function deleteStored(messageId: number) {
   if (DEMO) return;
   const chatId = await getStorageChatId();
   if (!chatId) return;
   await call("deleteMessage", { chat_id: chatId, message_id: messageId });
+}
+
+export async function deleteObjects(f: { tg?: { messageId: number }; blob?: string; parts?: StoredPart[]; thumb?: StoredPart }) {
+  const all: { tg?: { messageId: number }; blob?: string }[] = [...(f.parts ?? []), ...(f.thumb ? [f.thumb] : []), { tg: f.tg, blob: f.blob }];
+  for (const p of all) {
+    if (p.blob) fs.rm(p.blob, { force: true }, () => {});
+    if (p.tg) await deleteStored(p.tg.messageId).catch(() => {});
+  }
 }

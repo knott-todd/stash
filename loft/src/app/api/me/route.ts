@@ -4,7 +4,13 @@ import { store } from "@/lib/store";
 import { DEMO, STAGED_MAX_BYTES } from "@/lib/telegram";
 import { GOOGLE_ENABLED } from "@/lib/google";
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Names only, never values: which settings the running server can see.
+  if (new URL(req.url).searchParams.get("diag") === "1") {
+    const names = Object.keys(process.env).filter((k) => /^(TELEGRAM|BLOB|STASH|SMTP|MAIL|GOOGLE|DATABASE|PUBLIC|VERCEL_ENV|NODE_ENV)/.test(k)).sort();
+    const present = Object.fromEntries(names.map((k) => [k, (process.env[k] ?? "").length > 0 ? "set" : "empty"]));
+    return NextResponse.json({ present, demo: DEMO, blobUploads: !!process.env.BLOB_READ_WRITE_TOKEN });
+  }
   const uid = await getUid();
   const db = store();
   const [u, files, migration] = await Promise.all([db.getUser(uid), db.filesFor(uid), db.getMigration(uid)]);

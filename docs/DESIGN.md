@@ -80,3 +80,17 @@ An email on file names the drive (which one is yours); it never carries the key 
 ## Journeys (end state first; steps counted honestly, OS prompts included)
 
 Written one at a time, trimmed afterwards. Journey 1 (phone photos) is agreed: 3 taps to start, a wait that must survive the phone being put down, zero steps forever after, with iOS "shortly after" honesty; it depends on the native app, background transfer, the 20 MB cap being lifted, and a per-photo "verified" state before anyone deletes from the phone.
+
+## Large files (decided 2026-11-08): chunking, in the browser
+
+Telegram's hosted Bot API allows 20 MB per download, Vercel 4.5 MB per request. Rather than run a local Bot API
+server (lifts the cap to 2 GB but needs an always-on box, ~$5/month, deferred until there's money), big files are
+split in the browser:
+
+- Upload: the browser cuts the file into 16 MB pieces, encrypts **each piece separately**, stages and sends each
+  as its own object (same path as today). The catalogue row holds the list of parts in order.
+- Download: the browser fetches the parts in order, decrypts each as it arrives and assembles the file locally.
+  Nothing large is ever held in a Vercel function; functions only stream one part at a time.
+- Resume: a half-uploaded file keeps its completed parts; the upload continues from the first missing one.
+- Limit: none in principle; practical ceiling is the phone's free space for the assembled download.
+- Later: the local Bot API server removes the pieces for *new* files; old chunked files keep working.

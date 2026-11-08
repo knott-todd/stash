@@ -24,19 +24,19 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 
 | Feature | Status | Owner |
 | --- | --- | --- |
-| Google OAuth verification (Drive scope) | consent-screen links + verification pack next | Olusanya + Claude |
+| Google OAuth verification (Drive scope) | not pursued (CASA assessment ~$500+/yr); Drive import stays in Testing mode with named test users | — |
 
 
 ## Proposed (not started, in rough priority)
 
-1. Export everything (zip of decrypted files) — the honest "your files are yours".
-2. Files over 50 MB (Telegram local Bot API server, or chunking).
-3. Passkeys (Face ID / Touch ID) so email links can be zero-knowledge again.
-4. Automatic phone backup (PWA / native) instead of pick-and-upload.
-5. Drag-to-move, multi-select, New folder, grid view for photos.
-6. Transactional email provider instead of Gmail SMTP.
-7. Dropbox migration.
-8. Shared links.
+1. Files over 20 MB via browser-side chunking (decided; see DESIGN.md). Unblocks video and phone backup.
+2. Journeys 2–7 specified in full (share sheet, Files presence, WhatsApp on Android, desktop folder, Gmail button, new device).
+3. Native mobile app: journey 1 only (photo auto-backup, keychain-stored key, background transfer).
+4. Export everything (zip of decrypted files).
+5. Passkeys or PIN escrow for lost-everything recovery.
+6. Desktop sync folder; Gmail attachment button; Android WhatsApp import.
+7. Local Bot API server when there's budget (~$5/mo): 2 GB files without pieces.
+8. Drag-to-move, multi-select, New folder, grid view; transactional email; Dropbox; shared links.
 
 ## Known limits (say them out loud)
 
@@ -51,3 +51,4 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 - 2026-11-07: supplier (Telegram) never named in the product.
 - 2026-11-08: "Sign out" means sign out of Google; the device keeps the key.
 - 2026-11-08: production on Vercel + Neon + private Blob staging; store moved behind an interface (JSON locally, Postgres in production). Product renamed Stash.
+- 2026-11-08: Google verification not pursued. Direction: drop-in replacement for Drive's integrations, native app for photo auto-backup. Large files by browser-side chunking; local Bot API server deferred.

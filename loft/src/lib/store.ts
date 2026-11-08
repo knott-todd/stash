@@ -50,7 +50,8 @@ type Data = {
   tgOffset: number;
 };
 
-const DATA_DIR = path.join(process.cwd(), ".data");
+// In production this is a persistent volume (DATA_DIR=/data on Railway).
+const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), ".data");
 const FILE = path.join(DATA_DIR, "store.json");
 export const BLOB_DIR = path.join(DATA_DIR, "blobs");
 

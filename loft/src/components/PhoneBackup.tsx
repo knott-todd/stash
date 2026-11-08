@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Logo } from "./Logo";
 import { PhoneBackupDemo } from "./PhoneBackupDemo";
 import { adoptKeyFromFragment } from "@/lib/crypto";
+import { demoMode } from "@/lib/demo-flag";
 import { fingerprint, MAX_BYTES, uploadEncrypted } from "@/lib/upload";
 import { fmtBytes } from "@/lib/format";
 
@@ -35,7 +36,7 @@ function saveHistory(h: History) {
 // encrypted on the phone before upload, same as the drive.
 export function PhoneBackup() {
   const params = useSearchParams();
-  if (params.get("demo") === "1") return <PhoneBackupDemo />;
+  if (demoMode(params)) return <PhoneBackupDemo />;
   return <RealBackup />;
 }
 

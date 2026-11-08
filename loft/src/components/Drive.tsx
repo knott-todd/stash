@@ -11,6 +11,7 @@ import { decryptBytes, encryptBytes, ensureRawKey, getRawKey, keyFromRecoveryCod
 import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
 import { cacheClear, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { viewableMime } from "@/lib/view";
+import { demoMode } from "@/lib/demo-flag";
 import Link from "next/link";
 
 export type FileRow = {
@@ -50,7 +51,7 @@ export function Drive() {
   const [pairOpen, setPairOpen] = useState<"card" | "qr" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const noKey = params.get("nokey") === "1";
-  const demoTools = params.get("demo") === "1";
+  const demoTools = demoMode(params);
 
   const refresh = useCallback(async () => {
     const [m, f] = await Promise.all([fetch("/api/me").then((r) => r.json()), fetch("/api/files").then((r) => r.json())]);

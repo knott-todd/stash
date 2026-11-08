@@ -131,6 +131,11 @@ export function MigrateDialog({
                 </p>
               </>
             )}
+            {real && onSwitchAccount && (
+              <button className="mt-3 text-sm text-ink-3 hover:text-ink underline underline-offset-2" onClick={onSwitchAccount} data-testid="switch-google">
+                Use a different Google account
+              </button>
+            )}
             <div className="mt-5 flex items-center justify-end gap-3">
               {status.phase === "copying" && onStop && <IconButton label="Stop copy" onClick={onStop} icon="stop" testId="migrate-stop" />}
               {status.phase === "stopped" && <IconButton label="Resume copy" onClick={onStart} icon="play" testId="migrate-resume" />}

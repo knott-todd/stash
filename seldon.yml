@@ -43,15 +43,15 @@ testCases:
     id: pair-phone
     steps:
       - go to /drive
-      - click "Back up my phone photos" (a tile on the empty drive, or "Open on another device" at the top right if the drive has files)
+      - click "Back up my phone photos" (a tile on the empty drive), or, if the drive has files, click "Open on another device" at the top right and then "Scan with your phone instead"
     criteria: a QR code image appears with text telling the user to point their phone camera at it, and no email, password or account form is required to get it
 
-  # Phone camera-roll backup is being rebuilt in another branch; re-enable when it lands.
+  # The real /m opens the phone's photo picker, which a test browser can't drive;
+  # ?demo=1 is the simulated camera roll used on stage.
   - name: Phone photo backup uploads the camera roll
     id: photo-backup
-    skip: true
     steps:
-      - go to /m
+      - go to /m?demo=1
       - click "Back up my photos"
       - wait up to 20 seconds for the count to reach 24 of 24
     criteria: the status card says "All backed up." and every photo thumbnail in the grid has a green check mark

@@ -11,6 +11,7 @@ import { decryptBytes, encryptBytes, ensureRawKey, getRawKey, keyFromRecoveryCod
 import { runGoogleCopy, type CopyEvent } from "@/lib/gdrive-client";
 import { cacheClear, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { viewableMime } from "@/lib/view";
+import Link from "next/link";
 
 export type FileRow = {
   id: string;
@@ -218,7 +219,7 @@ export function Drive() {
     // the browser doesn't treat the later navigation as a popup.
     const viewAs = forceDownload ? null : viewableMime(f.mime, f.name);
     const tab = viewAs ? window.open("", "_blank") : null;
-    if (tab) tab.document.title = f.name;
+    if (tab) showLoading(tab, f.name);
     setOpening(f.id);
     try {
       // Local copy first; otherwise download and keep a copy for next time.
@@ -268,6 +269,31 @@ export function Drive() {
 
   const all = files ?? [];
   const empty = files !== null && all.length === 0;
+
+  // A phone code may be showing (tile or "Open on another device"): follow the phone. When its first photo lands,
+  // close the code and take this screen to Phone photos. While that folder is
+  // open, keep it fresh so photos appear as the phone sends them.
+  const phoneCount = all.filter((f) => f.source === "phone").length;
+  const baseline = useRef(phoneCount);
+  useEffect(() => {
+    if (pairOpen) baseline.current = phoneCount;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot only when the code opens
+  }, [pairOpen]);
+  useEffect(() => {
+    if (!pairOpen && folder !== "Phone photos") return;
+    const t = setInterval(async () => {
+      const f = await fetch("/api/files").then((r) => r.json()).catch(() => null);
+      if (!f) return;
+      setFiles(f.files);
+      const n = (f.files as FileRow[]).filter((x) => x.source === "phone").length;
+      if (pairOpen && n > baseline.current) {
+        setPairOpen(null);
+        setFolder("Phone photos");
+        setToast({ text: "Your phone is backing up. Photos appear here as they arrive." });
+      }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [pairOpen, folder, setFolder]);
 
   return (
     <main
@@ -383,7 +409,7 @@ export function Drive() {
           </nav>
           {!empty && (
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <label className="relative w-full sm:w-auto">
+              <label className="relative w-full sm:w-auto order-last sm:order-none">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" width="14" height="14" viewBox="0 0 14 14" aria-hidden>
                   <circle cx="6" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
                   <path d="M9.2 9.2 12.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -403,15 +429,46 @@ export function Drive() {
                   Add a sample file
                 </button>
               </span>
-              <button className="btn-ghost whitespace-nowrap" onClick={() => setMigrateOpen(true)} data-testid="migrate-gdrive">
-                Move from Google Drive
-              </button>
-              <button className="btn-primary py-3 text-base" onClick={() => inputRef.current?.click()} data-testid="upload" disabled={!!busy}>
-                {busy ? "Working…" : "+ Add"}
-              </button>
+              {/* On a phone the job is its own camera roll; Google Drive moves are a laptop job.
+                  Chosen in CSS (pointer-coarse) so the right one is there on first paint. */}
+              <span className="hidden pointer-coarse:contents">
+                <Link href="/m" className="btn-ghost flex-1 border border-line text-ink whitespace-nowrap" data-testid="toolbar-photos">
+                  {folder === "Phone photos" ? "Back up new photos" : "Back up photos"}
+                </Link>
+              </span>
+              <span className="contents pointer-coarse:hidden">
+                <button className="btn-ghost whitespace-nowrap" onClick={() => setMigrateOpen(true)} data-testid="migrate-gdrive">
+                  Move from Google Drive
+                </button>
+              </span>
+              {/* On a phone, Add is the floating button below. */}
+              <span className="contents pointer-coarse:hidden">
+                {/* .btn-primary is unlayered CSS, so utility classes can't shrink it; inline style can. */}
+                <button
+                  className="btn-primary text-sm"
+                  style={{ padding: "0.4rem 0.85rem", borderRadius: "0.5rem" }}
+                  onClick={() => inputRef.current?.click()}
+                  data-testid="upload"
+                  disabled={!!busy}
+                >
+                  {busy ? "Working…" : "+ Add"}
+                </button>
+              </span>
             </div>
           )}
         </div>
+
+        {!empty && files && (
+          <button
+            className="hidden pointer-coarse:flex fixed right-5 bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] z-30 size-14 items-center justify-center rounded-full bg-ink text-white text-3xl leading-none shadow-lg active:scale-95 transition disabled:opacity-50"
+            onClick={() => inputRef.current?.click()}
+            aria-label="Add a file"
+            data-testid="upload-phone"
+            disabled={!!busy}
+          >
+            {busy ? <span className="size-5 rounded-full border-2 border-white border-r-transparent animate-spin" /> : "+"}
+          </button>
+        )}
 
         <input ref={inputRef} type="file" multiple className="sr-only" onChange={(e) => e.target.files && upload(e.target.files)} aria-label="Choose files to add" />
 
@@ -441,11 +498,20 @@ export function Drive() {
                 <span className="text-xl font-semibold">Move my Google Drive</span>
                 <span className="text-ink-2">Everything, folders included. Then cancel Google One.</span>
               </button>
-              <button className="tile" onClick={() => setPairOpen("qr")} data-testid="tile-photos">
-                <PhoneIcon />
-                <span className="text-xl font-semibold">Back up my phone photos</span>
-                <span className="text-ink-2">Point your phone camera at a code. One tap after that.</span>
-              </button>
+              <span className="hidden pointer-coarse:contents">
+                <Link href="/m" className="tile" data-testid="tile-photos-phone">
+                  <PhoneIcon />
+                  <span className="text-xl font-semibold">Back up this phone&apos;s photos</span>
+                  <span className="text-ink-2">Pick them once. Encrypted here before they leave.</span>
+                </Link>
+              </span>
+              <span className="contents pointer-coarse:hidden">
+                <button className="tile" onClick={() => setPairOpen("qr")} data-testid="tile-photos">
+                  <PhoneIcon />
+                  <span className="text-xl font-semibold">Back up my phone photos</span>
+                  <span className="text-ink-2">Point your phone camera at a code. One tap after that.</span>
+                </button>
+              </span>
               <button className="tile" onClick={() => inputRef.current?.click()} data-testid="tile-upload">
                 <FileIcon />
                 <span className="text-xl font-semibold">Add a file</span>
@@ -455,7 +521,21 @@ export function Drive() {
           </section>
         )}
 
-        {pairOpen === "qr" && <PairCard mode="qr" email={null} onClose={() => setPairOpen(null)} />}
+        {pairOpen === "qr" && (
+          <div className="mt-4">
+            <PairCard mode="qr" email={null} onClose={() => setPairOpen(null)} />
+          </div>
+        )}
+
+        {/* On a phone this lives in the toolbar; on a laptop the phone is elsewhere, so offer its code. */}
+        {!empty && files && folder === "Phone photos" && !search && (
+          <div className="mb-4 pointer-coarse:hidden flex items-center justify-between gap-3 rounded-xl bg-cream-2 px-4 py-2.5" data-testid="photos-bar">
+            <p className="text-sm text-ink-2">Back up more from your phone.</p>
+            <button className="text-sm font-medium underline-offset-4 hover:underline whitespace-nowrap" onClick={() => setPairOpen("qr")}>
+              Show phone code
+            </button>
+          </div>
+        )}
 
         {!empty && files && (
           <FileBrowser
@@ -474,6 +554,8 @@ export function Drive() {
             onTrash={trash}
           />
         )}
+        {/* Room under the last row so the floating + never covers its menu. */}
+        {!empty && files && <div className="hidden pointer-coarse:block h-20" aria-hidden />}
       </div>
 
       {dragging && (
@@ -483,7 +565,7 @@ export function Drive() {
       )}
 
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-ink text-cream px-5 py-3 rounded-full shadow-lg rise flex items-center gap-4" role="status">
+        <div className="fixed bottom-6 pointer-coarse:bottom-24 left-1/2 -translate-x-1/2 bg-ink text-cream px-5 py-3 rounded-full shadow-lg rise flex items-center gap-4" role="status">
           {toast.text}
           {toast.retry && (
             <button className="underline" onClick={toast.retry}>
@@ -652,4 +734,20 @@ function GDriveIcon() {
       <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00" />
     </svg>
   );
+}
+
+// The viewer tab opens inside the click (so it isn't blocked as a popup) but the
+// file still has to download and decrypt. Show that instead of a blank page.
+function showLoading(tab: Window, name: string) {
+  const d = tab.document;
+  d.title = name;
+  d.body.innerHTML = `<style>
+    body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fafafa;color:#111;font:16px/1.4 system-ui,-apple-system,sans-serif}
+    @media (prefers-color-scheme:dark){body{background:#111;color:#f5f5f5}}
+    .s{width:28px;height:28px;margin:0 auto 16px;border:3px solid currentColor;border-right-color:transparent;border-radius:50%;opacity:.6;animation:r .8s linear infinite}
+    @keyframes r{to{transform:rotate(1turn)}}
+    p{margin:0;text-align:center;padding:0 24px;word-break:break-word}
+    small{display:block;margin-top:4px;opacity:.6}
+  </style><div role="status"><div class="s"></div><p></p><small>Decrypting on this device</small></div>`;
+  d.querySelector("p")!.textContent = `Opening ${name}…`;
 }

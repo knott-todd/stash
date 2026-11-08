@@ -79,7 +79,9 @@ export interface Store {
   // Sign-in from a new device: the drive that has this email on file (the one
   // with the most files if several devices registered the same address).
   findUserByEmail(email: string): Promise<User | undefined>;
-  filesFor(uid: string): Promise<StashFile[]>;
+  filesFor(uid: string): Promise<StashFile[]>; // full rows, for server-side work only
+  listFor(uid: string): Promise<PublicFile[]>; // what the browser sees
+  fileStats(uid: string): Promise<FileStats>;
   getFile(uid: string, id: string): Promise<StashFile | undefined>;
   addFile(f: StashFile): Promise<StashFile>;
   updateFile(f: StashFile): Promise<void>;
@@ -110,3 +112,43 @@ let chosen: Store | null = null;
 export function store(): Store {
   return (chosen ??= process.env.DATABASE_URL ? pgStore() : jsonStore());
 }
+
+// What a listing carries: the catalogue row without storage pointers (piece
+// lists can be kilobytes per file, and every byte read from the database is
+// metered). Built in SQL on Postgres, mapped here for the JSON store.
+export type PublicFile = {
+  id: string;
+  name: string;
+  size: number;
+  mime: string;
+  folder: string;
+  source: StashFile["source"];
+  createdAt: number;
+  modifiedAt: number | null;
+  encrypted: boolean;
+  chunked: boolean;
+  thumb: boolean;
+  deviceId: string | null;
+  shared: boolean;
+  stored: boolean;
+};
+
+export const publicFile = (f: StashFile): PublicFile => ({
+  id: f.id,
+  name: f.name,
+  size: f.size,
+  mime: f.mime,
+  folder: f.folder,
+  source: f.source,
+  createdAt: f.createdAt,
+  modifiedAt: f.modifiedAt ?? null,
+  encrypted: !!f.encrypted,
+  chunked: !!f.parts?.length,
+  thumb: !!f.thumb,
+  deviceId: f.deviceId ?? null,
+  shared: !!f.share,
+  stored: !!(f.tg || f.blob || f.parts?.length),
+});
+
+// Counts without reading rows: the account total, per device, per source.
+export type FileStats = { count: number; bytes: number; byDevice: Record<string, { files: number; bytes: number }>; bySource: Record<string, number> };

@@ -79,6 +79,7 @@ export async function runProviderCopy(
   const { maxBytes: MAX } = await uploadMode();
   const queue = files.filter((f) => !done.has(f.id)).sort((a, b) => rank(a) - rank(b));
   let sinceRefresh = 0;
+  let lastRefresh = Date.now();
   const worker = async () => {
     while (queue.length && !signal?.aborted) {
       const f = queue.shift()!;
@@ -100,8 +101,10 @@ export async function runProviderCopy(
         onEvent({ action: "Saved", name: f.name, from: label, path: f.folder, to: f.folder });
         copiedCount++;
         copiedBytes += plain.byteLength || f.size;
-        if (++sinceRefresh >= 3) {
+        // Refresh the drive sparingly: every listing is read from the database, which is metered.
+        if (++sinceRefresh >= 25 || Date.now() - lastRefresh > 20000) {
           sinceRefresh = 0;
+          lastRefresh = Date.now();
           onFilesChanged();
         }
       } catch {

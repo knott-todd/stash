@@ -22,13 +22,11 @@ export async function GET(req: Request) {
   if (!s) return NextResponse.json({ signedIn: false, auth: AUTH_ENABLED, demo: DEMO }, { status: 200 });
   const uid = s.uid;
   const db = store();
-  const [u, files, migration] = await Promise.all([db.getUser(uid), db.filesFor(uid), db.getMigration(uid)]);
-  const bytes = files.reduce((n, f) => n + f.size, 0);
+  const [u, stats, migration] = await Promise.all([db.getUser(uid), db.fileStats(uid), db.getMigration(uid)]);
   // A device from before accounts: how many files it holds, if the account is still empty.
   let legacy: { fileCount: number } | null = null;
-  if (s.legacyUid && s.legacyUid !== uid && files.length === 0) {
-    const n = (await db.filesFor(s.legacyUid)).length;
-    legacy = { fileCount: n };
+  if (s.legacyUid && s.legacyUid !== uid && stats.count === 0) {
+    legacy = { fileCount: (await db.fileStats(s.legacyUid)).count };
   }
   return NextResponse.json({
     signedIn: true,
@@ -47,8 +45,8 @@ export async function GET(req: Request) {
     googleConnected: !!u.google,
     // Other drives: offered when the server has keys for them, connected once the user said yes.
     providers: { dropbox: { enabled: PROVIDERS.dropbox.enabled, connected: providersConnected(u).dropbox }, onedrive: { enabled: PROVIDERS.onedrive.enabled, connected: providersConnected(u).onedrive } },
-    fileCount: files.length,
-    bytes,
+    fileCount: stats.count,
+    bytes: stats.bytes,
     photoBackup: u.photoBackup ?? null,
     migration: migration ?? null,
   });

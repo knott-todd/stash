@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { StashFile, StoredPart } from "./store";
+import { publicFile, type StoredPart } from "./store";
 import type { StorageBusy } from "./telegram";
 
 // Helpers shared by the file routes (route files may only export handlers).
@@ -17,19 +17,4 @@ export function busy(e: StorageBusy) {
 export const isPart = (p: unknown): p is StoredPart =>
   !!p && typeof p === "object" && typeof (p as StoredPart).size === "number" && (!!(p as StoredPart).tg?.fileId || typeof (p as StoredPart).blob === "string");
 
-export const pub = (f: StashFile) => ({
-  id: f.id,
-  name: f.name,
-  size: f.size,
-  mime: f.mime,
-  folder: f.folder,
-  source: f.source,
-  createdAt: f.createdAt,
-  modifiedAt: f.modifiedAt ?? null,
-  encrypted: !!f.encrypted,
-  chunked: !!f.parts?.length,
-  thumb: !!f.thumb,
-  deviceId: f.deviceId ?? null,
-  shared: !!f.share,
-  stored: !!(f.tg || f.blob || f.parts?.length),
-});
+export const pub = publicFile;

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { DATA_DIR, type LinkToken, type StashFile, type Migration, type Store, type User } from "./store";
+import { DATA_DIR, publicFile, type FileStats, type LinkToken, type StashFile, type Migration, type Store, type User } from "./store";
 
 // JSON-file backend for local development. One file, rewritten on every change.
 
@@ -57,6 +57,24 @@ export function jsonStore(): Store {
       return load()
         .files.filter((f) => f.uid === uid)
         .sort((a, b) => b.createdAt - a.createdAt);
+    },
+    async listFor(uid) {
+      return (await this.filesFor(uid)).map(publicFile);
+    },
+    async fileStats(uid) {
+      const out: FileStats = { count: 0, bytes: 0, byDevice: {}, bySource: {} };
+      for (const f of load().files) {
+        if (f.uid !== uid) continue;
+        out.count++;
+        out.bytes += f.size;
+        out.bySource[f.source] = (out.bySource[f.source] ?? 0) + 1;
+        if (f.deviceId) {
+          const d = (out.byDevice[f.deviceId] ??= { files: 0, bytes: 0 });
+          d.files++;
+          d.bytes += f.size;
+        }
+      }
+      return out;
     },
     async getFile(uid, id) {
       return load().files.find((f) => f.id === id && f.uid === uid);

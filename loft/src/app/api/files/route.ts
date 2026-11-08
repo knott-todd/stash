@@ -10,8 +10,7 @@ export const maxDuration = 300;
 export async function GET() {
   const s = await getSession();
   if (!s) return unauthorized();
-  const files = await store().filesFor(s.uid);
-  return NextResponse.json({ files: files.map(pub) });
+  return NextResponse.json({ files: await store().listFor(s.uid) });
 }
 
 // Two shapes: multipart with the whole ciphertext in the body (small files), or

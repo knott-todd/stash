@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import type { LinkToken, StashFile, Migration, Store, User } from "./store";
+import type { FileStats, LinkToken, PublicFile, StashFile, Migration, Store, User } from "./store";
 
 // Postgres backend (Neon over HTTP, so it works from serverless functions).
 // Rows are small: the catalogue only, never file bytes or keys.
@@ -76,6 +76,38 @@ export function pgStore(): Store {
       await ensure();
       const rows = await sql`SELECT data FROM files WHERE uid = ${uid} ORDER BY created_at DESC`;
       return rows.map(rowFile);
+    },
+    // Only the public fields leave the database: no piece lists, no storage pointers.
+    async listFor(uid) {
+      await ensure();
+      const rows = await sql`SELECT jsonb_build_object(
+          'id', data->'id', 'name', data->'name', 'size', data->'size', 'mime', data->'mime', 'folder', data->'folder',
+          'source', data->'source', 'createdAt', data->'createdAt', 'modifiedAt', coalesce(data->'modifiedAt', 'null'::jsonb),
+          'encrypted', coalesce(data->'encrypted', 'false'::jsonb), 'chunked', (data ? 'parts'), 'thumb', (data ? 'thumb'),
+          'deviceId', coalesce(data->'deviceId', 'null'::jsonb), 'shared', (data ? 'share'),
+          'stored', (data ? 'tg' OR data ? 'blob' OR data ? 'parts')) AS data
+        FROM files WHERE uid = ${uid} ORDER BY created_at DESC`;
+      return rows.map((r) => r.data as PublicFile);
+    },
+    async fileStats(uid) {
+      await ensure();
+      const rows = await sql`SELECT count(*)::int AS n, coalesce(sum((data->>'size')::bigint), 0)::bigint AS bytes,
+          data->>'deviceId' AS device, data->>'source' AS source
+        FROM files WHERE uid = ${uid} GROUP BY 3, 4`;
+      const out: FileStats = { count: 0, bytes: 0, byDevice: {}, bySource: {} };
+      for (const r of rows as { n: number; bytes: string; device: string | null; source: string }[]) {
+        const n = Number(r.n);
+        const b = Number(r.bytes);
+        out.count += n;
+        out.bytes += b;
+        out.bySource[r.source] = (out.bySource[r.source] ?? 0) + n;
+        if (r.device) {
+          const d = (out.byDevice[r.device] ??= { files: 0, bytes: 0 });
+          d.files += n;
+          d.bytes += b;
+        }
+      }
+      return out;
     },
     async getFile(uid, id) {
       await ensure();

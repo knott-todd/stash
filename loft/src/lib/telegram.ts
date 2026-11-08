@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { BLOB_DIR, store, type StoredPart } from "./store";
+
+const ownerTag = (uid: string) => createHash("sha256").update(uid).digest("base64url").slice(0, 16);
 
 // Storage backend. Real mode talks to the Telegram Bot API: ciphertext is sent to a
 // Stash-operated chat. Demo mode (no token) mimics the same shape with local blobs.
@@ -68,10 +71,13 @@ export async function putObject(uid: string, objectId: string, name: string, byt
     fs.writeFileSync(p, bytes);
     return { blob: p, size: bytes.length };
   }
+  // The supplier learns nothing: no file name, no account id. The caption is a
+  // one-way hash of the account so a recovery scan can still group objects.
+  void name;
   const fd = new FormData();
   fd.set("chat_id", String(chatId));
-  fd.set("caption", `${uid}/${name}`);
-  fd.set("document", new Blob([new Uint8Array(bytes)]), name);
+  fd.set("caption", ownerTag(uid));
+  fd.set("document", new Blob([new Uint8Array(bytes)]), `${objectId.replace(/[^A-Za-z0-9._-]/g, "")}.bin`);
   const r = await call<{ message_id: number; document: { file_id: string } }>("sendDocument", fd);
   return { tg: { fileId: r.document.file_id, messageId: r.message_id }, size: bytes.length };
 }

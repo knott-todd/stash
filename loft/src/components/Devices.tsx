@@ -50,7 +50,7 @@ export function Devices() {
   useEffect(() => {
     setOrigin(location.origin); // eslint-disable-line react-hooks/set-state-in-effect -- window only exists after mount
     load();
-    const t = setInterval(load, 10000); // devices report every minute or so; keep the page honest
+    const t = setInterval(load, 60000); // devices report every ten minutes; polling faster only wakes the database
     return () => clearInterval(t);
   }, [load]);
 

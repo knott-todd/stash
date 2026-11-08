@@ -98,6 +98,21 @@ export function PairCard({
               </button>
             </div>
           )}
+          <div className="mt-4 pt-4 border-t border-line">
+            {qr ? (
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <img src={qr} alt="Code to open Loft on your phone" width={140} height={140} className="rounded-xl" />
+                <p className="text-ink-2">
+                  <span className="block font-semibold text-ink">Point your phone camera here.</span>
+                  Loft opens on your phone already linked to this drive, ready to back up your photos.
+                </p>
+              </div>
+            ) : (
+              <button className="btn-ghost border border-line" onClick={() => mint("qr")} data-testid="pair-qr">
+                Scan with your phone instead
+              </button>
+            )}
+          </div>
           <div className="mt-4 pt-4 border-t border-line text-sm">
             <button className="underline" onClick={() => setShowCode((s) => !s)}>
               {showCode ? "Hide recovery code" : "Show recovery code"}

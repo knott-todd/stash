@@ -3,6 +3,9 @@ import { store } from "@/lib/store";
 import { getFileStream } from "@/lib/telegram";
 import { decryptingStream, importRawKey } from "@/lib/server-crypto";
 
+// Streams or long listings: allow the function the time it needs.
+export const maxDuration = 300;
+
 // Public: the file behind a link, decrypted here. ?info=1 describes it instead.
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;

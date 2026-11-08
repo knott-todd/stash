@@ -4,6 +4,9 @@ import { CHUNK_CIPHER_BYTES, newId } from "@/lib/store";
 import { putObject, StorageBusy } from "@/lib/telegram";
 import { busy } from "@/lib/files-api";
 
+// Streams or long listings: allow the function the time it needs.
+export const maxDuration = 300;
+
 // One piece of a large file. The client encrypts the file in fixed-size pieces,
 // sends each one here, then registers the whole list with POST /api/files.
 export async function POST(req: Request) {

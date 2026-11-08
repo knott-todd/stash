@@ -3,6 +3,9 @@ import { getUid, unauthorized } from "@/lib/session";
 import { accessTokenFor, GOOGLE_ENABLED, listAll, type GFile } from "@/lib/google";
 import { store } from "@/lib/store";
 
+// Streams or long listings: allow the function the time it needs.
+export const maxDuration = 300;
+
 // Everything in the user's Drive, with folder paths. The browser does the copying.
 export async function GET() {
   const uid = await getUid();

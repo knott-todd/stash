@@ -3,6 +3,9 @@
 Seldon hackathon, 2026-11-07. Replaces Google Drive / Google One storage with the user's own Telegram, wrapped in a drive that a non-technical person can set up in 3 clicks.
 
 - `loft/` — the Next.js app (`npm run dev` → http://localhost:3000)
+- `desktop/` — Stash Desktop, the folder-backup agent (`node desktop/cli.mjs`)
+- `mobile/` — the phone app scaffold (Expo, untested)
+- `docs/ROADMAP.md` — what is built, what is next, decisions
 - `docs/PRODUCT.md` — demo script, KPIs, acceptance scenarios, scope cut
 - `docs/OPEN-DECISIONS.md` — the few decisions that need Olusanya
 - `seldon.yml` — Wren QA baseline (4 core journeys)

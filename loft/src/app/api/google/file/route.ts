@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getUid, unauthorized } from "@/lib/session";
 import { accessTokenFor, fetchFile } from "@/lib/google";
 
+// Streams or long listings: allow the function the time it needs.
+export const maxDuration = 300;
+
 // Proxies one file's bytes from Google to the browser (which encrypts them).
 export async function GET(req: Request) {
   const uid = await getUid();

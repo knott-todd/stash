@@ -4,6 +4,9 @@ import { CHUNK_CIPHER_BYTES, newId, store, type StashFile, type StoredPart } fro
 import { putFile, StorageBusy } from "@/lib/telegram";
 import { busy, isPart, ONE_PIECE_MAX, pub } from "@/lib/files-api";
 
+// Streams or long listings: allow the function the time it needs.
+export const maxDuration = 300;
+
 export async function GET() {
   const s = await getSession();
   if (!s) return unauthorized();

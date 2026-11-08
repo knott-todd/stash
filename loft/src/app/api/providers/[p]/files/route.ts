@@ -3,6 +3,9 @@ import { getSession, unauthorized } from "@/lib/session";
 import { accessTokenFor, isProvider, listAll, PROVIDERS, type Listed } from "@/lib/providers";
 import { store } from "@/lib/store";
 
+// Streams or long listings: allow the function the time it needs.
+export const maxDuration = 300;
+
 // Everything in the connected drive, with folder paths; cached for an hour.
 export async function GET(_: Request, { params }: { params: Promise<{ p: string }> }) {
   const { p } = await params;

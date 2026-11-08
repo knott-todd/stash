@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getSession, unauthorized } from "@/lib/session";
 import { accessTokenFor, fetchFile, isProvider } from "@/lib/providers";
 
+// Streams or long listings: allow the function the time it needs.
+export const maxDuration = 300;
+
 // Proxies one file's bytes from the provider to the browser (which encrypts them).
 export async function GET(req: Request, { params }: { params: Promise<{ p: string }> }) {
   const { p } = await params;

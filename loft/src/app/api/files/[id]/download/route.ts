@@ -3,6 +3,9 @@ import { getSession, unauthorized } from "@/lib/session";
 import { store } from "@/lib/store";
 import { getFileStream } from "@/lib/telegram";
 
+// Streams or long listings: allow the function the time it needs.
+export const maxDuration = 300;
+
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const s = await getSession();
   if (!s) return unauthorized();

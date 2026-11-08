@@ -20,6 +20,18 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 | Demo controls | `?demo=1` sticks per tab: Start fresh, simulated camera roll on `/m`. |
 | Sign in from a new device | Google sign-in; files appear. A pre-account device drive is folded into the account on first sign-in if the account is empty. |
 | Phone photo backup | Real photo picker + encrypted upload (built in the parallel session). |
+| Files of any size | Overnight 2026-11-09. Encrypted in fixed 4,000,000-byte pieces, one request per piece; download concatenates. Vercel Blob staging removed. |
+| Linked devices | Six-letter code approved in the browser, device tokens, Devices page with per-device folders, counts, state, last seen, rename, unlink. |
+| Stash Desktop | `desktop/cli.mjs`: links, suggests Documents and Pictures, watches folders, encrypts and sends new or changed files, replaces changed ones, reports to Devices, `--install-startup`. Developer preview (terminal). |
+| Standard vs Locked | First-run choice and Settings: Stash holds the key (Standard) or only a passcode-wrapped copy (Locked, PBKDF2 600k + AES-GCM), recovery code shown at lock time and in Settings. Desktop agent and phone app ask for the passcode once. |
+| Two-step setup | Move my files here (Google Drive; Dropbox and OneDrive when keys are set) and Back up automatically (this computer, my phone). Big on an empty drive, a strip with ticks afterwards. |
+| Photos view | Every picture and video by month, newest first, file's own date when known. |
+| Grid view and previews | Encrypted previews made in the browser at upload (and by the desktop agent with sharp); older files get one on first sight in a grid. |
+| Drive features | Multi-select (Ctrl/Cmd, Shift, Ctrl+A), selection bar, drag rows onto folders or crumbs, Move dialog, New folder (empty folders remembered), batch move. |
+| Shared links | Public per-file link, decrypted server-side (Standard accounts only), plain download page with inline image/video/PDF, removable. |
+| Export everything | Settings: one zip of every file, decrypted, in its folders; streams to disk on Chrome/Edge. |
+| Dropbox and OneDrive moves | Same browser-side copy as Google Drive; offered when `DROPBOX_APP_KEY/SECRET` or `MS_CLIENT_ID/SECRET` are set. Not yet run against real apps. |
+| Phone app scaffold | `mobile/` (Expo): link, allow photos, background backup, passcode screen. Untested; needs a device build. |
 
 ## In the works
 
@@ -32,15 +44,17 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 
 0. **New-user onboarding as a short checklist** on the empty drive: 1. Move from your current provider (Google Drive now; Dropbox/iCloud later), 2. Set up automatic backup (phone photos; WhatsApp on Android), 3. Open on your other devices. Each step one tap, ticks off when done, disappears when all three are done. Replaces the three tiles.
 1. **Staging via Cloudflare R2** (needs an R2 bucket + token from Olusanya) while Blob is paused; small files already bypass staging.
-2. **Storage in the user's own Telegram** (MTProto as the user, bytes phone↔Telegram directly): keeps "free, unlimited" true at scale and our running cost at ~$0. Decided 2026-11-08; native app is built on it; web can follow.
-3. Files over 20 MB via chunking (written against the own-Telegram adapter).
-2. ~~Journeys 2–7 specified in full~~ → docs/JOURNEYS.md.
-3. Native mobile app: journey 1 only (photo auto-backup, keychain-stored key, background transfer).
-4. Export everything (zip of decrypted files).
-5. Passkeys or PIN escrow for lost-everything recovery.
-6. Desktop sync folder; Gmail attachment button; Android WhatsApp import.
-7. Local Bot API server when there's budget (~$5/mo): 2 GB files without pieces.
-8. Drag-to-move, multi-select, New folder, grid view; transactional email; Dropbox; shared links.
+2. ~~Storage in the user's own Telegram~~ **Out** (Olusanya, 2026-11-08 night): never decided, and it would mean asking people to open a Telegram account, which the product never mentions. Storage stays operator-side.
+3. ~~Files over 20 MB via chunking~~ → built 2026-11-09 (see Complete).
+4. ~~Journeys 2–7 specified in full~~ → docs/JOURNEYS.md.
+5. Native mobile app: journey 1 only (photo auto-backup, keychain-stored key, background transfer).
+6. Export everything (zip of decrypted files).
+7. ~~Passkeys or PIN escrow for lost-everything recovery~~ → moot with accounts; an opt-in "lock with a passcode" is the only remaining form.
+8. Desktop sync folder; Gmail attachment button; Android WhatsApp import.
+9. ~~Local Bot API server (~$5/mo)~~ **Out**: no paid infrastructure for this app (Olusanya, 2026-11-08 night). Chunking covers large files.
+10. Drag-to-move, multi-select, New folder, grid view; Dropbox; shared links.
+
+Olusanya's order (2026-11-08 night): 5, 8, 6, 10, 0, 7. The thread through them: migrate from any provider → automatic backup of a computer's folders → connect the phone for automatic photo backup → a drive people trust because they can see it is automatic (Devices page) → then speed. Rich search (text in scans, objects and people in photos, Google Photos style) only if it can be genuinely good for free; otherwise not mentioned at all.
 
 ## Ideas (not prioritised, 2026-11-08)
 
@@ -59,6 +73,13 @@ Each one states the user's problem first. Marked (frontier) when it depends on s
 Also from the frontier list, not yet turned into product ideas: on-device search across all files, passkey recovery, local-first sync.
 
 ## Known limits (say them out loud)
+
+- Stash Desktop is a terminal program for now (`node desktop/cli.mjs`); the npm package is not published and there is no installer or tray icon.
+- The phone app is a scaffold nobody has run; automatic phone backup still means opening the web page and picking photos.
+- Dropbox and OneDrive need app registrations (keys in `.env.example`) and a first real run.
+- Shared links and the server-side preview on the link page work only for Standard accounts; Locked accounts get a clear refusal.
+- Google sign-in is limited to the consent screen's test users until the app is published in Google Cloud Console (a button, no verification, for sign-in scopes).
+- Telegram rate limits still apply: a very large first backup from Stash Desktop will see "storage is busy" pauses and carry on.
 
 - Telegram Bot API: 20 MB per download via `getFile`; production uploads are capped at 20 MB to match (local dev allows 50).
 - Google Drive listing of a very large Drive takes 1–2 minutes; cached for an hour.

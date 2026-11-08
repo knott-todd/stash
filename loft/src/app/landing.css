@@ -16,7 +16,7 @@
   color: var(--l-ink);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  min-height: 100dvh;
+  min-height: 100svh; /* svh: stable as the mobile address bar shows and hides */
   display: flex;
   flex-direction: column;
 }
@@ -164,14 +164,6 @@
   outline-offset: 3px;
   border-radius: 6px;
 }
-html {
-  scroll-behavior: smooth;
-}
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-}
 
 /* Answers: one short paragraph per word. Headings repeat the promise, bodies say how. */
 .landing .answers {
@@ -227,7 +219,7 @@ html {
   /* First screen: the hero fills the viewport below the header; the block is centred, its words left-aligned. */
   .landing .hero.col {
     max-width: none; /* centre the block in the whole viewport, not in the mobile column */
-    min-height: calc(100dvh - 84px);
+    min-height: calc(100svh - 84px);
     align-items: center;
     padding-block: 0 48px;
     position: relative;

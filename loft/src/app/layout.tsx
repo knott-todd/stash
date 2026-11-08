@@ -15,8 +15,10 @@ export const viewport: Viewport = { themeColor: "#fffbf5" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geist.variable} ${fraunces.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+    // No fixed height on <html>: iOS Safari can trap scrolling when html is 100% tall
+    // and the body overflows it. The body sizes itself from the viewport instead.
+    <html lang="en" className={`${geist.variable} ${fraunces.variable} ${geistMono.variable} antialiased`}>
+      <body className="min-h-svh flex flex-col">{children}</body>
     </html>
   );
 }

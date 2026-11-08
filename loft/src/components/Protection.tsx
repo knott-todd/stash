@@ -37,7 +37,7 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
 
   return (
     <div>
-      <div className={`grid gap-3 items-stretch `}>
+      <div className={`grid gap-3 items-stretch ${compact ? "" : "sm:grid-cols-2"}`}>
         <Option
           selected={current === "standard"}
           title="Standard"

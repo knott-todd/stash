@@ -7,7 +7,7 @@ import Link from "next/link";
 //   2. Back up automatically      this computer (Stash Desktop); my phone
 // Big on an empty drive; a slim strip once there are files; gone when both are done.
 
-export type SetupState = { migrated: boolean; computer: boolean; phone: boolean };
+export type SetupState = { migrated: boolean; computer: boolean; phone: boolean; linked: { "google-drive": boolean; dropbox: boolean; onedrive: boolean } };
 
 type Prov = "google-drive" | "dropbox" | "onedrive";
 
@@ -22,23 +22,23 @@ export function SetupSteps({ state, big, onStart, providers, onDismiss }: { stat
         <p className="mt-2 text-lg text-ink-2">Everything is encrypted before it is stored.</p>
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <StepCard n={1} title="Move my files here" done={state.migrated} body="Everything from your current provider, folders included. Nothing is deleted there.">
-            <button className="btn-primary w-full" onClick={() => onStart("google-drive")} data-testid="tile-gdrive">
+            <ActionButton primary linked={state.linked["google-drive"]} onClick={() => onStart("google-drive")} testId="tile-gdrive">
               <GDriveIcon /> Google Drive
-            </button>
+            </ActionButton>
             {others.map((p) => (
-              <button key={p} className="btn-ghost w-full border border-line text-ink" onClick={() => onStart(p)} data-testid={`tile-`}>
+              <ActionButton key={p} linked={state.linked[p]} onClick={() => onStart(p)} testId={`tile-`}>
                 {p === "dropbox" ? "Dropbox" : "OneDrive"}
-              </button>
+              </ActionButton>
             ))}
             {coming.length > 0 && <p className="text-sm text-ink-3">{coming.join(" and ")} {coming.length > 1 ? "are" : "is"} coming.</p>}
           </StepCard>
           <StepCard n={2} title="Back up automatically" done={step2} body="Pick the folders and the devices once. From then on every new or changed file arrives on its own.">
-            <Link href="/devices" className="btn-primary w-full" data-testid="tile-computer">
+            <ActionButton primary linked={state.computer} href="/devices" testId="tile-computer">
               This computer
-            </Link>
-            <Link href="/devices#phone" className="btn-ghost w-full border border-line text-ink" data-testid="tile-phone">
+            </ActionButton>
+            <ActionButton linked={state.phone} href="/devices#phone" testId="tile-phone">
               My phone
-            </Link>
+            </ActionButton>
           </StepCard>
         </div>
       </section>
@@ -127,5 +127,34 @@ function GDriveIcon() {
       <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc" />
       <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00" />
     </svg>
+  );
+}
+
+// A step's button: the action until it is done, then a quiet green "Linked" that still opens the same place.
+function ActionButton({ children, linked, primary = false, href, onClick, testId }: { children: React.ReactNode; linked: boolean; primary?: boolean; href?: string; onClick?: () => void; testId: string }) {
+  const cls = linked ? "btn-ghost w-full border border-ok/40 bg-ok-soft text-ok hover:bg-ok-soft" : primary ? "btn-primary w-full" : "btn-ghost w-full border border-line text-ink";
+  const inner = (
+    <>
+      {children}
+      {linked && (
+        <span className="inline-flex items-center gap-1 text-sm font-medium" data-testid={`${testId}-linked`}>
+          <svg width="14" height="14" viewBox="0 0 12 12" aria-hidden>
+            <path d="M2 6.5 5 9.5 10 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Linked
+        </span>
+      )}
+    </>
+  );
+  if (href)
+    return (
+      <Link href={href} className={cls} data-testid={testId}>
+        {inner}
+      </Link>
+    );
+  return (
+    <button className={cls} onClick={onClick} data-testid={testId}>
+      {inner}
+    </button>
   );
 }

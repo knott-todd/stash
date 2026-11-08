@@ -438,9 +438,14 @@ export function Drive() {
   const all = files ?? [];
   // The two setup steps, judged from what has actually happened.
   const setupState = {
-    migrated: !!me?.googleConnected || all.some((f) => f.source === "google-drive") || migration.phase === "done",
+    migrated: !!me?.googleConnected || !!me?.providers?.dropbox?.connected || !!me?.providers?.onedrive?.connected || all.some((f) => f.source === "google-drive" || f.source === "dropbox" || f.source === "onedrive") || migration.phase === "done",
     computer: computers > 0 || all.some((f) => f.source === "desktop"),
     phone: all.some((f) => f.source === "phone"),
+    linked: {
+      "google-drive": !!me?.googleConnected || all.some((f) => f.source === "google-drive"),
+      dropbox: !!me?.providers?.dropbox?.connected || all.some((f) => f.source === "dropbox"),
+      onedrive: !!me?.providers?.onedrive?.connected || all.some((f) => f.source === "onedrive"),
+    },
   };
   const empty = files !== null && all.length === 0;
 

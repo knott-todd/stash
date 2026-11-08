@@ -83,7 +83,7 @@ export function Settings() {
           <h2 id="protection" className="text-xl font-semibold">
             How your files are protected
           </h2>
-          <p className="mt-1 text-ink-2 text-sm">Every file is encrypted before it is stored either way. The difference is who holds the key.</p>
+          <p className="mt-1 text-ink-2 text-sm">Every file is encrypted before it is stored either way. The difference is whether Stash can open your files for you, or only you can.</p>
           <div className="mt-4">
             {me.protection === "passcode" && !hasKey ? (
               <div className="card p-5">

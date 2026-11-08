@@ -4,9 +4,11 @@ import { useState } from "react";
 import { getRawKey, keyFromRecoveryCode, recoveryCode, setRawKey, unwrapKey, wrapKey, type WrappedKey } from "@/lib/crypto";
 
 // How the files are protected. Two choices, said plainly:
-//   Standard   Stash keeps the key. Sign in anywhere and your files open. (Recommended)
-//   Locked     Only you hold the key, behind a passcode Stash never sees. Forget
+//   Standard   Files open anywhere you sign in. Private from everyone except Stash
+//              itself, the way Google Drive is. (Recommended)
+//   Locked     Only you can open your files, with a passcode Stash never sees. Forget
 //              the passcode and the recovery code, and the files are gone for good.
+// Said to people without the word "key": what it means for them, not how it works.
 
 export type Protection = "standard" | "passcode" | null;
 
@@ -25,7 +27,7 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
 
   async function lock(passcode: string, hint: string) {
     const raw = getRawKey();
-    if (!raw) return setError("This device doesn't have the key yet. Reload and try again.");
+    if (!raw) return setError("This device isn't ready yet. Reload and try again.");
     const keyWrapped = await wrapKey(raw, passcode, hint || undefined);
     const r = await fetch("/api/account/protection", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "passcode", keyWrapped }) });
     if (!r.ok) return setError("Couldn't lock the account. Try again.");
@@ -40,7 +42,7 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
           selected={current === "standard"}
           title="Standard"
           tag="Recommended"
-          body="Stash keeps your key. Sign in with Google on any device and your files are there. Nothing to remember."
+          body="Your files open on any device the moment you sign in. Nothing to remember. Private from everyone except Stash itself, the same way Google Drive is."
           action={current === "standard" ? null : current === "passcode" ? () => setUnlocking(true) : chooseStandard}
           actionLabel={current === "passcode" ? "Switch to Standard" : "Use Standard"}
           testId="protection-standard"
@@ -49,7 +51,7 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
           selected={current === "passcode"}
           title="Locked with a passcode"
           tag="More private"
-          body="Only you hold the key, behind a passcode Stash never sees. Not even Stash can open your files. If you forget the passcode and lose the recovery code, the files are gone for good."
+          body="Only you can open your files. Not even Stash can. You choose a passcode that Stash never sees and type it once on each new device. If you forget it and lose the recovery code, the files are gone for good."
           action={current === "passcode" ? null : () => setLocking(true)}
           actionLabel="Lock my files"
           testId="protection-passcode"
@@ -64,7 +66,7 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
       {unlocking && (
         <AskPasscode
           title="Switch to Standard"
-          body="Enter your passcode once more. Stash will keep the key from now on, and the passcode is no longer needed."
+          body="Enter your passcode once more. After this your files open with just a sign-in, and the passcode is no longer needed."
           wrapped={null}
           onCancel={() => setUnlocking(false)}
           onUnlocked={async () => {

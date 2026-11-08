@@ -36,7 +36,7 @@ export async function runAgent({ cfg, dir, once = false, log = console.log, askP
     delete cfg.key; // back to standard keeping: nothing to remember here
     saveConfig(dir, cfg);
   }
-  if (!raw) throw new Error("The account has no key yet. Sign in to Stash in a browser once, then try again.");
+  if (!raw) throw new Error("This account isn't ready yet. Sign in to Stash in a browser once, then try again.");
   const key = await importKey(raw);
   const state = loadState(dir);
   const stats = new Map(cfg.folders.map((f) => [f.path, { ...f, files: 0, bytes: 0, pending: 0, failed: 0, lastUpload: lastUploadFor(state, f.path) }]));

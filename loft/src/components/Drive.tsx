@@ -827,7 +827,7 @@ export function Drive() {
       )}
 
       {demoTools && (
-        <button onClick={resetDemo} className="fixed bottom-4 right-4 text-xs text-ink-3 hover:text-ink underline" title="Forget this device's drive, key and Google connection" data-testid="start-fresh">
+        <button onClick={resetDemo} className="fixed bottom-4 right-4 text-xs text-ink-3 hover:text-ink underline" title="Delete every file in this account" data-testid="start-fresh">
           Start fresh
         </button>
       )}

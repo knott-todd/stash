@@ -171,7 +171,7 @@ export function FileBrowser({
   // Drag: the selection travels (or just the row under the pointer).
   function dragStart(e: React.DragEvent, r: Row) {
     const k = keyOf(r);
-    const ids = selected.has(k) ? fileIds(selected) : r.kind === "file" ? [r.f.id] : [];
+    const ids = selected.has(k) ? [...selected] : [r.kind === "file" ? r.f.id : "d:" + r.path];
     if (!ids.length) return e.preventDefault();
     e.dataTransfer.setData(DRAG_TYPE, JSON.stringify(ids));
     e.dataTransfer.effectAllowed = "move";
@@ -232,7 +232,7 @@ export function FileBrowser({
           {rows.map((r) => {
             const k = keyOf(r);
             const isSel = selected.has(k);
-            const sel = isSel ? "ring-2 ring-ink" : "hover:border-ink-3";
+            const sel = isSel ? "ring-2 ring-[#1a73e8] bg-[#e8f0fe]" : "hover:border-ink-3";
             if (r.kind === "folder")
               return (
                 <li key={k}>
@@ -277,7 +277,7 @@ export function FileBrowser({
             );
           })}
         </ul>
-        {menu && <Menu menu={menu} selectedCount={fileIds(selected).length} onOpen={onOpen} onDownload={onDownload} onRename={setRenaming} onTrash={onTrash} onMoveTo={() => onMoveTo(fileIds(selected))} onShare={onShare} close={() => setMenu(null)} />}
+        {menu && <Menu menu={menu} selectedCount={fileIds(selected).length} onOpen={onOpen} onDownload={onDownload} onRename={setRenaming} onTrash={onTrash} onMoveTo={() => onMoveTo([...selected])} onShare={onShare} close={() => setMenu(null)} />}
         {renaming && (
           <RenamePrompt
             f={renaming}
@@ -305,7 +305,7 @@ export function FileBrowser({
         {rows.map((r) => {
           const k = keyOf(r);
           const isSel = selected.has(k);
-          const base = `grid grid-cols-[28px_minmax(0,1fr)_auto] sm:grid-cols-[28px_minmax(0,1fr)_140px_90px_auto] items-center gap-4 px-5 py-2.5 select-none cursor-default ${isSel ? "bg-cream-2" : "hover:bg-cream-2/60"}`;
+          const base = `grid grid-cols-[28px_minmax(0,1fr)_auto] sm:grid-cols-[28px_minmax(0,1fr)_140px_90px_auto] items-center gap-4 px-5 py-2.5 select-none cursor-default ${isSel ? "bg-[#e8f0fe]" : "hover:bg-cream-2/60"}`;
           if (r.kind === "folder")
             return (
               <li
@@ -319,7 +319,7 @@ export function FileBrowser({
                 aria-selected={isSel}
               >
                 <FileTypeIcon kind="DIR" className="text-ink-2" />
-                <button className="font-medium truncate text-left" onClick={(e) => (e.detail === 1 ? pick(r, e) : onOpenFolder(r.path))} onDoubleClick={() => onOpenFolder(r.path)}>
+                <button className="font-medium truncate text-left" onDoubleClick={() => onOpenFolder(r.path)}>
                   {r.name}
                 </button>
                 <span className="hidden sm:block text-sm text-ink-3">{r.modified ? fmtDate(r.modified) : ""}</span>
@@ -383,7 +383,7 @@ export function FileBrowser({
         {rows.length === 0 && <li>{empty}</li>}
       </ul>
 
-      {menu && <Menu menu={menu} selectedCount={fileIds(selected).length} onOpen={onOpen} onDownload={onDownload} onRename={setRenaming} onTrash={onTrash} onMoveTo={() => onMoveTo(fileIds(selected))} onShare={onShare} close={() => setMenu(null)} />}
+      {menu && <Menu menu={menu} selectedCount={fileIds(selected).length} onOpen={onOpen} onDownload={onDownload} onRename={setRenaming} onTrash={onTrash} onMoveTo={() => onMoveTo([...selected])} onShare={onShare} close={() => setMenu(null)} />}
     </div>
   );
 }

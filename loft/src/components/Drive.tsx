@@ -292,9 +292,20 @@ export function Drive() {
   // Trash is optimistic with Undo; the server delete happens when the toast expires.
   // Trashing one of several selected files trashes them all.
   const pendingTrash = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  // A selection may hold files ("<id>") and folders ("d:<path>"); folders mean everything inside them.
+  const filesForKeys = (keys: Iterable<string>) => {
+    const ks = [...keys];
+    const dirs = ks.filter((k) => k.startsWith("d:")).map((k) => k.slice(2));
+    return (files ?? []).filter((x) => ks.includes(x.id) || dirs.some((d) => x.folder === d || x.folder.startsWith(d + "/")));
+  };
+
   function trash(f: FileRow) {
-    const ids = selected.has(f.id) && selected.size > 1 ? [...selected].filter((k) => !k.startsWith("d:")) : [f.id];
-    const batch = (files ?? []).filter((x) => ids.includes(x.id));
+    trashMany(selected.has(f.id) && selected.size > 1 ? filesForKeys(selected) : [f], f.name);
+  }
+
+  function trashMany(batch: FileRow[], firstName: string) {
+    if (!batch.length) return;
+    const ids = batch.map((x) => x.id);
     setFiles((fs) => fs && fs.filter((x) => !ids.includes(x.id)));
     setSelected(new Set());
     const t = setTimeout(async () => {
@@ -311,7 +322,7 @@ export function Drive() {
     }, 6000);
     for (const x of batch) pendingTrash.current.set(x.id, t);
     setToast({
-      text: batch.length === 1 ? `${f.name} moved to trash.` : `${batch.length} files moved to trash.`,
+      text: batch.length === 1 ? `${firstName} moved to trash.` : `${batch.length} files moved to trash.`,
       undo: () => {
         clearTimeout(t);
         for (const x of batch) pendingTrash.current.delete(x.id);
@@ -322,15 +333,43 @@ export function Drive() {
   }
 
   // Move files into a folder (drag, or the Move dialog).
-  async function moveFiles(ids: string[], target: string) {
-    const moving = (files ?? []).filter((x) => ids.includes(x.id) && x.folder !== target);
-    if (!moving.length) return;
-    setFiles((fs) => fs && fs.map((x) => (ids.includes(x.id) ? { ...x, folder: target } : x)));
+  // Move files and folders. A folder goes into the target with its name and
+  // everything under it; a file lands in the target itself.
+  async function moveFiles(keys: string[], target: string) {
+    const dirs = keys.filter((k) => k.startsWith("d:")).map((k) => k.slice(2));
+    // A folder cannot go into itself or into one of its own subfolders.
+    if (dirs.some((d) => target === d || target.startsWith(d + "/"))) {
+      setToast({ text: "A folder can't be moved into itself." });
+      setMoveIds(null);
+      return;
+    }
+    const plan = new Map<string, string[]>(); // destination folder → file ids
+    for (const x of files ?? []) {
+      let dest: string | null = null;
+      if (keys.includes(x.id)) dest = target;
+      else {
+        const d = dirs.find((p) => x.folder === p || x.folder.startsWith(p + "/"));
+        if (d) {
+          const name = d.split("/").pop()!;
+          const rest = x.folder.slice(d.length).replace(/^\//, "");
+          dest = [target, name, rest].filter(Boolean).join("/");
+        }
+      }
+      if (dest !== null && dest !== x.folder) plan.set(dest, [...(plan.get(dest) ?? []), x.id]);
+    }
+    const total = [...plan.values()].reduce((n, ids) => n + ids.length, 0);
+    if (!total) return;
+    setFiles((fs) => fs && fs.map((x) => { for (const [dest, ids] of plan) if (ids.includes(x.id)) return { ...x, folder: dest }; return x; }));
     setSelected(new Set());
     setMoveIds(null);
-    const r = await fetch("/api/files", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids: moving.map((x) => x.id), folder: target }) });
-    if (!r.ok) setToast({ text: "Couldn't move those. Try again." });
-    else setToast({ text: moving.length === 1 ? `${moving[0].name} moved to ${target ? target.split("/").pop() : "My drive"}.` : `${moving.length} files moved to ${target ? target.split("/").pop() : "My drive"}.` });
+    let failed = false;
+    for (const [dest, ids] of plan) {
+      const r = await fetch("/api/files", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids, folder: dest }) });
+      if (!r.ok) failed = true;
+    }
+    const where = target ? target.split("/").pop() : "My drive";
+    if (failed) setToast({ text: "Couldn't move everything. Try again." });
+    else setToast({ text: keys.length === 1 && !keys[0].startsWith("d:") ? `Moved to ${where}.` : `${keys.length === 1 ? "Folder" : `${keys.length} items`} moved to ${where}.` });
     refresh();
   }
 
@@ -428,7 +467,7 @@ export function Drive() {
   const all = files ?? [];
   // The selection bar replaces the toolbar only when there is something to act on:
   // a file, or several items. A single folder click just highlights it.
-  const showSelection = selected.size > 1 || [...selected].some((k) => !k.startsWith("d:"));
+  const showSelection = selected.size > 0;
   // The two setup steps, judged from what has actually happened.
   const setupState = {
     migrated: !!me?.googleConnected || !!me?.providers?.dropbox?.connected || !!me?.providers?.onedrive?.connected || all.some((f) => f.source === "google-drive" || f.source === "dropbox" || f.source === "onedrive") || migration.phase === "done",
@@ -591,14 +630,15 @@ export function Drive() {
           {!empty && showSelection && (
             <div className="flex items-center gap-3 text-sm w-full sm:w-auto" data-testid="selection-bar">
               <span className="font-medium">{selected.size} selected</span>
-              <button className="underline underline-offset-4 hover:text-ink text-ink-2" onClick={() => setMoveIds([...selected].filter((k) => !k.startsWith("d:")))}>
+              <button className="underline underline-offset-4 hover:text-ink text-ink-2" onClick={() => setMoveIds([...selected])}>
                 Move to…
               </button>
               <button
                 className="underline underline-offset-4 hover:text-ink text-ink-2"
                 onClick={() => {
-                  const first = all.find((x) => selected.has(x.id));
-                  if (first) trash(first);
+                  const batch = filesForKeys(selected);
+                  const firstKey = [...selected][0];
+                  trashMany(batch, firstKey.startsWith("d:") ? firstKey.slice(2).split("/").pop()! : (batch[0]?.name ?? ""));
                 }}
               >
                 Trash

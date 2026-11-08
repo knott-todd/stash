@@ -17,6 +17,8 @@ const dir = configDir(argValue("--config") ?? process.env.STASH_CONFIG_DIR);
 const cfg = loadConfig(dir);
 if (argValue("--server") ?? process.env.STASH_SERVER) cfg.server = argValue("--server") ?? process.env.STASH_SERVER;
 cfg.server ??= DEFAULT_SERVER;
+// Staging sits behind Vercel's login; a bypass secret in the config or STASH_BYPASS lets the app through.
+const bypassHeaders = () => (cfg.bypass ?? process.env.STASH_BYPASS ? { "x-vercel-protection-bypass": cfg.bypass ?? process.env.STASH_BYPASS } : {});
 cfg.folders ??= [];
 
 let win = null;
@@ -140,7 +142,7 @@ ipcMain.handle("state", () => snapshot());
 ipcMain.handle("link", async () => {
   if (linking) return linking;
   const name = deviceName();
-  const r = await fetch(`${cfg.server}/api/devices/link`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, platform: platformName(), kind: "desktop" }) });
+  const r = await fetch(`${cfg.server}/api/devices/link`, { method: "POST", headers: { "content-type": "application/json", ...bypassHeaders() }, body: JSON.stringify({ name, platform: platformName(), kind: "desktop" }) });
   if (!r.ok) throw new Error(`Couldn't reach Stash (${r.status}). Check your connection.`);
   const l = await r.json();
   linking = { code: l.code, url: l.url };
@@ -150,7 +152,7 @@ ipcMain.handle("link", async () => {
     const deadline = Date.now() + l.expiresInSeconds * 1000;
     while (Date.now() < deadline && linking) {
       await sleep(2500);
-      const st = await fetch(`${cfg.server}/api/devices/link?id=${encodeURIComponent(l.linkId)}&secret=${encodeURIComponent(l.secret)}`).then((x) => x.json()).catch(() => ({ state: "waiting" }));
+      const st = await fetch(`${cfg.server}/api/devices/link?id=${encodeURIComponent(l.linkId)}&secret=${encodeURIComponent(l.secret)}`, { headers: bypassHeaders() }).then((x) => x.json()).catch(() => ({ state: "waiting" }));
       if (st.state === "approved") {
         cfg.token = st.token;
         cfg.deviceId = st.deviceId;

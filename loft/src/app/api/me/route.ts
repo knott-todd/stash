@@ -6,17 +6,25 @@ import { MAX_BYTES } from "@/lib/files-limits";
 import { GOOGLE_ENABLED } from "@/lib/google";
 import { connected as providersConnected, PROVIDERS } from "@/lib/providers";
 import { AUTH_ENABLED, newFileKey } from "@/lib/auth";
+import { STAGE } from "@/lib/stage";
 
 export async function GET(req: Request) {
   // Names only, never values: which settings the running server can see.
   if (new URL(req.url).searchParams.get("diag") === "1") {
-    const names = Object.keys(process.env).filter((k) => /^(TELEGRAM|BLOB|STASH|SMTP|MAIL|GOOGLE|DATABASE|PUBLIC|VERCEL_ENV|NODE_ENV)/.test(k)).sort();
+    const names = Object.keys(process.env)
+      .filter((k) => /^(TELEGRAM|BLOB|STASH|SMTP|MAIL|GOOGLE|DATABASE|PUBLIC|NEXT_PUBLIC|VERCEL_ENV|NODE_ENV)/.test(k))
+      .sort();
     const present = Object.fromEntries(names.map((k) => [k, (process.env[k] ?? "").length > 0 ? "set" : "empty"]));
     // Which database host (first label only) and whether the value was pasted with quotes.
     const raw = process.env.DATABASE_URL ?? "";
     let dbHost = "unset";
-    try { dbHost = raw ? new URL(raw.replace(/^"|"$/g, "")).host.split(".")[0] : "unset"; } catch { dbHost = "unparseable"; }
-    return NextResponse.json({ present, demo: DEMO, auth: AUTH_ENABLED, dbHost, dbQuoted: /^".*"$/.test(raw) });
+    try {
+      dbHost = raw ? new URL(raw.replace(/^"|"$/g, "")).host.split(".")[0] : "unset";
+    } catch {
+      dbHost = "unparseable";
+    }
+    const quoted = raw.startsWith('"') && raw.endsWith('"');
+    return NextResponse.json({ present, stage: STAGE, demo: DEMO, auth: AUTH_ENABLED, dbHost, dbQuoted: quoted });
   }
   const s = await getSession();
   if (!s) return NextResponse.json({ signedIn: false, auth: AUTH_ENABLED, demo: DEMO }, { status: 200 });
@@ -41,10 +49,13 @@ export async function GET(req: Request) {
     legacy,
     demo: DEMO,
     google: GOOGLE_ENABLED,
+    // Other drives: offered when the server has keys for them, connected once the user said yes.
+    providers: {
+      dropbox: { enabled: PROVIDERS.dropbox.enabled, connected: providersConnected(u).dropbox },
+      onedrive: { enabled: PROVIDERS.onedrive.enabled, connected: providersConnected(u).onedrive },
+    },
     maxBytes: MAX_BYTES,
     googleConnected: !!u.google,
-    // Other drives: offered when the server has keys for them, connected once the user said yes.
-    providers: { dropbox: { enabled: PROVIDERS.dropbox.enabled, connected: providersConnected(u).dropbox }, onedrive: { enabled: PROVIDERS.onedrive.enabled, connected: providersConnected(u).onedrive } },
     fileCount: stats.count,
     bytes: stats.bytes,
     photoBackup: u.photoBackup ?? null,

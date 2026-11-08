@@ -18,7 +18,7 @@ const REPORT_MS = 10 * 60 * 1000; // a report every minute kept the database awa
 export const VERSION = "0.2.0";
 
 export function createAgent({ cfg, dir, log = () => {}, onState = () => {}, askPasscode = null }) {
-  const api = new Api(cfg.server, cfg.token);
+  const api = new Api(cfg.server, cfg.token, cfg.bypass ?? process.env.STASH_BYPASS);
   const state = loadState(dir);
   const stats = new Map();
   const s = { status: "starting", detail: undefined, folders: [], lastError: null, paused: false };

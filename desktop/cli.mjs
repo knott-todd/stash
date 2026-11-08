@@ -28,7 +28,10 @@ const value = (n) => {
 const dir = configDir(value("--config"));
 const cfg = loadConfig(dir);
 if (value("--server")) cfg.server = value("--server");
+if (value("--bypass")) cfg.bypass = value("--bypass");
 cfg.server ??= DEFAULT_SERVER;
+// Staging sits behind Vercel's login; a bypass secret in the config or STASH_BYPASS lets the app through.
+const bypassHeaders = () => (cfg.bypass ?? process.env.STASH_BYPASS ? { "x-vercel-protection-bypass": cfg.bypass ?? process.env.STASH_BYPASS } : {});
 cfg.folders ??= [];
 
 const log = (s) => console.log(s);
@@ -53,7 +56,7 @@ function openBrowser(url) {
 
 async function link() {
   const name = deviceName();
-  const r = await fetch(`${cfg.server}/api/devices/link`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, platform: platformName(), kind: "desktop" }) });
+  const r = await fetch(`${cfg.server}/api/devices/link`, { method: "POST", headers: { "content-type": "application/json", ...bypassHeaders() }, body: JSON.stringify({ name, platform: platformName(), kind: "desktop" }) });
   if (!r.ok) throw new Error(`Couldn't reach ${cfg.server} (${r.status}).`);
   const l = await r.json();
   log("");
@@ -65,7 +68,7 @@ async function link() {
   const deadline = Date.now() + l.expiresInSeconds * 1000;
   while (Date.now() < deadline) {
     await sleep(2500);
-    const s = await fetch(`${cfg.server}/api/devices/link?id=${encodeURIComponent(l.linkId)}&secret=${encodeURIComponent(l.secret)}`).then((x) => x.json()).catch(() => ({ state: "waiting" }));
+    const s = await fetch(`${cfg.server}/api/devices/link?id=${encodeURIComponent(l.linkId)}&secret=${encodeURIComponent(l.secret)}`, { headers: bypassHeaders() }).then((x) => x.json()).catch(() => ({ state: "waiting" }));
     if (s.state === "approved") {
       cfg.token = s.token;
       cfg.deviceId = s.deviceId;

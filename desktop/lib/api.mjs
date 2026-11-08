@@ -5,13 +5,14 @@ import { encryptChunk, CHUNK_PLAIN_BYTES } from "./crypto.mjs";
 // one request per piece, then one that lists the pieces.
 
 export class Api {
-  constructor(server, token) {
+  constructor(server, token, bypass) {
     this.server = server.replace(/\/+$/, "");
     this.token = token;
+    this.bypass = bypass; // staging sits behind Vercel's login; this header lets automation through
   }
 
   headers(extra = {}) {
-    return { authorization: `Bearer ${this.token}`, ...extra };
+    return { authorization: `Bearer ${this.token}`, ...(this.bypass ? { "x-vercel-protection-bypass": this.bypass } : {}), ...extra };
   }
 
   // Storage sometimes asks for a pause (rate limits). Honour it, then retry.

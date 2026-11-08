@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import type { LinkToken, LoftFile, Migration, Store, User } from "./store";
+import type { LinkToken, StashFile, Migration, Store, User } from "./store";
 
 // Postgres backend (Neon over HTTP, so it works from serverless functions).
 // Rows are small: the catalogue only, never file bytes or keys.
@@ -32,7 +32,7 @@ export function pgStore(): Store {
       await sql`CREATE TABLE IF NOT EXISTS kv (key text PRIMARY KEY, value jsonb NOT NULL)`;
     })());
 
-  const rowFile = (r: Record<string, unknown>) => r.data as LoftFile;
+  const rowFile = (r: Record<string, unknown>) => r.data as StashFile;
 
   return {
     async getUser(uid) {

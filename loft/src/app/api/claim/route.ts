@@ -42,13 +42,13 @@ export async function GET(req: Request) {
   const db = store();
   const tok = await db.getToken(t);
   const jar = await cookies();
-  const already = jar.get("loft_uid")?.value === tok?.uid;
+  const already = jar.get("stash_uid")?.value === tok?.uid;
   // Single use and 24 h, except for the device that already adopted it (a refresh).
   if (!tok || Date.now() - tok.createdAt > 1000 * 60 * 60 * 24 || (tok.used && !already)) {
     return NextResponse.json({ ok: false, error: "This link has expired. Ask for a new one from the drive." }, { status: 400 });
   }
   tok.used = true;
   await db.putToken(tok);
-  jar.set("loft_uid", tok.uid, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 365 });
+  jar.set("stash_uid", tok.uid, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 365 });
   return NextResponse.json({ ok: true });
 }

@@ -42,7 +42,7 @@ export async function uploadEncrypted(
 
   let r: Response;
   if (staged) {
-    const put = await blobUpload(`tmp/${file.name}.loft`, cipher, {
+    const put = await blobUpload(`tmp/${file.name}.stash`, cipher, {
       access: "public",
       handleUploadUrl: "/api/blob",
       contentType: "application/octet-stream",
@@ -56,7 +56,7 @@ export async function uploadEncrypted(
     });
   } else {
     const fd = new FormData();
-    fd.set("file", cipher, `${file.name}.loft`);
+    fd.set("file", cipher, `${file.name}.stash`);
     for (const [k, v] of Object.entries(meta)) fd.set(k, v);
     r = await fetch("/api/files", { method: "POST", body: fd, signal: opts.signal });
   }

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { newId } from "./store";
 
-const COOKIE = "loft_uid";
+const COOKIE = "stash_uid";
 
 // Anonymous device identity. Linking to Telegram attaches a name/chat to it.
 export async function getUid(): Promise<string> {

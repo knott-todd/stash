@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getUid } from "@/lib/session";
-import { newId, store, type LoftFile } from "@/lib/store";
+import { newId, store, type StashFile } from "@/lib/store";
 import { putFile, putFileFromUrl, STAGED_MAX_BYTES } from "@/lib/telegram";
 
 export async function GET() {
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   const uid = await getUid();
   const id = newId();
   let meta: Record<string, string>;
-  let stored: { tg?: LoftFile["tg"]; blob?: string };
+  let stored: { tg?: StashFile["tg"]; blob?: string };
 
   if (req.headers.get("content-type")?.includes("application/json")) {
     const body = await req.json().catch(() => ({}));
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     if (Number(body.size) > STAGED_MAX_BYTES) {
       return NextResponse.json({ error: `Files over ${Math.round(STAGED_MAX_BYTES / 1024 / 1024)} MB aren't supported yet.` }, { status: 413 });
     }
-    stored = await putFileFromUrl(uid, id, `${body.name}.loft`, body.blobUrl);
+    stored = await putFileFromUrl(uid, id, `${body.name}.stash`, body.blobUrl);
   } else {
     const form = await req.formData();
     const file = form.get("file");
@@ -36,17 +36,17 @@ export async function POST(req: Request) {
     meta.name ??= file.name;
     meta.size ??= String(file.size);
     const bytes = Buffer.from(await file.arrayBuffer());
-    stored = await putFile(uid, id, meta.encrypted === "1" ? `${meta.name}.loft` : meta.name, bytes);
+    stored = await putFile(uid, id, meta.encrypted === "1" ? `${meta.name}.stash` : meta.name, bytes);
   }
 
-  const f: LoftFile = {
+  const f: StashFile = {
     id,
     uid,
     name: String(meta.name),
     size: Number(meta.size ?? 0),
     mime: String(meta.mime ?? "application/octet-stream"),
     folder: String(meta.folder ?? ""),
-    source: (meta.source as LoftFile["source"]) ?? "upload",
+    source: (meta.source as StashFile["source"]) ?? "upload",
     createdAt: Date.now(),
     encrypted: meta.encrypted === "1",
     ...stored,
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   return NextResponse.json({ file: pub(f) });
 }
 
-const pub = (f: LoftFile) => ({
+const pub = (f: StashFile) => ({
   id: f.id,
   name: f.name,
   size: f.size,

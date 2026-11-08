@@ -7,7 +7,7 @@ import { pgStore } from "./store-pg";
 // Two backends behind one interface: a JSON file for local work, Postgres when
 // DATABASE_URL is set (production on serverless hosts).
 
-export type LoftFile = {
+export type StashFile = {
   id: string;
   uid: string;
   name: string;
@@ -49,11 +49,11 @@ export type Migration = {
 export interface Store {
   getUser(uid: string): Promise<User>; // creates the drive on first sight
   saveUser(u: User): Promise<void>;
-  filesFor(uid: string): Promise<LoftFile[]>;
-  getFile(uid: string, id: string): Promise<LoftFile | undefined>;
-  addFile(f: LoftFile): Promise<LoftFile>;
-  updateFile(f: LoftFile): Promise<void>;
-  deleteFile(uid: string, id: string): Promise<LoftFile | undefined>;
+  filesFor(uid: string): Promise<StashFile[]>;
+  getFile(uid: string, id: string): Promise<StashFile | undefined>;
+  addFile(f: StashFile): Promise<StashFile>;
+  updateFile(f: StashFile): Promise<void>;
+  deleteFile(uid: string, id: string): Promise<StashFile | undefined>;
   getToken(token: string): Promise<LinkToken | undefined>;
   putToken(t: LinkToken): Promise<void>;
   getMigration(uid: string): Promise<Migration | undefined>;

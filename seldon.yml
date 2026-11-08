@@ -1,5 +1,5 @@
 version: 1
-name: loft
+name: stash
 run:
   url: http://localhost:3000   # overridden per run with the public tunnel URL
 testCases:

@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
-import { DATA_DIR, type LinkToken, type LoftFile, type Migration, type Store, type User } from "./store";
+import { DATA_DIR, type LinkToken, type StashFile, type Migration, type Store, type User } from "./store";
 
 // JSON-file backend for local development. One file, rewritten on every change.
 
 type Data = {
   users: Record<string, User>;
-  files: LoftFile[];
+  files: StashFile[];
   tokens: Record<string, LinkToken>;
   migrations: Record<string, Migration>;
   tgOffset: number;

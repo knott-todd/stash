@@ -5,7 +5,7 @@
 // the storage supplier only ever hold ciphertext. The key travels to another
 // device only inside a URL fragment (#k=...), which browsers never send to servers.
 
-const KEY_STORE = "loft_key_v1";
+const KEY_STORE = "stash_key_v1";
 
 function b64url(bytes: Uint8Array) {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");

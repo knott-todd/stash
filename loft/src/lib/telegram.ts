@@ -22,9 +22,9 @@ async function call<T>(method: string, body?: BodyInit | object): Promise<T> {
 }
 
 // Operator-side: where ciphertext is stored. Users never interact with this.
-// Set LOFT_STORAGE_CHAT_ID in production. Without it, the chat is learned once from
+// Set STASH_STORAGE_CHAT_ID in production. Without it, the chat is learned once from
 // the first /start message the bot receives (fine for a single dev machine).
-let storageChatId: number | null = process.env.LOFT_STORAGE_CHAT_ID ? Number(process.env.LOFT_STORAGE_CHAT_ID) : null;
+let storageChatId: number | null = process.env.STASH_STORAGE_CHAT_ID ? Number(process.env.STASH_STORAGE_CHAT_ID) : null;
 
 export async function getStorageChatId() {
   if (DEMO) return null;

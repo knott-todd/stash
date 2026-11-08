@@ -14,7 +14,7 @@ export type CopyStatus =
 // What the status line shows: the action, the file, where it came from and where it went.
 export type CopyEvent = { action: string; name?: string; from: string; path?: string; to?: string };
 
-const DONE_KEY = "loft_gd_done_v1";
+const DONE_KEY = "stash_gd_done_v1";
 
 function doneSet(): Set<string> {
   try {

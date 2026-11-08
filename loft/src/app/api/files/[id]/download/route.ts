@@ -17,8 +17,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   return new Response(stream, {
     headers: {
       "content-type": f.encrypted ? "application/octet-stream" : f.mime,
-      "content-disposition": `attachment; filename="${encodeURIComponent(f.name)}${f.encrypted ? ".loft" : ""}"`,
-      "x-loft-encrypted": f.encrypted ? "1" : "0",
+      "content-disposition": `attachment; filename="${encodeURIComponent(f.name)}${f.encrypted ? ".stash" : ""}"`,
+      "x-stash-encrypted": f.encrypted ? "1" : "0",
     },
   });
 }

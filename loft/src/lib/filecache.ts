@@ -4,8 +4,8 @@
 // API. Opening a cached file is a decrypt, not a download. Only ciphertext is
 // cached, so the "private" claim holds even for the on-device copy.
 
-const NAME = "loft-files-v1";
-const keyFor = (id: string) => `/loft-cache/${id}`;
+const NAME = "stash-files-v1";
+const keyFor = (id: string) => `/stash-cache/${id}`;
 
 function available() {
   return typeof caches !== "undefined";

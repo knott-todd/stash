@@ -10,7 +10,7 @@ import { demoMode } from "@/lib/demo-flag";
 import { fingerprint, MAX_BYTES, uploadEncrypted } from "@/lib/upload";
 import { fmtBytes } from "@/lib/format";
 
-const HISTORY_KEY = "loft_photos_v1";
+const HISTORY_KEY = "stash_photos_v1";
 const FOLDER = "Phone photos";
 const PARALLEL = 2;
 

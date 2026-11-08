@@ -29,7 +29,7 @@ export type FileRow = {
 
 type Me = { demo: boolean; google: boolean; googleConnected: boolean; fileCount: number; bytes: number; email?: string | null };
 
-const DISMISS_KEY = "loft_pair_dismissed";
+const DISMISS_KEY = "stash_pair_dismissed";
 
 export function Drive() {
   const params = useSearchParams();
@@ -96,7 +96,7 @@ export function Drive() {
     if (!realGoogle || copyStarted.current) return;
     if (googleFlag === "denied") setToast({ text: "Google didn't allow access. Try again or add files yourself." });
     if (googleFlag === "failed") setToast({ text: "Couldn't connect to Google. Try again.", retry: () => (location.href = "/api/google/auth") });
-    const resuming = !!me?.googleConnected && !!localStorage.getItem("loft_gd_done_v1");
+    const resuming = !!me?.googleConnected && !!localStorage.getItem("stash_gd_done_v1");
     if (googleFlag !== "ok" && !resuming) return;
     copyStarted.current = true;
     setMigrateOpen(googleFlag === "ok");
@@ -254,7 +254,7 @@ export function Drive() {
   async function signOut() {
     copyCtrl.current?.abort();
     await fetch("/api/google", { method: "DELETE" });
-    localStorage.removeItem("loft_gd_done_v1");
+    localStorage.removeItem("stash_gd_done_v1");
     location.href = "/";
   }
 
@@ -602,7 +602,7 @@ export function Drive() {
                 // Forget the Google link and copy progress, then go to Google's account chooser.
                 copyCtrl.current?.abort();
                 await fetch("/api/google", { method: "DELETE" });
-                localStorage.removeItem("loft_gd_done_v1");
+                localStorage.removeItem("stash_gd_done_v1");
                 location.href = "/api/google/auth";
               }
             : undefined

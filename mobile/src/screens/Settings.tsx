@@ -11,7 +11,6 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as FileSystem from "expo-file-system/legacy";
 import * as SecureStore from "expo-secure-store";
 import * as Clipboard from "expo-clipboard";
-import * as WebBrowser from "expo-web-browser";
 import * as BackgroundTask from "expo-background-task";
 import Constants from "expo-constants";
 import { Image } from "expo-image";
@@ -19,7 +18,7 @@ import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { Check, ChevronRight, Copy, Unplug } from "lucide-react-native";
 import { Button, Card, font, ink, ink2, ink3, line, P } from "../ui";
 import { useSession } from "../session";
-import { account, disconnectGoogle, signOutEverywhere, unlinkSelf, type Account } from "../api";
+import { account, disconnectGoogle, setProtection, signOutEverywhere, unlinkSelf, type Account } from "../api";
 import { recoveryCode } from "../crypto";
 import { connectGoogleDrive } from "../drivecopy";
 import { TASK, VERSION } from "../backup";
@@ -91,8 +90,7 @@ export function SettingsScreen() {
           setBusy("signout");
           try {
             const n = await signOutEverywhere(cfg);
-            if (n === null) fail("account", "This phone can’t do that yet. Sign out everywhere from Stash on the website, in Settings.");
-            else say(n === 0 ? "No browsers were signed in." : `Signed out of ${plural(n, "browser")}.`);
+            say(n === 0 ? "No browsers were signed in." : `Signed out of ${plural(n ?? 0, "browser")}.`);
           } catch {
             fail("account", "Couldn’t reach Stash. Try again.");
           } finally {
@@ -298,14 +296,34 @@ function RecoverySheet({ code, onClose, onCopied }: { code: string; onClose: () 
 
 export function ProtectionScreen() {
   const nav = useNavigation<Nav>();
-  const { cfg } = useSession();
+  const { cfg, update } = useSession();
   const insets = useSafeAreaInsets();
   const { acct, load } = useAccount();
-  useEffect(() => {
-    load();
-  }, [load]);
+  const [snack, say] = useSnack();
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
   const current = acct?.protection === "passcode" ? "passcode" : "standard";
-  const website = () => WebBrowser.openBrowserAsync(`${cfg?.server ?? ""}/settings`).catch(() => {});
+  // Locking reuses the setup screens: choose a passcode, then the recovery code, which does the switch.
+  const lock = () => nav.navigate("ChoosePasscode" as never);
+  // Back to Standard: the passcode opens the files here, and the plain key goes to Stash.
+  async function unlock(raw: string) {
+    if (!cfg) return;
+    setError(null);
+    try {
+      await setProtection(cfg, { mode: "standard", key: raw });
+      await update({ key: raw });
+      setAsking(false);
+      await load();
+      say("Your files are Standard now.");
+    } catch {
+      setError("Couldn’t change that. Try again.");
+    }
+  }
 
   const option = (mode: "standard" | "passcode") => {
     const on = !!acct && current === mode;
@@ -336,11 +354,18 @@ export function ProtectionScreen() {
         {option("passcode")}
         {acct && (
           <View style={s.switchBlock}>
-            <P small>{current === "passcode" ? "To go back to Standard, use Stash on the website: Settings, then How your files are protected. You enter your passcode once more there." : "To lock your files, use Stash on the website: Settings, then How your files are protected. You choose a passcode and get your recovery code there."}</P>
-            <Button title="Open Stash on the website" kind="outline" onPress={website} />
+            <P small>{current === "passcode" ? "Going back to Standard takes your passcode once more." : "Locking takes a passcode you choose. You get a recovery code to keep."}</P>
+            {error && <Text style={s.rowError}>{error}</Text>}
+            {current === "passcode" ? <Button title="Go back to Standard" kind="outline" onPress={() => setAsking(true)} /> : <Button title="Lock my files" kind="outline" onPress={lock} />}
           </View>
         )}
       </ScrollView>
+      <PasscodeSheet visible={asking} wrapped={acct?.keyWrapped ?? null} title="Your passcode" line="Enter it once more to go back to Standard." action="Go back to Standard" onClose={() => setAsking(false)} onOpen={unlock} />
+      {snack && (
+        <View pointerEvents="box-none" style={[p.foot, { paddingBottom: 16 + insets.bottom }]}>
+          <Snackbar text={snack} />
+        </View>
+      )}
     </SafeAreaView>
   );
 }

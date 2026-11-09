@@ -6,12 +6,13 @@ import { requestOrigin } from "@/lib/public-url";
 import { bumpRev } from "@/lib/rev";
 import { limit } from "@/lib/ratelimit";
 
-// A public link for one file. Only on Standard accounts: the server must be
-// able to decrypt for a stranger's browser, and on a Locked account it cannot.
+// A public link for one file, from a browser or a linked device. Only on Standard
+// accounts: the server must be able to decrypt for a stranger's browser, and on a
+// Locked account it cannot.
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const s = await getSession();
-  if (!s || s.deviceId) return unauthorized();
+  if (!s) return unauthorized();
   const hit = await limit("share", s.uid, 60, 60);
   if (hit) return hit;
   const { id } = await params;
@@ -30,7 +31,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const s = await getSession();
-  if (!s || s.deviceId) return unauthorized();
+  if (!s) return unauthorized();
   const { id } = await params;
   const db = store();
   const f = await db.getFile(s.uid, id);

@@ -49,8 +49,9 @@ export async function signInWithGoogle(server: string, idToken: string, name: st
   return j as { token: string; deviceId: string; email: string | null; protection: "standard" | "passcode" | null };
 }
 
-// The account's first decision, made in the app: Standard (Stash keeps the key) or Locked (a passcode only the person knows).
-export async function setProtection(c: Config, body: { mode: "standard" } | { mode: "passcode"; keyWrapped: { salt: string; iv: string; ct: string; iter: number; hint?: string } }) {
+// How the files are protected: Standard (Stash keeps the key) or Locked (a passcode only the person knows).
+// The first decision, and later switches: going back to Standard sends the plain key (the phone has it once the passcode opened the files).
+export async function setProtection(c: Config, body: { mode: "standard"; key?: string } | { mode: "passcode"; keyWrapped: { salt: string; iv: string; ct: string; iter: number; hint?: string } }) {
   const r = await fetch(`${c.server}/api/account/protection`, { method: "POST", headers: { ...auth(c), "content-type": "application/json" }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Couldn't save that choice.");
 }

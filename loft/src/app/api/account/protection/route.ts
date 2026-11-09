@@ -5,8 +5,9 @@ import { store, type WrappedKey } from "@/lib/store";
 // How the account's file key is kept.
 //   standard  Stash holds the key; any signed-in device gets it.
 //   passcode  Stash holds only a passcode-wrapped copy it cannot open.
-// Switching is done by the browser, which holds the plain key at that moment:
-// to lock, it sends the wrapped key; to unlock, it sends the plain key back.
+// Switching is done by whichever client holds the plain key at that moment, a browser
+// or a linked device: to lock, it sends the wrapped key; to unlock, it sends the plain
+// key back (a Locked device only has it after the passcode).
 
 const isWrapped = (w: unknown): w is WrappedKey => {
   const x = w as WrappedKey;
@@ -19,8 +20,6 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const db = store();
   const u = await db.getUser(s.uid);
-  // A linked device may make the first decision (the phone app's first run); changing it later takes a browser.
-  if (s.deviceId && u.protection) return unauthorized();
   if (body.mode === "standard") {
     if (u.protection === "passcode") {
       if (typeof body.key !== "string" || !/^[A-Za-z0-9_-]{16,64}$/.test(body.key)) return NextResponse.json({ error: "key required" }, { status: 400 });

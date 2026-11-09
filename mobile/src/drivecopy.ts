@@ -7,6 +7,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as WebBrowser from "expo-web-browser";
 import { loadConfig, saveConfig, uploadBytes, type Config } from "./api";
 import { importKey, fromB64 } from "./crypto";
+import { copyNews } from "./events";
 
 type Listed = { id: string; name: string; size: number; mimeType: string; folder: string; exportAs?: string };
 export type CopyState = { phase: "idle" | "scanning" | "copying" | "paused" | "done"; total: number; copied: number; failed: number; current?: string; bytes?: number };
@@ -43,6 +44,11 @@ export async function isGoogleConnected(c: Config) {
 let running = false;
 export async function runDriveCopy(onState: (s: CopyState) => void, shouldStop: () => boolean = () => false): Promise<CopyState> {
   if (running) throw new Error("already running");
+  const own = onState;
+  onState = (s) => {
+    own(s);
+    copyNews.set(s); // the strip on My drive
+  };
   running = true;
   try {
     const cfg = await loadConfig();

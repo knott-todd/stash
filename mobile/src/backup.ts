@@ -13,6 +13,7 @@ import * as Network from "expo-network";
 import * as Battery from "expo-battery";
 import { loadConfig, me, report, saveConfig, settingsOf, uploadBytes, type Config } from "./api";
 import { importKey } from "./crypto";
+import { backupNews } from "./events";
 
 export const TASK = "com.olusanyatodd.stash.backup";
 const DONE_KEY = "stash_done_assets_v1";
@@ -97,6 +98,7 @@ export async function runBackup(onProgress: (p: Progress) => void = () => {}, bu
   onProgress(p);
   await report(cfg, { status: queue.length ? "uploading" : "idle", folders: [{ path: "Camera roll", label: "Camera roll", files: all.length, bytes: 0, pending: queue.length, failed: 0 }], version: VERSION });
 
+  if (queue.length) backupNews.set({ sending: true });
   for (const a of queue) {
     if (Date.now() - started > budgetMs) break; // the OS gives background work a short window
     p.current = a.filename;
@@ -112,7 +114,8 @@ export async function runBackup(onProgress: (p: Progress) => void = () => {}, bu
       }
       const bytes = Uint8Array.from(globalThis.atob(b64), (c) => c.charCodeAt(0));
       const mime = a.mediaType === "video" ? "video/mp4" : /\.heic$/i.test(a.filename) ? "image/heic" : /\.png$/i.test(a.filename) ? "image/png" : "image/jpeg";
-      await uploadBytes(cfg, key, bytes, { name: a.filename, mime, folder: FOLDER, modifiedAt: a.creationTime || undefined });
+      const sent = await uploadBytes(cfg, key, bytes, { name: a.filename, mime, folder: FOLDER, modifiedAt: a.creationTime || undefined });
+      backupNews.set({ sending: true, last: sent }); // Phone photos fills in as it goes
       done.add(a.id);
       await saveDone(done);
       p.done++;
@@ -125,6 +128,7 @@ export async function runBackup(onProgress: (p: Progress) => void = () => {}, bu
     onProgress({ ...p });
   }
   delete p.current;
+  backupNews.set({ sending: false });
   const fresh = await loadConfig();
   await saveConfig({ ...fresh, lastRun: { at: Date.now(), total: p.total, done: p.done, pending: p.pending, failed: p.failed } });
   await report(cfg, { status: p.pending ? "uploading" : "idle", folders: [{ path: "Camera roll", label: "Camera roll", files: p.total, bytes: 0, pending: p.pending, failed: p.failed, lastUpload: Date.now() }], version: VERSION });

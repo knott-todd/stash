@@ -20,6 +20,7 @@ import { ChoosePasscodeScreen, DecideScreen, EnterPasscodeScreen, RecoveryScreen
 import { StepsScreen } from "./src/screens/Steps";
 import { YouAreInScreen } from "./src/screens/Setup";
 import { DriveScreen } from "./src/screens/Drive";
+import { MovePickerScreen } from "./src/screens/MovePicker";
 import "./src/backup"; // registers the background task
 
 GoogleSignin.configure({ webClientId: String(Constants.expoConfig?.extra?.googleWebClientId ?? "") });
@@ -54,6 +55,7 @@ function Root() {
         <Stack.Screen name="EnterPasscode" component={EnterPasscodeScreen} options={{ gestureEnabled: false }} />
         <Stack.Screen name="YouAreIn" component={YouAreInScreen} options={{ gestureEnabled: false, animation: "fade" }} />
         <Stack.Screen name="Drive" component={DriveScreen} options={{ animation: "fade" }} />
+        <Stack.Screen name="DriveMove" component={MovePickerScreen} options={{ animation: "slide_from_bottom" }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

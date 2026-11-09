@@ -69,7 +69,7 @@ export function Button({ title, onPress, busy = false, disabled = false, kind = 
   );
 }
 
-export const Field = (props: TextInputProps) => <TextInput placeholderTextColor={ink3} {...props} style={[s.input, props.style]} />;
+export const Field = (props: TextInputProps & { ref?: React.Ref<TextInput> }) => <TextInput placeholderTextColor={ink3} {...props} style={[s.input, props.style]} />;
 
 export function Card({ children, emphasis = false }: { children: React.ReactNode; emphasis?: boolean }) {
   return <View style={[s.card, emphasis && { borderColor: ink }]}>{children}</View>;

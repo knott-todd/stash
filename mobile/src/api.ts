@@ -81,15 +81,71 @@ export async function me(c: Config) {
   const r = await fetch(`${c.server}/api/me`, { headers: auth(c) });
   const j = await r.json();
   if (!r.ok || !j.signedIn) throw new Error("unlinked");
-  return j as { email?: string | null; key?: string | null; keyWrapped?: { salt: string; iv: string; ct: string; iter: number; hint?: string } | null; protection?: string | null; fileCount?: number; bytes?: number; googleConnected?: boolean };
+  return j as { email?: string | null; key?: string | null; keyWrapped?: { salt: string; iv: string; ct: string; iter: number; hint?: string } | null; protection?: string | null; fileCount?: number; bytes?: number; googleConnected?: boolean; maxBytes?: number };
 }
 
 // The drive, as the website lists it (public fields only).
-export type FileRow = { id: string; name: string; size: number; mime: string; folder: string; source: string; createdAt: number; modifiedAt?: number | null; thumb?: boolean; stored?: boolean };
+export type FileRow = { id: string; name: string; size: number; mime: string; folder: string; source: string; createdAt: number; modifiedAt?: number | null; thumb?: boolean; stored?: boolean; encrypted?: boolean; chunked?: boolean; shared?: boolean; deviceId?: string | null };
 export async function listFiles(c: Config): Promise<FileRow[]> {
   const r = await fetch(`${c.server}/api/files`, { headers: auth(c) });
   if (!r.ok) throw new Error(`files (${r.status})`);
   return (await r.json()).files ?? [];
+}
+
+// --- The drive's other routes, the same ones the website calls (loft/src/app/api/**).
+
+const json = (c: Config) => ({ ...auth(c), "content-type": "application/json" });
+async function ok(r: Response, what: string) {
+  if (!r.ok) throw Object.assign(new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? `${what} (${r.status})`), { status: r.status });
+  return r;
+}
+
+// The catalogue revision: a few bytes, so the list is fetched only when something changed.
+export async function filesRev(c: Config): Promise<number> {
+  const r = await ok(await fetch(`${c.server}/api/files/rev`, { headers: auth(c) }), "rev");
+  return Number((await r.json()).rev ?? 0);
+}
+
+// Empty folders someone made, remembered until a file lands in them.
+export async function listFolders(c: Config): Promise<string[]> {
+  const r = await fetch(`${c.server}/api/folders`, { headers: auth(c) });
+  if (!r.ok) return [];
+  return (await r.json()).folders ?? [];
+}
+export async function createFolder(c: Config, path: string): Promise<string> {
+  const r = await ok(await fetch(`${c.server}/api/folders`, { method: "POST", headers: json(c), body: JSON.stringify({ path }) }), "folder");
+  return (await r.json()).path ?? path;
+}
+export async function forgetFolder(c: Config, path: string) {
+  await ok(await fetch(`${c.server}/api/folders`, { method: "DELETE", headers: json(c), body: JSON.stringify({ path }) }), "folder");
+}
+
+export async function renameFile(c: Config, id: string, name: string) {
+  await ok(await fetch(`${c.server}/api/files/${id}`, { method: "PATCH", headers: json(c), body: JSON.stringify({ name }) }), "rename");
+}
+export async function moveFiles(c: Config, ids: string[], folder: string) {
+  await ok(await fetch(`${c.server}/api/files`, { method: "PATCH", headers: json(c), body: JSON.stringify({ ids, folder }) }), "move");
+}
+export async function trashFile(c: Config, id: string) {
+  await ok(await fetch(`${c.server}/api/files/${id}`, { method: "DELETE", headers: auth(c) }), "trash");
+}
+
+// A public link for one file (Standard accounts only).
+export async function createLink(c: Config, id: string): Promise<string> {
+  const r = await ok(await fetch(`${c.server}/api/files/${id}/share`, { method: "POST", headers: auth(c) }), "link");
+  return (await r.json()).url;
+}
+export async function removeLink(c: Config, id: string) {
+  await ok(await fetch(`${c.server}/api/files/${id}/share`, { method: "DELETE", headers: auth(c) }), "link");
+}
+
+// Ciphertext straight to a local file: the file itself, or its stored preview.
+export async function downloadTo(c: Config, id: string, path: string, what: "download" | "thumb" = "download") {
+  const d = await FileSystem.downloadAsync(`${c.server}/api/files/${id}/${what}`, path, { headers: auth(c) });
+  if (d.status !== 200) {
+    FileSystem.deleteAsync(path, { idempotent: true }).catch(() => {});
+    throw new Error(`${what} (${d.status})`);
+  }
 }
 
 // This phone unlinks itself; what it already sent stays in the account.
@@ -123,7 +179,7 @@ async function postFile(c: Config, path: string, field: string, bytes: Uint8Arra
   }
 }
 
-export async function uploadBytes(c: Config, key: Key, bytes: Uint8Array, meta: { name: string; mime: string; folder: string; modifiedAt?: number }, thumb?: Uint8Array, source: "phone" | "google-drive" = "phone") {
+export async function uploadBytes(c: Config, key: Key, bytes: Uint8Array, meta: { name: string; mime: string; folder: string; modifiedAt?: number }, thumb?: Uint8Array, source: "phone" | "google-drive" = "phone", onProgress?: (fraction: number) => void) {
   const fields: Record<string, string> = { name: meta.name, mime: meta.mime, folder: meta.folder, source, size: String(bytes.length), encrypted: "1", ...(meta.modifiedAt ? { modifiedAt: String(meta.modifiedAt) } : {}) };
   if (bytes.length <= CHUNK_PLAIN_BYTES) {
     // One request for the file; the preview, if any, is attached right after.
@@ -140,6 +196,7 @@ export async function uploadBytes(c: Config, key: Key, bytes: Uint8Array, meta: 
   for (let i = 0, off = 0; off < bytes.length; i++, off += CHUNK_PLAIN_BYTES) {
     const r = await postFile(c, "/api/files/part", "piece", await encryptChunk(key, bytes.subarray(off, off + CHUNK_PLAIN_BYTES)), { upload, index: String(i) });
     if (!r.ok) throw new Error(`piece ${i} failed (${r.status}) ${r.body.slice(0, 120)}`);
+    onProgress?.(Math.min(0.98, (off + CHUNK_PLAIN_BYTES) / bytes.length));
   }
   if (thumb) await postFile(c, "/api/files/part", "piece", await encryptChunk(key, thumb), { upload, index: "thumb" }).catch(() => {});
   const r = await fetch(`${c.server}/api/files`, { method: "POST", headers: { ...auth(c), "content-type": "application/json" }, body: JSON.stringify({ ...fields, upload }) });

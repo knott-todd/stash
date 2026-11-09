@@ -43,6 +43,32 @@ export async function encryptChunk(key: Key, plain: Uint8Array) {
   return out;
 }
 
+// One piece back: 12-byte IV, then ciphertext and tag.
+export const CHUNK_CIPHER_BYTES = CHUNK_PLAIN_BYTES + 28;
+export async function decryptChunk(key: Key, block: Uint8Array): Promise<Uint8Array> {
+  if (StashCrypto) return fromB64(await StashCrypto.gcmDecrypt(toB64(key), toB64(block.subarray(0, 12)), toB64(block.subarray(12))));
+  return gcm(key, block.subarray(0, 12)).decrypt(block.subarray(12));
+}
+
+// A whole file: one piece, or several of CHUNK_CIPHER_BYTES each (the last shorter).
+export async function decryptFile(key: Key, cipher: Uint8Array, chunked: boolean): Promise<Uint8Array> {
+  if (!chunked) return decryptChunk(key, cipher);
+  const parts: Uint8Array[] = [];
+  let total = 0;
+  for (let off = 0; off < cipher.length; off += CHUNK_CIPHER_BYTES) {
+    const p = await decryptChunk(key, cipher.subarray(off, Math.min(off + CHUNK_CIPHER_BYTES, cipher.length)));
+    parts.push(p);
+    total += p.length;
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+}
+
 // Locking: wrap the account key with a passcode. Same shape as the web (PBKDF2-SHA256, 600k rounds → AES-GCM).
 export const PBKDF2_ITER = 600_000;
 export async function wrapKey(raw: string, passcode: string, hint?: string) {

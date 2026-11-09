@@ -5,7 +5,7 @@
 import { me, type Config } from "./api";
 import { importKey } from "./crypto";
 
-export type Route = "Carousel" | "Steps" | "Decide" | "EnterPasscode" | "YouAreIn" | "Drive";
+export type Route = "Carousel" | "Steps" | "Decide" | "EnterPasscode" | "YouAreIn" | "Home";
 export type Step = 1 | 2 | 3;
 // The three steps live on one screen (the accordion); `step` says which one is open.
 export type Dest = { name: Route; params?: { step: Step; from?: Step } };
@@ -32,5 +32,5 @@ export async function nextRoute(c: Config, who: Who | null, existing: boolean, f
   const movedSomething = !!w.googleConnected || (w.fileCount ?? 0) > 0;
   if (!existing && !c.setup?.moved && !movedSomething) return { name: "Steps", params: { step: 2, from } };
   if (!c.setup?.backup) return { name: "Steps", params: { step: 3, from } };
-  return { name: "Drive" };
+  return { name: "Home" };
 }

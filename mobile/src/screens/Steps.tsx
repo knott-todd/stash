@@ -236,7 +236,7 @@ function BackupBody({ go }: BodyProps) {
       await update((c) => ({ ...c, settings: set, setup: { ...(c.setup ?? {}), backup: true } }));
       await scheduleBackground();
       runBackup(() => {}, 10 * 60 * 1000).catch(() => {});
-      await go({ name: existing ? "Drive" : "YouAreIn" });
+      await go({ name: existing ? "Home" : "YouAreIn" });
     } catch (e) {
       setError(String((e as Error).message));
     } finally {
@@ -245,7 +245,7 @@ function BackupBody({ go }: BodyProps) {
   }
   async function later() {
     await update((c) => ({ ...c, setup: { ...(c.setup ?? {}), backup: "later" } }));
-    await go({ name: existing ? "Drive" : "YouAreIn" });
+    await go({ name: existing ? "Home" : "YouAreIn" });
   }
 
   return (

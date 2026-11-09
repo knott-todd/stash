@@ -376,7 +376,6 @@ export function PhotosScreen() {
   const loading = st.files === null && st.status !== "error" && !(ph.assets?.length ?? 0);
   const failedEmpty = st.files === null && st.status === "error" && !(ph.assets?.length ?? 0);
   const empty = !loading && !failedEmpty && items.length === 0;
-  const devicesRoute = (nav.getState()?.routeNames ?? []).includes("Devices");
   const count = items.length;
 
   return (
@@ -396,7 +395,7 @@ export function PhotosScreen() {
           </Text>
           {count > 0 && <Text style={s.subtitle}>{`${count.toLocaleString()} ${count === 1 ? (items[0].video ? "video" : "photo") : "photos and videos"}`}</Text>}
         </View>
-        <BackupStrip cfg={cfg} on={backupOn} pending={pendingItems.length} kinds={kinds} offline={st.offline} onOpen={() => devicesRoute && nav.navigate("Devices")} />
+        <BackupStrip cfg={cfg} on={backupOn} pending={pendingItems.length} kinds={kinds} offline={st.offline} onOpen={() => nav.navigate("DevicesTab" as never)} />
         <ThinLine on={st.checking} />
 
         <View style={{ flex: 1 }} onLayout={(e) => setGridH(e.nativeEvent.layout.height)}>

@@ -5,7 +5,7 @@
 // account signed in, the Steps screen says to sign in first.
 
 import { useEffect, useRef } from "react";
-import { CommonActions, StackActions, type NavigationContainerRefWithCurrent, type ParamListBase } from "@react-navigation/native";
+import { CommonActions, type NavigationContainerRefWithCurrent, type ParamListBase } from "@react-navigation/native";
 import * as FileSystem from "expo-file-system/legacy";
 import { getShared, onShared, type Shared } from "../modules/stash-share";
 import type { Config } from "./api";
@@ -41,12 +41,8 @@ async function handle(s: Shared, cfg: Config | null, nav: Nav) {
   let folder = "";
   if (here?.name === "Drive") folder = (here.params as { folder?: string } | undefined)?.folder ?? "";
   else {
-    const st = nav.getRootState();
-    const at = st ? st.routes.map((r) => r.name).lastIndexOf("Drive") : -1;
-    if (st && at >= 0) {
-      folder = (st.routes[at].params as { folder?: string } | undefined)?.folder ?? "";
-      nav.dispatch(StackActions.pop(st.routes.length - 1 - at));
-    } else nav.dispatch(StackActions.push("Drive"));
+    // My drive is the first tab of Home; opening it there lands on its root folder.
+    nav.dispatch(CommonActions.navigate("Home", { screen: "DriveTab", params: { screen: "Drive" } }));
   }
   drive.startDrive(cfg);
   const items = s.files.map((f) => ({ uri: f.uri, name: f.name, mime: f.mime, size: f.size }));

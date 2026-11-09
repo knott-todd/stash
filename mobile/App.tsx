@@ -19,11 +19,7 @@ import { CarouselScreen } from "./src/screens/Carousel";
 import { ChoosePasscodeScreen, DecideScreen, EnterPasscodeScreen, RecoveryScreen } from "./src/screens/Protection";
 import { StepsScreen } from "./src/screens/Steps";
 import { YouAreInScreen } from "./src/screens/Setup";
-import { DriveScreen } from "./src/screens/Drive";
-import { MovePickerScreen } from "./src/screens/MovePicker";
-import { DevicesScreen, LinkDeviceScreen } from "./src/screens/Devices";
-import { ProtectionScreen, SettingsScreen } from "./src/screens/Settings";
-import { PhotosScreen } from "./src/screens/Photos";
+import { HomeTabs } from "./src/screens/Home";
 import { useShareTarget } from "./src/share";
 import "./src/backup"; // registers the background task
 
@@ -61,13 +57,7 @@ function Root() {
         <Stack.Screen name="Recovery" component={RecoveryScreen} />
         <Stack.Screen name="EnterPasscode" component={EnterPasscodeScreen} options={{ gestureEnabled: false }} />
         <Stack.Screen name="YouAreIn" component={YouAreInScreen} options={{ gestureEnabled: false, animation: "fade" }} />
-        <Stack.Screen name="Drive" component={DriveScreen} options={{ animation: "fade" }} />
-        <Stack.Screen name="DriveMove" component={MovePickerScreen} options={{ animation: "slide_from_bottom" }} />
-        <Stack.Screen name="Devices" component={DevicesScreen} />
-        <Stack.Screen name="LinkDevice" component={LinkDeviceScreen} />
-        <Stack.Screen name="Settings" component={SettingsScreen} />
-        <Stack.Screen name="Protection" component={ProtectionScreen} />
-        <Stack.Screen name="Photos" component={PhotosScreen} options={{ animation: "fade" }} />
+        <Stack.Screen name="Home" component={HomeTabs} options={{ animation: "fade", gestureEnabled: false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

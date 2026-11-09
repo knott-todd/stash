@@ -9,6 +9,7 @@
     "ios": "expo run:ios"
   },
   "dependencies": {
+    "@expo-google-fonts/geist": "^0.4.2",
     "@noble/ciphers": "^1.3.0",
     "@noble/hashes": "^1.8.0",
     "@react-native-google-signin/google-signin": "^17.0.0",
@@ -24,6 +25,7 @@
     "expo-device": "~8.0.0",
     "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.0",
+    "expo-font": "~14.0.12",
     "expo-haptics": "~15.0.8",
     "expo-image": "~3.0.11",
     "expo-media-library": "~18.2.1",

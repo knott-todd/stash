@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ChevronRight, File, FileImage, FileText, FileVideo, Folder } from "lucide-react-native";
-import { Brand, ink, ink2, ink3, line, paper } from "../ui";
+import { Brand, font, ink, ink2, ink3, line, paper, tight } from "../ui";
 import { useSession } from "../session";
 import { listFiles, me, type FileRow } from "../api";
 
@@ -108,11 +108,11 @@ export function DriveScreen(props: unknown) {
 const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: paper },
   head: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 6 },
-  title: { fontSize: 24, fontWeight: "600", color: ink, marginBottom: 8 },
-  usage: { fontSize: 13, color: ink3, marginTop: -16, marginBottom: 10 },
+  title: { fontSize: 28, fontFamily: font.semibold, color: ink, marginBottom: 8, ...tight(28) },
+  usage: { fontSize: 14, fontFamily: font.regular, color: ink3, marginTop: -16, marginBottom: 10 },
   row: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 24, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: line, backgroundColor: paper },
   rowText: { flex: 1, minWidth: 0 },
-  name: { fontSize: 16, color: ink, fontWeight: "500" },
-  meta: { fontSize: 13, color: ink3, marginTop: 2 },
-  empty: { padding: 24, color: ink3, fontSize: 15 },
+  name: { fontSize: 17, color: ink, fontFamily: font.medium },
+  meta: { fontSize: 14, fontFamily: font.regular, color: ink3, marginTop: 2 },
+  empty: { padding: 24, color: ink3, fontSize: 16, fontFamily: font.regular },
 });

@@ -9,6 +9,7 @@ import { ActivityIndicator, View } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Constants from "expo-constants";
+import { useFonts, Geist_400Regular, Geist_500Medium, Geist_600SemiBold, Geist_700Bold } from "@expo-google-fonts/geist";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SessionProvider, useSession } from "./src/session";
@@ -28,6 +29,7 @@ const theme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: p
 
 function Root() {
   const { cfg, existing } = useSession();
+  const [fontsReady] = useFonts({ Geist_400Regular, Geist_500Medium, Geist_600SemiBold, Geist_700Bold });
   const [initial, setInitial] = useState<Route | null>(null);
   useEffect(() => {
     if (!cfg || initial) return;
@@ -35,7 +37,7 @@ function Root() {
       .then(setInitial)
       .catch(() => setInitial("Carousel"));
   }, [cfg, existing, initial]);
-  if (!initial)
+  if (!initial || !fontsReady)
     return (
       <View style={{ flex: 1, backgroundColor: paper, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator />

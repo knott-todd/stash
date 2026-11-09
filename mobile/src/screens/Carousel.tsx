@@ -3,7 +3,7 @@ import React, { useRef, useState } from "react";
 import { Dimensions, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { Button, ink, ink2, ink3, line, P, Screen } from "../ui";
+import { Button, font, ink, ink2, ink3, line, Screen } from "../ui";
 import { useSession } from "../session";
 
 const slides = [
@@ -81,11 +81,11 @@ export function CarouselScreen() {
 
 const s = StyleSheet.create({
   skip: { position: "absolute", right: 24, top: 52, zIndex: 2 },
-  skipText: { color: ink2, fontSize: 15 },
+  skipText: { color: ink2, fontSize: 16, fontFamily: font.regular },
   slide: { flex: 1, justifyContent: "center", paddingBottom: 60 },
-  big: { fontSize: 56, fontWeight: "700", color: ink, letterSpacing: -1, marginBottom: 16 },
-  lead: { fontSize: 19, lineHeight: 27, color: ink2 },
-  promise: { fontSize: 44, lineHeight: 50, fontWeight: "700", color: ink3, letterSpacing: -1 },
+  big: { fontSize: 64, fontFamily: font.semibold, color: ink, marginBottom: 16, letterSpacing: -0.035 * 64 },
+  lead: { fontSize: 20, lineHeight: 29, fontFamily: font.regular, color: ink2 },
+  promise: { fontSize: 50, lineHeight: 56, fontFamily: font.semibold, color: ink3, letterSpacing: -0.035 * 50 },
   dots: { flexDirection: "row", justifyContent: "center", gap: 6, paddingBottom: 28 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: line },
 });

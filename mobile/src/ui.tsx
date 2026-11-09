@@ -13,6 +13,10 @@ export const line = "#e4e4e4";
 export const paper = "#fafafa";
 export const accent = "#1a56db";
 
+// The website's face, Geist, at the website's tracking: this is most of the brand's voice.
+export const font = { regular: "Geist_400Regular", medium: "Geist_500Medium", semibold: "Geist_600SemiBold", bold: "Geist_700Bold" };
+export const tight = (size: number) => ({ letterSpacing: -0.025 * size });
+
 // `top` stays pinned (brand, step bar); with `centered` the children sit in the middle of the space below it.
 export function Screen({ children, bottom, top, scroll = true, centered = false }: { children: React.ReactNode; bottom?: React.ReactNode; top?: React.ReactNode; scroll?: boolean; centered?: boolean }) {
   const body = (
@@ -77,6 +81,29 @@ export function Segments({ step, of = 3 }: { step: number; of?: number }) {
   );
 }
 
+// "3 easy steps", literally: the list under a step's title, so the person sees where they are.
+const STEPS = ["Sign in with Google", "Move my files here", "Back up this phone"];
+export function StepList({ current }: { current: number }) {
+  return (
+    <View style={s.steps}>
+      {STEPS.map((label, i) => {
+        const n = i + 1;
+        const state = n < current ? "done" : n === current ? "now" : "next";
+        return (
+          <View key={n} style={s.stepRow}>
+            <View style={[s.stepDot, state === "now" && { backgroundColor: ink, borderColor: ink }, state === "done" && { borderColor: ink }]}>
+              {state === "done" && <Text style={s.stepTick}>✓</Text>}
+            </View>
+            <Text style={[s.stepText, state === "now" && { color: ink, fontFamily: font.medium }]}>
+              {n}. {label}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export function Card({ children, emphasis = false }: { children: React.ReactNode; emphasis?: boolean }) {
   return <View style={[s.card, emphasis && { borderColor: ink }]}>{children}</View>;
 }
@@ -87,20 +114,25 @@ const s = StyleSheet.create({
   body: { flex: 1, paddingHorizontal: 24, paddingTop: 20 },
   centered: { justifyContent: "center", paddingBottom: 80 },
   bottom: { paddingHorizontal: 24, paddingBottom: 20, paddingTop: 8, gap: 4 },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 28 },
+  brandRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 28 },
   mark: { width: 30, height: 30, borderRadius: 7 },
-  brand: { fontSize: 22, fontWeight: "700", color: ink },
-  h1: { fontSize: 30, lineHeight: 36, fontWeight: "600", color: ink, marginBottom: 10 },
-  p: { fontSize: 16, lineHeight: 23, color: ink2, marginBottom: 14 },
-  small: { fontSize: 13, lineHeight: 18, color: ink3, marginBottom: 10 },
-  error: { fontSize: 14, color: ink, marginBottom: 10 },
-  btn: { backgroundColor: ink, borderRadius: 12, paddingVertical: 15, alignItems: "center" },
-  btnLabel: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  btnOutline: { backgroundColor: "#fff", borderWidth: 1, borderColor: line, borderRadius: 12, paddingVertical: 15, alignItems: "center" },
-  btnOutlineLabel: { color: ink, fontSize: 16, fontWeight: "600" },
+  brand: { fontSize: 23, fontFamily: font.semibold, color: ink, ...tight(23) },
+  h1: { fontSize: 38, lineHeight: 44, fontFamily: font.semibold, color: ink, marginBottom: 12, ...tight(38) },
+  p: { fontSize: 17, lineHeight: 25, fontFamily: font.regular, color: ink2, marginBottom: 14 },
+  small: { fontSize: 14, lineHeight: 19, fontFamily: font.regular, color: ink3, marginBottom: 10 },
+  error: { fontSize: 15, fontFamily: font.regular, color: ink, marginBottom: 10 },
+  btn: { backgroundColor: ink, borderRadius: 14, paddingVertical: 17, alignItems: "center" },
+  btnLabel: { color: "#fff", fontSize: 17, fontFamily: font.medium },
+  btnOutline: { backgroundColor: "#fff", borderWidth: 1, borderColor: line, borderRadius: 14, paddingVertical: 17, alignItems: "center" },
+  btnOutlineLabel: { color: ink, fontSize: 17, fontFamily: font.medium },
   textBtn: { paddingVertical: 12, alignItems: "center" },
-  textBtnLabel: { color: ink2, fontSize: 15 },
-  input: { borderWidth: 1, borderColor: line, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 13, fontSize: 16, backgroundColor: "#fff", marginBottom: 12, color: ink },
+  textBtnLabel: { color: ink2, fontSize: 16, fontFamily: font.regular },
+  input: { borderWidth: 1, borderColor: line, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 13, fontSize: 17, fontFamily: font.regular, backgroundColor: "#fff", marginBottom: 12, color: ink },
+  steps: { marginTop: 28, gap: 14 },
+  stepRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  stepDot: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: line, alignItems: "center", justifyContent: "center" },
+  stepTick: { fontSize: 12, color: ink, fontFamily: font.semibold },
+  stepText: { fontSize: 17, fontFamily: font.regular, color: ink3 },
   segments: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 22 },
   segment: { flex: 1, height: 4, borderRadius: 2, backgroundColor: line },
   card: { backgroundColor: "#fff", borderWidth: 1, borderColor: line, borderRadius: 16, padding: 18, marginBottom: 12 },

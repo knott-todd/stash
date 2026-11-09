@@ -4,7 +4,7 @@ import { AppState, Linking, StyleSheet, Switch, Text, View } from "react-native"
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as MediaLibrary from "expo-media-library";
-import { Brand, Button, ErrorLine, H1, ink, ink2, ink3, line, P, Screen, Segments } from "../ui";
+import { Brand, Button, ErrorLine, font, H1, ink, ink2, ink3, line, P, Screen, StepList, tight } from "../ui";
 import { useSession } from "../session";
 import { DEFAULT_SETTINGS, me, settingsOf, type Settings } from "../api";
 import { connectGoogleDrive, isGoogleConnected, runDriveCopy, type CopyState } from "../drivecopy";
@@ -63,11 +63,9 @@ export function MoveFilesScreen() {
   const running = copy && (copy.phase === "scanning" || copy.phase === "copying");
   return (
     <Screen
-      centered
       top={
         <>
           <Brand />
-          <Segments step={2} />
         </>
       }
       bottom={
@@ -80,6 +78,7 @@ export function MoveFilesScreen() {
     >
       <H1>2. Move my files here</H1>
       {!copy && <P>Everything from Google Drive, folders included. Nothing is deleted there.</P>}
+      {!copy && <StepList current={2} />}
       {copy?.phase === "scanning" && <P>Looking through your Google Drive…</P>}
       {copy && copy.phase !== "scanning" && (
         <View>
@@ -133,7 +132,6 @@ export function BackupPhoneScreen() {
 
   return (
     <Screen
-      centered
       bottom={
         <>
           <ErrorLine text={error} />
@@ -151,12 +149,13 @@ export function BackupPhoneScreen() {
       top={
         <>
           <Brand />
-          {existing ? <Text style={s.eyebrow}>One step for this phone</Text> : <Segments step={3} />}
+          {existing && <Text style={s.eyebrow}>One step for this phone</Text>}
         </>
       }
     >
       <H1>{existing ? "" : "3. "}Back up this phone</H1>
       <P>Your photos and videos back up on their own. Nothing is deleted.</P>
+      {!existing && <StepList current={3} />}
       {denied === "partial" && <P small>Only the photos you picked will back up.</P>}
       <Row label="Only on Wi-Fi" note="Never uses mobile data." value={set.wifiOnly} onChange={toggle("wifiOnly")} />
       <Row label="Only while charging" note="The big first backup happens overnight, not in your pocket." value={set.chargingOnly} onChange={toggle("chargingOnly")} />
@@ -208,9 +207,9 @@ const s = StyleSheet.create({
   bar: { height: 6, borderRadius: 3, backgroundColor: line, overflow: "hidden", marginBottom: 10 },
   fill: { height: 6, backgroundColor: ink },
   row: { flexDirection: "row", alignItems: "center", paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: line },
-  rowLabel: { fontSize: 16, color: ink },
-  rowNote: { fontSize: 13, color: ink3, marginTop: 2 },
-  eyebrow: { fontSize: 13, color: ink3, marginBottom: 10 },
-  in: { fontSize: 48, fontWeight: "700", color: ink, letterSpacing: -1, marginBottom: 18 },
-  fact: { fontSize: 30, fontWeight: "600", color: ink2, marginBottom: 6 },
+  rowLabel: { fontSize: 17, fontFamily: font.regular, color: ink },
+  rowNote: { fontSize: 14, fontFamily: font.regular, color: ink3, marginTop: 2 },
+  eyebrow: { fontSize: 14, fontFamily: font.regular, color: ink3, marginBottom: 10 },
+  in: { fontSize: 56, fontFamily: font.semibold, color: ink, marginBottom: 18, letterSpacing: -0.035 * 56 },
+  fact: { fontSize: 32, fontFamily: font.semibold, color: ink2, marginBottom: 6, ...tight(32) },
 });

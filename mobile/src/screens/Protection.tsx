@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Check } from "lucide-react-native";
-import { Brand, Button, Card, ErrorLine, Field, H1, ink, ink2, ink3, line, P, Screen, Segments } from "../ui";
+import { Brand, Button, Card, ErrorLine, Field, font, H1, ink, ink2, ink3, line, P, Screen, tight } from "../ui";
 import { useSession } from "../session";
 import { me, setProtection } from "../api";
 import { recoveryCode, unwrapKey, wrapKey } from "../crypto";
@@ -36,7 +36,6 @@ export function DecideScreen() {
       top={
         <>
           <Brand />
-          <Segments step={1} />
         </>
       }
     >
@@ -77,11 +76,9 @@ export function ChoosePasscodeScreen() {
   }
   return (
     <Screen
-      centered
       top={
         <>
           <Brand />
-          <Segments step={1} />
         </>
       }
       bottom={
@@ -132,11 +129,9 @@ export function RecoveryScreen(props: unknown) {
   }
   return (
     <Screen
-      centered
       top={
         <>
           <Brand />
-          <Segments step={1} />
         </>
       }
       bottom={
@@ -188,7 +183,6 @@ export function EnterPasscodeScreen() {
   }
   return (
     <Screen
-      centered
       bottom={
         <>
           <ErrorLine text={error} />
@@ -206,10 +200,10 @@ export function EnterPasscodeScreen() {
 }
 
 const s = StyleSheet.create({
-  cardTitle: { fontSize: 20, fontWeight: "600", color: ink, marginBottom: 6 },
-  tag: { fontSize: 12, fontWeight: "500", color: ink3 },
+  cardTitle: { fontSize: 22, fontFamily: font.semibold, color: ink, marginBottom: 6, ...tight(22) },
+  tag: { fontSize: 13, fontFamily: font.medium, color: ink3, letterSpacing: 0 },
   code: { fontSize: 22, fontFamily: "monospace", letterSpacing: 1, textAlign: "center", backgroundColor: "#fff", borderWidth: 1, borderColor: line, borderRadius: 12, padding: 16, marginBottom: 18, color: ink },
   checkRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6 },
   box: { width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: ink2, alignItems: "center", justifyContent: "center" },
-  checkLabel: { fontSize: 16, color: ink, flex: 1 },
+  checkLabel: { fontSize: 17, fontFamily: font.regular, color: ink, flex: 1 },
 });

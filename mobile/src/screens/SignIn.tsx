@@ -4,7 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Device from "expo-device";
 import { GoogleSignin, isErrorWithCode, statusCodes } from "@react-native-google-signin/google-signin";
-import { Brand, Button, ErrorLine, H1, P, Screen, Segments } from "../ui";
+import { Brand, Button, ErrorLine, H1, P, Screen, StepList } from "../ui";
 import { useSession } from "../session";
 import { me, signInWithGoogle } from "../api";
 import { nextRoute } from "../flow";
@@ -43,9 +43,7 @@ export function SignInScreen() {
 
   if (newAccount)
     return (
-      <Screen centered bottom={<Button title="Let's make one" onPress={() => nav.reset({ index: 0, routes: [{ name: "Decide" }] })} />}>
-        <Brand />
-        <Segments step={1} />
+      <Screen top={<Brand />} bottom={<Button title="Let's make one" onPress={() => nav.reset({ index: 0, routes: [{ name: "Decide" }] })} />}>
         <H1>No Stash account yet</H1>
         <P>There’s no Stash account for {newAccount} yet. Let’s make one.</P>
       </Screen>
@@ -53,22 +51,22 @@ export function SignInScreen() {
 
   return (
     <Screen
-      centered
       top={
         <>
           <Brand />
-          {!existing && <Segments step={1} />}
         </>
       }
       bottom={
         <>
           <ErrorLine text={error} />
+          <P small>No password to make. Your Google account is enough.</P>
           <Button title="Continue with Google" onPress={signIn} busy={busy} />
         </>
       }
     >
       <H1>{existing ? "" : "1. "}Sign in with Google</H1>
       <P>Your files follow your Google account.</P>
+      {!existing && <StepList current={1} />}
     </Screen>
   );
 }

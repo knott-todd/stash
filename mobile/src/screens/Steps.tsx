@@ -18,13 +18,13 @@ import { connectGoogleDrive, isGoogleConnected, runDriveCopy, type CopyState } f
 import { runBackup, scheduleBackground } from "../backup";
 import { nextRoute, type Dest, type Step } from "../flow";
 
-type Nav = NativeStackNavigationProp<Record<string, { step?: Step; from?: Step } | undefined>>;
+type Nav = NativeStackNavigationProp<Record<string, { step?: Step; from?: Step; notice?: string } | undefined>>;
 const STEPS: Record<Step, string> = { 1: "Sign in with Google", 2: "Move my files here", 3: "Back up this phone" };
 const ease = LinearTransition.duration(380);
 
 export function StepsScreen() {
   const nav = useNavigation<Nav>();
-  const { params } = useRoute<RouteProp<Record<string, { step?: Step; from?: Step } | undefined>, string>>();
+  const { params } = useRoute<RouteProp<Record<string, { step?: Step; from?: Step; notice?: string } | undefined>, string>>();
   const { existing } = useSession();
   const target = params?.step ?? 1;
   // Arriving from a finished step (through the sign-in or passcode screens): show it open for a
@@ -41,13 +41,18 @@ export function StepsScreen() {
 
   async function go(d: Dest) {
     if (d.name === "Steps" && d.params) {
-      nav.setParams({ step: d.params.step, from: undefined });
+      nav.setParams({ step: d.params.step, from: undefined, notice: undefined });
       setOpen(d.params.step);
     } else nav.reset({ index: 0, routes: [{ name: d.name, params: d.params }] });
   }
 
   return (
     <Screen top={<Brand />}>
+      {!!params?.notice && (
+        <Animated.Text entering={FadeIn.duration(220)} style={s.notice} accessibilityLiveRegion="polite">
+          {params.notice}
+        </Animated.Text>
+      )}
       {existing && <Text style={s.eyebrow}>Two steps for this phone</Text>}
       {steps.map((n) => {
         const state = n === open ? "now" : n < open ? "done" : "next";
@@ -283,6 +288,7 @@ function Row({ label, note, value, onChange }: { label: string; note: string; va
 
 const s = StyleSheet.create({
   eyebrow: { fontSize: 14, fontFamily: font.regular, color: ink3, marginBottom: 6 },
+  notice: { fontSize: 15, lineHeight: 21, fontFamily: font.medium, color: ink, marginBottom: 12 },
   section: { paddingVertical: 12 },
   sectionNow: { flex: 1, paddingTop: 12, paddingBottom: 36 },
   // The website's hero: semibold, line-height ~1.05, tracking -0.035em; the other steps at a quiet 22.

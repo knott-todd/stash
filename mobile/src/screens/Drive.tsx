@@ -1,6 +1,6 @@
 // My drive (docs/phone/02-my-drive.md). Each folder is a screen on the stack, titled with its
 // name; the back gesture goes up one level. Long-press selects and swaps the top bar for the
-// selection's actions; the + opens a sheet to add; pictures open full screen, other files in
+// selection's actions; the + opens a sheet to add; pictures and videos open full screen, other files in
 // the app the phone picks. Everything reads from one shared store (../drive/store), so a
 // change made in one folder shows in every screen beneath it.
 
@@ -13,6 +13,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import * as IntentLauncher from "expo-intent-launcher";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { ArrowLeft, Check, ChevronRight, Copy, Download, Ellipsis, FolderInput, FolderPlus, Image as ImageIcon, Link2, Link2Off, ListChecks, Pencil, Plus, Search, Share2, Smartphone, Trash2, Upload as UploadIcon, X } from "lucide-react-native";
@@ -41,6 +42,19 @@ const pathLine = (p: string) => (p ? p.split("/").join(" / ") : "My drive");
 const plural = (n: number, one: string, many = one + "s") => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
 let savedDir: string | null = null; // where "Save to phone" wrote last, for this session
+
+// Android's own "Open with": the phone's viewer for the type, or its chooser. The launch only
+// settles when the person comes back, so a quick rejection means no app can open it; then the
+// share sheet offers what there is.
+async function openWith(path: string, f: FileRow) {
+  if (Platform.OS === "android") {
+    const data = await FileSystem.getContentUriAsync(path);
+    const launched = IntentLauncher.startActivityAsync("android.intent.action.VIEW", { data, flags: 1 /* FLAG_GRANT_READ_URI_PERMISSION */, type: f.mime || "application/octet-stream" });
+    const outcome = await Promise.race([launched.then(() => "opened", () => "none"), new Promise<string>((r) => setTimeout(() => r("opened"), 1500))]);
+    if (outcome === "opened") return;
+  }
+  await Sharing.shareAsync(path, { mimeType: f.mime, dialogTitle: f.name });
+}
 
 export function DriveScreen() {
   const nav = useNavigation<Nav>();
@@ -162,19 +176,28 @@ export function DriveScreen() {
   }
 
   async function open(f: FileRow) {
-    if (drive.isPicture(f)) {
-      const pics = rows.filter((r): r is Extract<Row, { kind: "file" }> => r.kind === "file" && drive.isPicture(r.f)).map((r) => r.f);
+    if (drive.isPicture(f) || drive.isVideo(f)) {
+      const pics = rows.filter((r): r is Extract<Row, { kind: "file" }> => r.kind === "file" && (drive.isPicture(r.f) || drive.isVideo(r.f))).map((r) => r.f);
       return setLightbox({ items: pics, start: Math.max(0, pics.findIndex((x) => x.id === f.id)) });
     }
     if (st.opening) return;
     drive.setOpening(f.id);
     try {
-      const uri = await drive.plainFile(f);
-      await Sharing.shareAsync(uri, { mimeType: f.mime, dialogTitle: "Open with" });
+      await openWith(await drive.plainFile(f), f);
     } catch {
       drive.toast(`Couldn't open ${f.name}.`, { label: "Retry", run: () => open(f) }, 8000);
     } finally {
       drive.setOpening(null);
+    }
+  }
+
+  async function share(f: FileRow) {
+    setSheet(null);
+    setSelected(new Set());
+    try {
+      await Sharing.shareAsync(await drive.plainFile(f), { mimeType: f.mime, dialogTitle: f.name });
+    } catch {
+      drive.toast(`Couldn't share ${f.name}.`);
     }
   }
 
@@ -390,6 +413,7 @@ export function DriveScreen() {
       />
       <Sheet visible={sheet === "more"} onClose={() => setSheet(null)}>
         {onlyFiles && <SheetItem icon={Download} label="Save to phone" disabled={!selFiles.length} onPress={() => saveToPhone(selFiles)} />}
+        {one && <SheetItem icon={Share2} label="Share" onPress={() => share(one)} />}
         {one && <SheetItem icon={Pencil} label="Rename" disabled={off} onPress={() => setSheet("rename")} />}
         {onlyFiles && selFiles.length > 0 && (selFiles.every((f) => st.kept.has(f.id)) ? (
           <SheetItem

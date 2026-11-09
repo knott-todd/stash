@@ -6,7 +6,7 @@
 import "react-native-gesture-handler";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
+import { NavigationContainer, DefaultTheme, createNavigationContainerRef, type ParamListBase } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Constants from "expo-constants";
 import { useFonts, Geist_400Regular, Geist_500Medium, Geist_600SemiBold, Geist_700Bold } from "@expo-google-fonts/geist";
@@ -21,17 +21,21 @@ import { StepsScreen } from "./src/screens/Steps";
 import { YouAreInScreen } from "./src/screens/Setup";
 import { DriveScreen } from "./src/screens/Drive";
 import { MovePickerScreen } from "./src/screens/MovePicker";
+import { useShareTarget } from "./src/share";
 import "./src/backup"; // registers the background task
 
 GoogleSignin.configure({ webClientId: String(Constants.expoConfig?.extra?.googleWebClientId ?? "") });
 
 const Stack = createNativeStackNavigator();
+const navRef = createNavigationContainerRef<ParamListBase>();
 const theme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: paper, card: paper, primary: "#111111" } };
 
 function Root() {
   const { cfg, existing } = useSession();
   const [fontsReady] = useFonts({ Geist_400Regular, Geist_500Medium, Geist_600SemiBold, Geist_700Bold });
   const [initial, setInitial] = useState<Dest | null>(null);
+  const [navReady, setNavReady] = useState(false);
+  useShareTarget(navRef, navReady, cfg); // "Save to Stash" from other apps
   useEffect(() => {
     if (!cfg || initial) return;
     nextRoute(cfg, null, existing)
@@ -45,7 +49,7 @@ function Root() {
       </View>
     );
   return (
-    <NavigationContainer theme={theme}>
+    <NavigationContainer ref={navRef} theme={theme} onReady={() => setNavReady(true)}>
       <Stack.Navigator initialRouteName={initial.name} screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
         <Stack.Screen name="Carousel" component={CarouselScreen} />
         <Stack.Screen name="Steps" component={StepsScreen} initialParams={initial.name === "Steps" ? initial.params : { step: 1 }} options={{ gestureEnabled: false }} />

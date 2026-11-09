@@ -25,6 +25,30 @@
         "READ_MEDIA_IMAGES",
         "READ_MEDIA_VIDEO",
         "READ_EXTERNAL_STORAGE"
+      ],
+      "intentFilters": [
+        {
+          "action": "SEND",
+          "category": [
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "mimeType": "*/*"
+            }
+          ]
+        },
+        {
+          "action": "SEND_MULTIPLE",
+          "category": [
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "mimeType": "*/*"
+            }
+          ]
+        }
       ]
     },
     "plugins": [
@@ -43,7 +67,8 @@
       "expo-background-task",
       "expo-secure-store",
       "@react-native-google-signin/google-signin",
-      "expo-font"
+      "expo-font",
+      "expo-video"
     ],
     "extra": {
       "googleWebClientId": "1075182560956-m3lnfgroma3ppcrimd5strbcq29144ji.apps.googleusercontent.com"

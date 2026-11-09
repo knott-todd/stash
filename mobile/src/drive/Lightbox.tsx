@@ -1,16 +1,19 @@
-// Pictures, full screen, swiping through the folder they are in. The preview shows at once;
-// the picture itself replaces it when it has been fetched and opened on this phone.
+// Pictures and videos, full screen, swiping through the folder they are in. The preview shows
+// at once; the picture itself (or the playing video) replaces it when it has been fetched and
+// opened on this phone. A video plays inline with the phone's own controls, pauses when swiped
+// away, and its player is released when it leaves the screen or the viewer closes.
 // (The Photos screen, docs/phone/03-photos.md, reuses this.)
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Modal, Pressable, StatusBar, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import * as Sharing from "expo-sharing";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { Share2, X } from "lucide-react-native";
 import type { FileRow } from "../api";
 import { font } from "../ui";
-import { cachedThumb, plainFile, thumb } from "./store";
+import { cachedThumb, isVideo, plainFile, thumb } from "./store";
 
 export function Lightbox({ items, start, onClose }: { items: FileRow[]; start: number; onClose: () => void }) {
   const { width, height } = useWindowDimensions();
@@ -30,8 +33,9 @@ export function Lightbox({ items, start, onClose }: { items: FileRow[]; start: n
           showsHorizontalScrollIndicator={false}
           keyExtractor={(x) => x.id}
           windowSize={3}
+          extraData={index}
           onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
-          renderItem={({ item }) => <Page f={item} width={width} height={height} />}
+          renderItem={({ item, index: i }) => <Page f={item} width={width} height={height} active={i === index} />}
         />
         <View style={[s.bar, { paddingTop: insets.top + 6 }]}>
           <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Close" style={s.icon}>
@@ -59,10 +63,11 @@ export function Lightbox({ items, start, onClose }: { items: FileRow[]; start: n
   );
 }
 
-function Page({ f, width, height }: { f: FileRow; width: number; height: number }) {
+function Page({ f, width, height, active }: { f: FileRow; width: number; height: number; active: boolean }) {
   const [preview, setPreview] = useState<string | null>(() => cachedThumb(f.id));
   const [full, setFull] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const video = isVideo(f);
   useEffect(() => {
     let live = true;
     if (!preview) thumb(f).then((u) => live && u && setPreview(u));
@@ -74,13 +79,28 @@ function Page({ f, width, height }: { f: FileRow; width: number; height: number 
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [f.id]);
+  const shown = video ? (full ? null : preview) : full ?? preview;
   return (
     <View style={{ width, height, justifyContent: "center", alignItems: "center" }}>
-      {(full || preview) && <Image source={{ uri: full ?? preview! }} placeholder={preview ? { uri: preview } : undefined} style={{ width, height }} contentFit="contain" transition={180} />}
-      {!full && !failed && !preview && <ActivityIndicator color="#fff" />}
+      {shown && <Image source={{ uri: shown }} placeholder={preview && !video ? { uri: preview } : undefined} style={{ width, height }} contentFit="contain" transition={180} />}
+      {video && full && <Player uri={full} width={width} height={height} active={active} />}
+      {!full && !failed && (!preview || video) && <ActivityIndicator color="#fff" style={StyleSheet.absoluteFill} />}
       {failed && !full && <Text style={s.fail}>Couldn’t open {f.name}.</Text>}
     </View>
   );
+}
+
+// Made only once the video is decrypted, so the source never changes under the player.
+function Player({ uri, width, height, active }: { uri: string; width: number; height: number; active: boolean }) {
+  const player = useVideoPlayer(uri);
+  const started = useRef(false);
+  useEffect(() => {
+    if (active && !started.current) {
+      started.current = true;
+      player.play();
+    } else if (!active) player.pause();
+  }, [active, player]);
+  return <VideoView player={player} nativeControls contentFit="contain" allowsPictureInPicture={false} style={{ width, height }} />;
 }
 
 const s = StyleSheet.create({

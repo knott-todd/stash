@@ -6,11 +6,17 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const sharp = (await import("sharp")).default;
-const svg = fs.readFileSync(path.join(here, "..", "..", "loft", "src", "app", "icon.svg"));
+const mark = fs.readFileSync(path.join(here, "..", "..", "loft", "src", "app", "icon.svg"));
+// The mark is a dark tile with the glyph cut out, so on its own the glyph shows whatever
+// is behind it (black on a dark taskbar). App icon: a white fill behind the mark, so the
+// glyph is white. Tray: the mark inverted (white tile), which reads on a dark taskbar.
+const wrap = (inner, fill) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="9" fill="${fill}"/><image href="data:image/svg+xml;base64,${inner.toString("base64")}" width="100" height="100"/></svg>`);
+const svg = wrap(mark, "#ffffff");
+const tray = Buffer.from(mark.toString("utf8").replace("fill:#111111", "fill:#fafafa"));
 const out = path.join(here, "..", "build");
 fs.mkdirSync(out, { recursive: true });
 await sharp(svg).resize(512, 512).png().toFile(path.join(out, "icon.png"));
-await sharp(svg).resize(64, 64).png().toFile(path.join(out, "tray.png"));
+await sharp(tray).resize(64, 64).png().toFile(path.join(out, "tray.png"));
 // ICO: a container of PNG images at the usual sizes.
 const sizes = [16, 24, 32, 48, 64, 128, 256];
 const pngs = await Promise.all(sizes.map((s) => sharp(svg).resize(s, s).png().toBuffer()));

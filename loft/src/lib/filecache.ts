@@ -42,6 +42,14 @@ export async function cacheHas(ids: string[]): Promise<Set<string>> {
   return out;
 }
 
+export async function cacheDelete(id: string) {
+  if (!available()) return;
+  try {
+    const c = await caches.open(NAME);
+    await c.delete(keyFor(id));
+  } catch {}
+}
+
 export async function cacheClear() {
   if (!available()) return;
   try {

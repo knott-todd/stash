@@ -106,7 +106,7 @@ function statusScreen() {
   });
   return `${brand()}
     <div class="status"><span class="dot ${dot}"></span><span data-testid="status">${text}</span></div>
-    <div class="card scroll" data-testid="status-folders">${rows.join("") || `<p class="small">No folders yet.</p>`}</div>
+    <div class="card scroll" data-testid="status-folders"><div class="device">${esc(S.deviceName ?? "This computer")}</div><div class="sources">${rows.join("") || `<p class="small">No folders yet.</p>`}</div></div>
     <div class="actions">
       <button class="link" data-act="editFolders">Change folders</button>
       ${a.paused ? `<button class="link" data-act="resume">Resume</button>` : `<button class="link" data-act="pause">Pause</button>`}

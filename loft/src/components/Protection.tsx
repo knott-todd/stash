@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Cloud, Lock } from "lucide-react";
 import { getRawKey, keyFromRecoveryCode, recoveryCode, setRawKey, unwrapKey, wrapKey, type WrappedKey } from "@/lib/crypto";
 
 // How the files are protected. Two choices, said plainly:
@@ -53,7 +54,7 @@ export function ProtectionChoice({ current, onChanged, compact = false }: { curr
         />
         <Option
           selected={current === "passcode"}
-          title="Locked with a passcode"
+          title="Locked"
           tag="More private"
           icon="lock"
           body="Only you can open them, with a passcode you choose."
@@ -258,21 +259,8 @@ export function Dialog({ title, onClose, children }: { title: string; onClose?: 
 
 const input = "rounded-full border border-line bg-white px-5 py-3 text-base outline-none focus:border-ink";
 
-// One line icon per mode, in the same single-colour style as the file icons.
+// Lucide icons, one per mode.
 function ModeIcon({ kind }: { kind: "cloud" | "lock" }) {
-  const common = { width: 26, height: 26, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true, className: "shrink-0 text-ink" };
-  if (kind === "cloud")
-    return (
-      <svg {...common}>
-        <path d="M7 18a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 8.5 3.75 3.75 0 0 1 17.5 16H7Z" />
-        <path d="m9.5 13 2 2 3.5-4" />
-      </svg>
-    );
-  return (
-    <svg {...common}>
-      <rect x="5" y="10.5" width="14" height="10" rx="2" />
-      <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
-      <circle cx="12" cy="15.5" r="1" fill="currentColor" />
-    </svg>
-  );
+  const Icon = kind === "cloud" ? Cloud : Lock;
+  return <Icon size={24} strokeWidth={1.6} aria-hidden className="shrink-0 text-ink" />;
 }

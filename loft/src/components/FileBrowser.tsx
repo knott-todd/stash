@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, Cloud, MoreVertical } from "lucide-react";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { Thumb } from "./Thumb";
 import { fileIcon, fmtBytes, fmtDate } from "@/lib/format";
@@ -35,6 +36,7 @@ export function FileBrowser({
   onMoveTo,
   onDropMove,
   onShare,
+  onLocal,
   selectionBar,
 }: {
   files: FileRow[];
@@ -54,6 +56,7 @@ export function FileBrowser({
   onMoveTo: (ids: string[]) => void;
   onDropMove: (ids: string[], folder: string) => void;
   onShare?: (f: FileRow) => void;
+  onLocal?: (f: FileRow, keep: boolean) => void; // keep a copy on this device, or drop it
   selectionBar?: React.ReactNode; // shown in the header row while something is selected
 }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "name", dir: 1 });
@@ -282,7 +285,7 @@ export function FileBrowser({
             );
           })}
         </ul>
-        {menu && <Menu menu={menu} selectedCount={fileIds(selected).length} onOpen={onOpen} onDownload={onDownload} onRename={setRenaming} onTrash={onTrash} onMoveTo={() => onMoveTo([...selected])} onShare={onShare} close={() => setMenu(null)} />}
+        {menu && <Menu menu={menu} selectedCount={fileIds(selected).length} onOpen={onOpen} onDownload={onDownload} onRename={setRenaming} onTrash={onTrash} onMoveTo={() => onMoveTo([...selected])} onShare={onShare} onLocal={onLocal} isLocal={local.has(menu.f.id)} close={() => setMenu(null)} />}
         {renaming && (
           <RenamePrompt
             f={renaming}
@@ -303,7 +306,7 @@ export function FileBrowser({
           {selectionBar}
         </div>
       ) : (
-        <div className="grid grid-cols-[28px_minmax(0,1fr)_auto] sm:grid-cols-[28px_minmax(0,1fr)_140px_90px_auto] items-center gap-4 px-5 py-2 border-b border-line text-xs min-h-[33px]">
+        <div className="grid grid-cols-[28px_minmax(0,1fr)_72px] sm:grid-cols-[28px_minmax(0,1fr)_140px_90px_168px] items-center gap-4 px-5 py-2 border-b border-line text-xs min-h-[33px]">
           <span />
           {header("name", "Name")}
           {header("modified", "Modified", "hidden sm:flex")}
@@ -316,7 +319,7 @@ export function FileBrowser({
         {rows.map((r) => {
           const k = keyOf(r);
           const isSel = selected.has(k);
-          const base = `grid grid-cols-[28px_minmax(0,1fr)_auto] sm:grid-cols-[28px_minmax(0,1fr)_140px_90px_auto] items-center gap-4 px-5 py-2.5 select-none cursor-default ${isSel ? "bg-[#e8f0fe]" : "hover:bg-cream-2/60"}`;
+          const base = `grid grid-cols-[28px_minmax(0,1fr)_72px] sm:grid-cols-[28px_minmax(0,1fr)_140px_90px_168px] items-center gap-4 px-5 py-2.5 select-none cursor-default ${isSel ? "bg-[#e8f0fe]" : "hover:bg-cream-2/60"}`;
           if (r.kind === "folder")
             return (
               <li
@@ -350,7 +353,7 @@ export function FileBrowser({
               onDragStart={(e) => dragStart(e, r)}
               aria-selected={isSel}
             >
-              <FileTypeIcon kind={fileIcon(f.mime, f.name)} className="text-ink-2" />
+              {f.stored && (f.mime.startsWith("image/") || f.mime.startsWith("video/")) ? <Thumb f={f} small className="size-7 rounded-md" /> : <FileTypeIcon kind={fileIcon(f.mime, f.name)} className="text-ink-2" />}
               <div className="min-w-0">
                 {renaming?.id === f.id ? (
                   <RenameBox
@@ -381,11 +384,7 @@ export function FileBrowser({
                     setMenu({ f, x: rect.right, y: rect.bottom });
                   }}
                 >
-                  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-                    <circle cx="8" cy="3" r="1.5" fill="currentColor" />
-                    <circle cx="8" cy="8" r="1.5" fill="currentColor" />
-                    <circle cx="8" cy="13" r="1.5" fill="currentColor" />
-                  </svg>
+                  <MoreVertical size={16} aria-hidden />
                 </button>
               </div>
             </li>
@@ -394,7 +393,7 @@ export function FileBrowser({
         {rows.length === 0 && <li>{empty}</li>}
       </ul>
 
-      {menu && <Menu menu={menu} selectedCount={fileIds(selected).length} onOpen={onOpen} onDownload={onDownload} onRename={setRenaming} onTrash={onTrash} onMoveTo={() => onMoveTo([...selected])} onShare={onShare} close={() => setMenu(null)} />}
+      {menu && <Menu menu={menu} selectedCount={fileIds(selected).length} onOpen={onOpen} onDownload={onDownload} onRename={setRenaming} onTrash={onTrash} onMoveTo={() => onMoveTo([...selected])} onShare={onShare} onLocal={onLocal} isLocal={local.has(menu.f.id)} close={() => setMenu(null)} />}
     </div>
   );
 }
@@ -413,16 +412,12 @@ function LocationBadge({ opening, local }: { opening: boolean; local: boolean })
         </>
       ) : local ? (
         <>
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-            <path d="M2 6.5 5 9.5 10 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <Check size={12} strokeWidth={2.2} aria-hidden />
           <span className="hidden sm:inline">On this device</span>
         </>
       ) : (
         <>
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-            <path d="M3.5 9.5a2.5 2.5 0 0 1-.3-5 3 3 0 0 1 5.8-.6A2.3 2.3 0 0 1 9 9.5H3.5Z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-          </svg>
+          <Cloud size={12} strokeWidth={1.8} aria-hidden />
           <span className="hidden sm:inline">In cloud</span>
         </>
       )}
@@ -439,6 +434,8 @@ function Menu({
   onTrash,
   onMoveTo,
   onShare,
+  onLocal,
+  isLocal,
   close,
 }: {
   menu: { f: FileRow; x: number; y: number };
@@ -449,6 +446,8 @@ function Menu({
   onTrash: (f: FileRow) => void;
   onMoveTo: () => void;
   onShare?: (f: FileRow) => void;
+  onLocal?: (f: FileRow, keep: boolean) => void;
+  isLocal: boolean;
   close: () => void;
 }) {
   const many = selectedCount > 1;
@@ -456,13 +455,14 @@ function Menu({
     <div
       role="menu"
       className="fixed z-[90] w-52 card bg-white p-1 shadow-lg text-sm"
-      style={{ left: Math.min(menu.x, window.innerWidth - 216), top: Math.min(menu.y, window.innerHeight - 260) }}
+      style={{ left: Math.min(menu.x, window.innerWidth - 216), top: Math.min(menu.y, window.innerHeight - 300) }}
       onClick={(e) => e.stopPropagation()}
     >
       {!many && <MenuItem onClick={() => (close(), onOpen(menu.f))}>{viewableMime(menu.f.mime, menu.f.name) ? "Open" : "Download"}</MenuItem>}
       {!many && viewableMime(menu.f.mime, menu.f.name) && <MenuItem onClick={() => (close(), onDownload(menu.f))}>Download</MenuItem>}
       {!many && onShare && <MenuItem onClick={() => (close(), onShare(menu.f))}>Get link</MenuItem>}
       {!many && <MenuItem onClick={() => (close(), onRename(menu.f))}>Rename</MenuItem>}
+      {!many && onLocal && menu.f.stored && <MenuItem onClick={() => (close(), onLocal(menu.f, !isLocal))}>{isLocal ? "Remove from this device" : "Keep on this device"}</MenuItem>}
       <MenuItem onClick={() => (close(), onMoveTo())}>{many ? `Move ${selectedCount} items to…` : "Move to…"}</MenuItem>
       <div className="my-1 border-t border-line" />
       <MenuItem onClick={() => (close(), onTrash(menu.f))}>{many ? `Move ${selectedCount} items to trash` : "Move to trash"}</MenuItem>

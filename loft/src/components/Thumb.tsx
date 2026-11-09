@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Play } from "lucide-react";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { fileIcon } from "@/lib/format";
 import { thumbUrl } from "@/lib/thumbs";
 import type { FileRow } from "./Drive";
 
 // A file's picture, or its type icon while there is none. Loads only when on screen.
-export function Thumb({ f, className = "" }: { f: FileRow; className?: string }) {
+export function Thumb({ f, className = "", small = false }: { f: FileRow; className?: string; small?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
@@ -31,13 +32,11 @@ export function Thumb({ f, className = "" }: { f: FileRow; className?: string })
       {url ? (
         <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
       ) : (
-        <FileTypeIcon kind={fileIcon(f.mime, f.name)} className="text-ink-3 size-10" />
+        <FileTypeIcon kind={fileIcon(f.mime, f.name)} className={small ? "text-ink-2" : "text-ink-3 size-10"} />
       )}
-      {f.mime.startsWith("video/") && (
+      {f.mime.startsWith("video/") && !small && (
         <span className="absolute bottom-1.5 right-1.5 rounded-full bg-ink/70 text-white p-1" aria-hidden>
-          <svg width="10" height="10" viewBox="0 0 14 14">
-            <path d="M3.5 2.2v9.6a.6.6 0 0 0 .9.5l7.6-4.8a.6.6 0 0 0 0-1L4.4 1.7a.6.6 0 0 0-.9.5Z" fill="currentColor" />
-          </svg>
+          <Play size={10} fill="currentColor" />
         </span>
       )}
     </div>

@@ -17,7 +17,9 @@ import { AskPasscode, ProtectionChoice } from "./Protection";
 import { rememberAccount } from "@/lib/accounts";
 import Link from "next/link";
 import { doneKey, PROVIDER_LABEL, providerEndpoints, runProviderCopy, type CopyEvent, type Provider } from "@/lib/provider-client";
-import { cacheClear, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
+import { cacheClear, cacheDelete, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
+import { Lightbox } from "./Lightbox";
+import { Download, FolderPlus, HardDrive, HardDriveDownload, Search, Trash2, Upload, X } from "lucide-react";
 import { viewableMime } from "@/lib/view";
 import { demoMode } from "@/lib/demo-flag";
 import { uploadEncrypted, uploadMode } from "@/lib/upload";
@@ -110,6 +112,7 @@ export function Drive() {
   // First sign-in: choose how the files are protected.
   const [chooseProtection, setChooseProtection] = useState(false);
 
+  const [deviceBusy, setDeviceBusy] = useState(false);
   const refresh = useCallback(async () => {
     const [m, f, fo, dv] = await Promise.all([
       fetch("/api/me").then((r) => r.json()),
@@ -121,6 +124,7 @@ export function Drive() {
     setFiles(f.files ?? []);
     setExtraFolders(fo.folders ?? []);
     setComputers(((dv.devices ?? []) as { kind: string }[]).filter((d) => d.kind === "desktop").length);
+    setDeviceBusy(((dv.devices ?? []) as { state?: { status?: string } | null }[]).some((d) => d.state?.status === "uploading" || d.state?.status === "scanning"));
     return m as Me;
   }, []);
 
@@ -216,6 +220,38 @@ export function Drive() {
     if (!files) return;
     cacheHas(files.map((f) => f.id)).then(setLocal);
   }, [files]);
+
+  // Live: while a device is sending files the list refreshes every 10 s, otherwise every 60 s.
+  useEffect(() => {
+    if (!files) return;
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") refresh().catch(() => {});
+    }, deviceBusy ? 10_000 : 60_000);
+    return () => clearInterval(t);
+  }, [files, deviceBusy, refresh]);
+
+  // Keep a copy of these on this device, or drop the copies. Only ciphertext is kept.
+  async function setLocalMany(batch: FileRow[], keep: boolean) {
+    const stored = batch.filter((f) => f.stored);
+    for (const f of stored) {
+      if (!keep) await cacheDelete(f.id);
+      else if (!(await cacheGet(f.id))) {
+        const r = await fetch(`/api/files/${f.id}/download`);
+        if (r.ok) await cachePut(f.id, await r.arrayBuffer());
+      }
+    }
+    setLocal(await cacheHas((files ?? []).map((f) => f.id)));
+    setToast({ text: keep ? `${stored.length === 1 ? stored[0].name : stored.length + " files"} kept on this device` : `${stored.length === 1 ? stored[0].name : stored.length + " files"} removed from this device` });
+  }
+
+  // Pictures and videos open in place; everything else opens in a tab or downloads.
+  const [lightbox, setLightbox] = useState<{ items: FileRow[]; index: number } | null>(null);
+  const isVisual = (f: FileRow) => f.stored && (f.mime.startsWith("image/") || f.mime.startsWith("video/"));
+  function openAny(f: FileRow, pool: FileRow[]) {
+    if (!isVisual(f)) return open(f);
+    const items = pool.filter(isVisual);
+    setLightbox({ items, index: Math.max(0, items.findIndex((x) => x.id === f.id)) });
+  }
 
   useEffect(() => {
     if (realGoogle) return;
@@ -473,21 +509,34 @@ export function Drive() {
   const selectionBar = showSelection ? (
                     <div className="flex items-center gap-4 text-sm" data-testid="selection-bar">
                       <span className="font-medium whitespace-nowrap">{selected.size} selected</span>
-                      <button className="underline underline-offset-4 hover:text-ink text-ink-2 whitespace-nowrap" onClick={() => setMoveIds([...selected])}>
-                        Move to…
+                      <button className="inline-flex items-center gap-1.5 hover:text-ink text-ink-2 whitespace-nowrap" onClick={async () => { for (const f of filesForKeys(selected).filter((x) => x.stored)) await open(f, true); }} data-testid="selection-download">
+                        <Download size={15} /> Download
+                      </button>
+                      {filesForKeys(selected).some((x) => x.stored) &&
+                        (filesForKeys(selected).filter((x) => x.stored).every((x) => local.has(x.id)) ? (
+                          <button className="inline-flex items-center gap-1.5 hover:text-ink text-ink-2 whitespace-nowrap" onClick={() => setLocalMany(filesForKeys(selected), false)} data-testid="selection-remove-local">
+                            <HardDrive size={15} /> Remove from this device
+                          </button>
+                        ) : (
+                          <button className="inline-flex items-center gap-1.5 hover:text-ink text-ink-2 whitespace-nowrap" onClick={() => setLocalMany(filesForKeys(selected), true)} data-testid="selection-keep-local">
+                            <HardDriveDownload size={15} /> Keep on this device
+                          </button>
+                        ))}
+                      <button className="inline-flex items-center gap-1.5 hover:text-ink text-ink-2 whitespace-nowrap" onClick={() => setMoveIds([...selected])}>
+                        <FolderPlus size={15} /> Move to…
                       </button>
                       <button
-                        className="underline underline-offset-4 hover:text-ink text-ink-2"
+                        className="inline-flex items-center gap-1.5 hover:text-ink text-ink-2"
                         onClick={() => {
                           const batch = filesForKeys(selected);
                           const firstKey = [...selected][0];
                           trashMany(batch, firstKey.startsWith("d:") ? firstKey.slice(2).split("/").pop()! : (batch[0]?.name ?? ""));
                         }}
                       >
-                        Trash
+                        <Trash2 size={15} /> Trash
                       </button>
-                      <button className="text-ink-3 hover:text-ink" onClick={() => setSelected(new Set())} aria-label="Clear selection">
-                        Clear
+                      <button className="ml-auto text-ink-3 hover:text-ink" onClick={() => setSelected(new Set())} aria-label="Clear selection">
+                        <X size={16} />
                       </button>
                     </div>
       ) : null;
@@ -634,7 +683,7 @@ export function Drive() {
         {tab === "photos" && files && (
           <>
             <h1 className="text-lg font-semibold mb-4">Photos</h1>
-            <PhotosView files={all} opening={opening} onOpen={(f) => open(f)} />
+            <PhotosView files={all} opening={opening} onOpen={(f) => openAny(f, all)} />
           </>
         )}
 
@@ -659,10 +708,7 @@ export function Drive() {
           {!empty && (
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <label className="relative w-full sm:w-auto order-last sm:order-none">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" width="14" height="14" viewBox="0 0 14 14" aria-hidden>
-                  <circle cx="6" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
-                  <path d="M9.2 9.2 12.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" aria-hidden />
                 <input
                   type="search"
                   value={search}
@@ -681,8 +727,8 @@ export function Drive() {
                   Grid
                 </button>
               </span>
-              <button className="btn-ghost whitespace-nowrap" onClick={newFolder} data-testid="new-folder">
-                New folder
+              <button className="btn-ghost whitespace-nowrap inline-flex items-center gap-1.5" onClick={newFolder} data-testid="new-folder">
+                <FolderPlus size={15} /> New folder
               </button>
               {/* On a phone the job is its own camera roll; Google Drive moves are a laptop job.
                   Chosen in CSS (pointer-coarse) so the right one is there on first paint. */}
@@ -691,22 +737,23 @@ export function Drive() {
                   {folder === "Phone photos" ? "Back up new photos" : "Back up photos"}
                 </Link>
               </span>
-              <span className="contents pointer-coarse:hidden">
-                <button className="btn-ghost whitespace-nowrap" onClick={() => openMove("google-drive")} data-testid="migrate-gdrive">
-                  Move from Google Drive
-                </button>
-              </span>
               {/* On a phone, Add is the floating button below. */}
               <span className="contents pointer-coarse:hidden">
                 {/* .btn-primary is unlayered CSS, so utility classes can't shrink it; inline style can. */}
                 <button
-                  className="btn-primary text-sm"
+                  className="btn-primary text-sm inline-flex items-center gap-1.5"
                   style={{ padding: "0.4rem 0.85rem", borderRadius: "0.5rem" }}
                   onClick={() => inputRef.current?.click()}
                   data-testid="upload"
                   disabled={!!busy}
                 >
-                  {busy ? "Working…" : "+ Add"}
+                  {busy ? (
+                    "Working…"
+                  ) : (
+                    <>
+                      <Upload size={15} /> Upload
+                    </>
+                  )}
                 </button>
               </span>
             </div>
@@ -787,8 +834,9 @@ export function Drive() {
               setSelected(new Set());
               setFolder(p);
             }}
-            onOpen={(f) => open(f)}
+            onOpen={(f) => openAny(f, all)}
             onDownload={(f) => open(f, true)}
+            onLocal={(f, keep) => setLocalMany([f], keep)}
             onRename={rename}
             onTrash={trash}
             onMoveTo={(ids) => setMoveIds(ids)}
@@ -799,6 +847,7 @@ export function Drive() {
         )}
         {moveIds && <MoveDialog folders={allFolders} count={moveIds.length} current={folder} onMove={(target) => moveFiles(moveIds, target)} onClose={() => setMoveIds(null)} />}
         {shareFile && <ShareDialog f={shareFile} onClose={() => setShareFile(null)} onChanged={refresh} />}
+        {lightbox && <Lightbox items={lightbox.items} index={lightbox.index} onIndex={(i) => setLightbox((s) => s && { ...s, index: i })} onClose={() => setLightbox(null)} onDownload={(f) => open(f, true)} />}
         {/* Room under the last row so the floating + never covers its menu. */}
         {!empty && files && <div className="hidden pointer-coarse:block h-20" aria-hidden />}
       </div>

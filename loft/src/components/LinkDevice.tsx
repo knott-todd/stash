@@ -43,6 +43,10 @@ export function LinkDevice() {
       setState("error");
       return;
     }
+    // This browser just approved a computer: remember it for the next "Link a device" guess.
+    try {
+      if (ask?.kind !== "phone") localStorage.setItem("stash_linked_computer_here", "1");
+    } catch {}
     setState("done");
   }
 

@@ -6,7 +6,8 @@ import { STAGING } from "@/lib/stage";
 import { signOutEverywhereHere } from "@/lib/signout";
 
 // The one header for every signed-in page. Every section is always there; the
-// current one is bold. Nothing moves between pages.
+// current one is bold. The usage figure sits at the far right of the links so
+// it has nothing to push, and it slides in and out instead of popping.
 export type Section = "drive" | "photos" | "devices" | "settings" | "phone";
 
 const items: { id: Section; href: string; label: string }[] = [
@@ -32,18 +33,22 @@ export function AppHeader({ active, usage, onBeforeSignOut }: { active: Section;
           <Link
             key={it.id}
             href={it.href}
-            className={`whitespace-nowrap underline-offset-4 hover:underline ${active === it.id ? "font-semibold text-ink" : "text-ink-2 hover:text-ink"}`}
+            className={`whitespace-nowrap underline-offset-4 ${active === it.id ? "font-semibold text-ink" : "text-ink-2 hover:text-ink hover:underline"}`}
             aria-current={active === it.id ? "page" : undefined}
             data-testid={`nav-${it.id}`}
           >
             {it.label}
           </Link>
         ))}
-        {usage && (
-          <span className="hidden md:inline text-ink-3 whitespace-nowrap" data-testid="usage">
-            {usage}
+        <span
+          className="hidden md:grid overflow-hidden transition-[grid-template-columns,opacity] duration-200 ease-out text-ink-3 whitespace-nowrap"
+          style={{ gridTemplateColumns: usage ? "1fr" : "0fr", opacity: usage ? 1 : 0 }}
+          aria-hidden={!usage}
+        >
+          <span className="min-w-0 overflow-hidden" data-testid="usage">
+            {usage ?? ""}
           </span>
-        )}
+        </span>
         <button
           className="text-ink-3 hover:text-ink underline-offset-4 hover:underline whitespace-nowrap"
           onClick={() => {

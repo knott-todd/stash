@@ -14,6 +14,12 @@ import type { FileRow } from "./Drive";
 
 export type Origin = { rect: DOMRect; src?: string; aspect?: number };
 
+// Debug: add ?slow=8 to the page URL and every lightbox timing runs 8× slower.
+const slowmo = () => {
+  if (typeof location === "undefined") return 1;
+  const n = Number(new URLSearchParams(location.search).get("slow"));
+  return n > 0 ? n : 1;
+};
 const OPEN_MS = 440;
 const CLOSE_MS = 280;
 const EASE = "cubic-bezier(0.4, 0, 0.2, 1)";
@@ -77,7 +83,7 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
   function close() {
     if (!from || index !== first.current) return onClose();
     setPhase("closing");
-    setTimeout(onClose, CLOSE_MS);
+    setTimeout(onClose, CLOSE_MS * slowmo());
   }
 
   // Fetch, decrypt, hand the browser a real file. The picture already on screen stays
@@ -145,7 +151,7 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
     onThumb = `translate(${dx}px, ${dy}px) scale(${r.width / size.w}, ${r.height / size.h})`;
   }
   const atThumb = phase !== "open";
-  const ms = phase === "closing" ? CLOSE_MS : OPEN_MS;
+  const ms = (phase === "closing" ? CLOSE_MS : OPEN_MS) * slowmo();
   const chromeStyle = { opacity: atThumb ? 0 : 1, transition: `opacity ${ms}ms ease-out` } as const;
 
   return (

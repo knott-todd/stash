@@ -15,7 +15,7 @@ const slides = [
 export function CarouselScreen() {
   const nav = useNavigation<NativeStackNavigationProp<Record<string, undefined>>>();
   const { cfg, update, setExisting } = useSession();
-  const width = Dimensions.get("window").width;
+  const width = Dimensions.get("window").width - 48; // the screen already pads 24 each side
   const list = useRef<FlatList>(null);
   const [i, setI] = useState(cfg?.setup?.seenCarousel ? 3 : 0);
   const go = (n: number) => {
@@ -81,9 +81,9 @@ export function CarouselScreen() {
 }
 
 const s = StyleSheet.create({
-  skip: { position: "absolute", right: 24, top: 20, zIndex: 2 },
+  skip: { position: "absolute", right: 24, top: 52, zIndex: 2 },
   skipText: { color: ink2, fontSize: 15 },
-  slide: { flex: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 60 },
+  slide: { flex: 1, justifyContent: "center", paddingBottom: 60 },
   big: { fontSize: 56, fontWeight: "700", color: ink, letterSpacing: -1, marginBottom: 16 },
   lead: { fontSize: 19, lineHeight: 27, color: ink2 },
   promise: { fontSize: 44, lineHeight: 50, fontWeight: "700", color: ink3, letterSpacing: -1 },

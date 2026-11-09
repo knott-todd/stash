@@ -244,6 +244,34 @@ export function Drive() {
     setToast({ text: keep ? `${stored.length === 1 ? stored[0].name : stored.length + " files"} kept on this device` : `${stored.length === 1 ? stored[0].name : stored.length + " files"} removed from this device` });
   }
 
+  // The corner radii the thumbnail actually shows: its own, or those of the nearest clipping
+  // ancestor at the corners they share (a grid tile is round at the top, square where the name sits).
+  function cornerRadii(el: HTMLElement | null): [number, number, number, number] {
+    if (!el) return [0, 0, 0, 0];
+    const px = (v: string) => parseFloat(v) || 0;
+    const own = getComputedStyle(el);
+    const r: [number, number, number, number] = [px(own.borderTopLeftRadius), px(own.borderTopRightRadius), px(own.borderBottomRightRadius), px(own.borderBottomLeftRadius)];
+    const a = el.getBoundingClientRect();
+    // Walk up to the tile itself: every clipping ancestor may round a corner the picture shares.
+    const tile = el.closest<HTMLElement>("[data-file-id]");
+    for (let n = el.parentElement; n; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      const last = n === tile;
+      if (cs.overflow === "visible" && cs.overflowX === "visible") {
+        if (last) break;
+        continue;
+      }
+      const b = n.getBoundingClientRect();
+      const near = (x: number, y: number) => Math.abs(x - y) < 1.5;
+      if (near(a.left, b.left) && near(a.top, b.top)) r[0] = Math.max(r[0], px(cs.borderTopLeftRadius));
+      if (near(a.right, b.right) && near(a.top, b.top)) r[1] = Math.max(r[1], px(cs.borderTopRightRadius));
+      if (near(a.right, b.right) && near(a.bottom, b.bottom)) r[2] = Math.max(r[2], px(cs.borderBottomRightRadius));
+      if (near(a.left, b.left) && near(a.bottom, b.bottom)) r[3] = Math.max(r[3], px(cs.borderBottomLeftRadius));
+      if (last) break;
+    }
+    return r;
+  }
+
   // Pictures and videos open in place; everything else opens in a tab or downloads.
   const [lightbox, setLightbox] = useState<{ items: FileRow[]; index: number; from?: Origin } | null>(null);
   const isVisual = (f: FileRow) => f.stored && (f.mime.startsWith("image/") || f.mime.startsWith("video/"));
@@ -257,7 +285,7 @@ export function Drive() {
     // The thumbnail travels, so hand over where it is and what it shows.
     const img = el?.querySelector("img") ?? null;
     const rect = (img ?? el)?.getBoundingClientRect();
-    const from: Origin | undefined = rect ? { rect, src: img?.currentSrc || undefined, aspect: img && img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : undefined } : undefined;
+    const from: Origin | undefined = rect ? { rect, src: img?.currentSrc || undefined, aspect: img && img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : undefined, radii: cornerRadii(img ?? el) } : undefined;
     setLightbox({ items, index: Math.max(0, items.findIndex((x) => x.id === f.id)), from });
   }
 

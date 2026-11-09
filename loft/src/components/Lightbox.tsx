@@ -12,7 +12,7 @@ import type { FileRow } from "./Drive";
 // 380 ms, and the full picture fades in on top once it has arrived. Closing runs
 // the same move backwards.
 
-export type Origin = { rect: DOMRect; src?: string; aspect?: number };
+export type Origin = { rect: DOMRect; src?: string; aspect?: number; radii?: [number, number, number, number] };
 
 // Debug: add ?slow=8 to the page URL and every lightbox timing runs 8× slower.
 const slowmo = () => {
@@ -70,15 +70,22 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
   const [size, setSize] = useState(() => fit(from?.aspect ?? 4 / 3));
   const [phase, setPhase] = useState<"start" | "open" | "closing">(from ? "start" : "open");
   const box = useRef<HTMLDivElement>(null);
-  const ghost = index === 0 && from?.src ? from.src : null; // the thumbnail only stands in for the item that was clicked
   const first = useRef(index);
+  const ghost = index === first.current && from?.src ? from.src : null; // the thumbnail only stands in for the item that was clicked
 
-  // Open: box sits at its final place but transformed onto the thumbnail; next frame, let go.
+  // Open: the box sits on the tile until the thumbnail inside it has painted (capped at 150 ms,
+  // in case there is none), then lets go. Before that it is transparent, so the tile shows through
+  // and there is no black frame.
+  const [ghostReady, setGhostReady] = useState(!ghost);
   useEffect(() => {
     if (!from) return;
+    if (!ghostReady) {
+      const cap = setTimeout(() => setGhostReady(true), 150);
+      return () => clearTimeout(cap);
+    }
     const raf = requestAnimationFrame(() => requestAnimationFrame(() => setPhase("open")));
     return () => cancelAnimationFrame(raf);
-  }, [from]);
+  }, [from, ghostReady]);
 
   function close() {
     if (!from || index !== first.current) return onClose();
@@ -171,13 +178,13 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
       <div className="absolute inset-0 bg-ink/75" style={{ opacity: atThumb ? 0 : 1, transition: `opacity ${ms}ms ${EASE}` }} aria-hidden />
       <div
         ref={box}
-        className="fixed overflow-hidden rounded-2xl bg-black shadow-2xl"
-        style={{ left: geo.left, top: geo.top, width: geo.w, height: geo.h, borderRadius: atThumb ? 8 : 16, transition: phase === "start" ? "none" : `left ${settled ? 220 : ms}ms ${EASE}, top ${settled ? 220 : ms}ms ${EASE}, width ${settled ? 220 : ms}ms ${EASE}, height ${settled ? 220 : ms}ms ${EASE}, border-radius ${ms}ms ${EASE}` }}
+        className={`fixed overflow-hidden rounded-2xl ${atThumb ? "" : "bg-black shadow-2xl"}`}
+        style={{ left: geo.left, top: geo.top, width: geo.w, height: geo.h, borderRadius: atThumb && from ? (from.radii ?? [8, 8, 8, 8]).map((v) => `${v}px`).join(" ") : 16, transition: phase === "start" ? "none" : `left ${settled ? 220 : ms}ms ${EASE}, top ${settled ? 220 : ms}ms ${EASE}, width ${settled ? 220 : ms}ms ${EASE}, height ${settled ? 220 : ms}ms ${EASE}, border-radius ${ms}ms ${EASE}` }}
         onClick={(e) => e.stopPropagation()}
         data-testid="lightbox-box"
       >
         {/* the thumbnail, standing in until the real picture has painted */}
-        {ghost && <img src={ghost} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ opacity: shown ? 0 : 1 }} draggable={false} />}
+        {ghost && <img src={ghost} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ opacity: shown ? 0 : 1 }} onLoad={() => setGhostReady(true)} draggable={false} />}
         {media && !media.video && (
           <img
             src={media.url}

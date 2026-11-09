@@ -156,8 +156,7 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
 
   return (
     <div
-      className="fixed inset-0 z-[110] bg-ink/75"
-      style={{ opacity: atThumb ? 0 : 1, transition: `opacity ${ms}ms ${EASE}` }}
+      className="fixed inset-0 z-[110]"
       onClick={close}
       role="dialog"
       aria-modal="true"
@@ -165,6 +164,8 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
       data-testid="lightbox"
       data-phase={phase}
     >
+      {/* The dim is its own layer, a sibling of the box, so the box never inherits its opacity. */}
+      <div className="absolute inset-0 bg-ink/75" style={{ opacity: atThumb ? 0 : 1, transition: `opacity ${ms}ms ${EASE}` }} aria-hidden />
       <div
         ref={box}
         className="fixed overflow-hidden rounded-2xl bg-black shadow-2xl"

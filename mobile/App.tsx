@@ -7,6 +7,7 @@ import * as MediaLibrary from "expo-media-library";
 import * as Device from "expo-device";
 import { loadConfig, me, pollLink, saveConfig, startLink, type Config } from "./src/api";
 import { importKey, unwrapKey } from "./src/crypto";
+import { StashCrypto } from "./modules/stash-crypto";
 import { runBackup, scheduleBackground, type Progress } from "./src/backup";
 
 type Screen = "loading" | "link" | "passcode" | "allow" | "status";
@@ -111,9 +112,16 @@ export default function App() {
     setOpening(true);
     setError(null);
     let raw: string | null = null;
+    const t0 = Date.now();
     try {
       const who = await me(cfg);
+      console.log("passcode: wrapped?", !!who.keyWrapped, "iter", who.keyWrapped?.iter, "native", !!StashCrypto);
       raw = who.keyWrapped ? await unwrapKey(who.keyWrapped, passcode) : null;
+      console.log("passcode: unwrap", raw ? `ok ${raw.length} chars` : "null", `${Date.now() - t0} ms`);
+    } catch (e) {
+      console.log("passcode: threw", String((e as Error).message));
+      setError(String((e as Error).message));
+      return;
     } finally {
       setOpening(false);
     }

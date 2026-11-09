@@ -60,9 +60,17 @@ export async function runBackup(onProgress: (p: Progress) => void = () => {}, bu
     p.current = a.filename;
     onProgress({ ...p });
     try {
-      const info = await MediaLibrary.getAssetInfoAsync(a);
-      const uri = info.localUri ?? a.uri;
-      const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      // The asset's content URI reads directly on Android; fall back to the resolved file for the odd one that does not.
+      let b64: string;
+      try {
+        b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 });
+      } catch (first) {
+        console.log("backup: direct read failed", a.uri, String((first as Error).message));
+        const info = await MediaLibrary.getAssetInfoAsync(a).catch((e) => {
+          throw new Error(`asset info: ${(e as Error).message} ${JSON.stringify(e, Object.getOwnPropertyNames(e)).slice(0, 300)}`);
+        });
+        b64 = await FileSystem.readAsStringAsync(info.localUri ?? a.uri, { encoding: FileSystem.EncodingType.Base64 });
+      }
       const bytes = Uint8Array.from(globalThis.atob(b64), (c) => c.charCodeAt(0));
       const mime = a.mediaType === "video" ? "video/mp4" : /\.heic$/i.test(a.filename) ? "image/heic" : /\.png$/i.test(a.filename) ? "image/png" : "image/jpeg";
       await uploadBytes(cfg, key, bytes, { name: a.filename, mime, folder: FOLDER, modifiedAt: a.creationTime || undefined });
@@ -70,7 +78,8 @@ export async function runBackup(onProgress: (p: Progress) => void = () => {}, bu
       await saveDone(done);
       p.done++;
       p.pending--;
-    } catch {
+    } catch (e) {
+      console.log("backup: failed", a.filename, String((e as Error).message));
       p.failed++;
       p.pending--;
     }

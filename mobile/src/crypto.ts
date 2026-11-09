@@ -24,11 +24,12 @@ export function fromB64(s: string) {
 const unb64url = (s: string) => fromB64(s.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(s.length / 4) * 4, "="));
 const b64url = (b: Uint8Array) => toB64(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-export type Key = Uint8Array; // 32 raw bytes
+export type Key = Uint8Array; // raw AES key bytes (16 for accounts)
 
 export async function importKey(raw: string): Promise<Key> {
   const k = unb64url(raw);
-  if (k.length !== 32) throw new Error("bad key");
+  // Accounts use AES-128 keys (16 bytes); accept any AES size.
+  if (![16, 24, 32].includes(k.length)) throw new Error(`bad key (${k.length} bytes)`);
   return k;
 }
 

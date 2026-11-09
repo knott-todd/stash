@@ -2,6 +2,7 @@
 const app = document.getElementById("app");
 let S = null;
 let chosen = null; // folder picks while on the Folders screen
+let editing = false; // Change folders is open: state updates must not replace it
 let error = null;
 let passcodeHint = undefined;
 let askingPasscode = false;
@@ -39,7 +40,7 @@ function render() {
   if (!S) return;
   if (askingPasscode) return (app.innerHTML = passcodeScreen());
   if (!S.linked) return (app.innerHTML = linkScreen());
-  if (!S.folders.length) return (app.innerHTML = foldersScreen());
+  if (editing || !S.folders.length) return (app.innerHTML = foldersScreen());
   app.innerHTML = statusScreen();
 }
 
@@ -81,10 +82,10 @@ function foldersScreen() {
         )
         .join("")}
     </div>
-    <div class="actions"><button class="link" data-act="pickFolder">Add another folder…</button></div>
+    <div class="actions"><button class="link" data-act="pickFolder">Add another folder…</button>${editing ? `<button class="link" data-act="cancelEdit">Keep as is</button>` : ""}</div>
     ${error ? `<p class="error">${esc(error)}</p>` : ""}
     <div class="spacer"></div>
-    <button class="btn" data-act="start" data-testid="start" ${chosen.length ? "" : "disabled"}>Start backing up</button>`;
+    <button class="btn" data-act="start" data-testid="start" ${chosen.length ? "" : "disabled"}>${editing ? "Save folders" : "Start backing up"}</button>`;
 }
 
 function statusScreen() {
@@ -145,10 +146,14 @@ app.addEventListener("click", async (e) => {
   } else if (act === "start") {
     const picks = [...app.querySelectorAll("input[type=checkbox][data-path]:checked")].map((i) => ({ path: i.dataset.path, label: i.dataset.label }));
     chosen = null;
+    editing = false;
     await call("setFolders", picks);
   } else if (act === "editFolders") {
-    chosen = S.folders.map((f) => ({ ...f }));
-    app.innerHTML = foldersScreen();
+    openFolders();
+  } else if (act === "cancelEdit") {
+    editing = false;
+    chosen = null;
+    render();
   } else if (act === "pause") await call("pause");
   else if (act === "resume") await call("resume");
   else if (act === "checkNow") await call("checkNow");
@@ -177,6 +182,16 @@ app.addEventListener("change", async (e) => {
 window.stash.on("state", (s) => {
   S = s;
   render();
+});
+// Change folders: a copy of the current picks, and the screen stays put while the agent reports.
+function openFolders() {
+  chosen = S.folders.map((f) => ({ ...f }));
+  editing = true;
+  render();
+}
+// stash://folders from the browser (the Devices page) lands here.
+window.stash.on("deeplink", (what) => {
+  if (what === "folders" && S?.linked) openFolders();
 });
 window.stash.on("askPasscode", ({ hint }) => {
   passcodeHint = hint;

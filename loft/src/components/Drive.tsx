@@ -719,7 +719,7 @@ export function Drive() {
           />
         )}
 
-        {!empty && files && !setupHidden && !(setupState.migrated && (setupState.computer || setupState.phone)) && tab === "drive" && (
+        {!empty && files && !setupHidden && tab === "drive" && (
           <SetupSteps
             state={setupState}
             big={false}

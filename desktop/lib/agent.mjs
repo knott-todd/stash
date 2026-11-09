@@ -15,7 +15,7 @@ import { loadState, saveConfig, saveState } from "./config.mjs";
 const PARALLEL = 2;
 const RESCAN_MS = 10 * 60 * 1000;
 const REPORT_MS = 10 * 60 * 1000; // a report every minute kept the database awake all day
-export const VERSION = "0.2.1";
+export const VERSION = "0.2.2";
 
 export function createAgent({ cfg, dir, log = () => {}, onState = () => {}, askPasscode = null }) {
   const api = new Api(cfg.server, cfg.token, cfg.bypass ?? process.env.STASH_BYPASS);

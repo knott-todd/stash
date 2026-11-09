@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Laptop, Link2Off, Pencil, Plus, Smartphone, X } from "lucide-react";
+import { Check, FolderCog, Laptop, Link2Off, Pencil, Plus, Smartphone, X } from "lucide-react";
 import { AppHeader } from "./AppHeader";
 import { fmtBytes, fmtDate } from "@/lib/format";
 
@@ -39,6 +39,13 @@ export function Devices() {
   const [now, setNow] = useState(0);
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
+  // This browser approved a computer: Stash Desktop is on this machine, so the folder picker can be opened from here.
+  const [hasDesktop, setHasDesktop] = useState(false);
+  useEffect(() => {
+    try {
+      setHasDesktop(localStorage.getItem("stash_linked_computer_here") === "1");
+    } catch {}
+  }, []);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/devices");
@@ -173,6 +180,11 @@ export function Devices() {
                       </ul>
                     ) : (
                       <p className="mt-3 ml-1 border-l-2 border-line pl-4 text-sm text-ink-3">Nothing chosen yet. Pick folders in Stash on that device.</p>
+                    )}
+                    {d.kind === "desktop" && hasDesktop && (
+                      <a href="stash://folders" className="mt-3 ml-1 inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink" data-testid="choose-folders" title="Opens Stash on this computer">
+                        <FolderCog size={15} /> Choose folders
+                      </a>
                     )}
                   </div>
                 </div>

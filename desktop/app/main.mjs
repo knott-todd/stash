@@ -31,7 +31,20 @@ let passcodeAsk = null;
 
 const single = app.requestSingleInstanceLock();
 if (!single) app.quit();
-app.on("second-instance", () => show());
+// stash://folders from the Devices page opens the folder picker; a second launch just shows the window.
+const deepLink = (args) => {
+  const u = (args ?? []).find((a) => typeof a === "string" && a.startsWith("stash://"));
+  if (!u) return false;
+  const what = u.slice("stash://".length).replace(/\/+$/, "");
+  show();
+  setTimeout(() => send("deeplink", what), win?.webContents.isLoading() ? 1500 : 300);
+  return true;
+};
+app.on("second-instance", (_e, args) => {
+  if (!deepLink(args)) show();
+});
+if (process.defaultApp) app.setAsDefaultProtocolClient("stash", process.execPath, [path.resolve(process.argv[1])]);
+else app.setAsDefaultProtocolClient("stash");
 
 function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
@@ -222,6 +235,7 @@ ipcMain.handle("unlink", async () => {
 app.whenReady().then(async () => {
   createTray();
   if (!argv.includes("--hidden") || !cfg.token) show();
+  deepLink(process.argv); // launched by a stash:// link while not running
   // First run: start with the computer, so it keeps working after a restart.
   if (!app.getLoginItemSettings().openAtLogin && process.env.NODE_ENV !== "test") app.setLoginItemSettings({ openAtLogin: true, args: ["--hidden"] });
   await startAgent();

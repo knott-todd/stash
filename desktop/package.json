@@ -1,6 +1,6 @@
 {
   "name": "stash-desktop",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Keeps folders on this computer backed up to Stash, encrypted, automatically.",
   "type": "module",
   "main": "app/main.mjs",
@@ -34,6 +34,7 @@
   },
   "build": {
     "appId": "com.olusanyatodd.stash",
+    "protocols": [{ "name": "Stash", "schemes": ["stash"] }],
     "productName": "Stash",
     "artifactName": "Stash-Setup.${ext}",
     "directories": {

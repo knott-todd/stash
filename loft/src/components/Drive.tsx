@@ -19,7 +19,7 @@ import Link from "next/link";
 import { doneKey, PROVIDER_LABEL, providerEndpoints, runProviderCopy, type CopyEvent, type Provider } from "@/lib/provider-client";
 import { cacheClear, cacheDelete, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { Lightbox } from "./Lightbox";
-import { Download, FolderPlus, HardDrive, HardDriveDownload, Search, Trash2, Upload, X } from "lucide-react";
+import { Download, FolderPlus, HardDrive, HardDriveDownload, LayoutGrid, LayoutList, Search, Trash2, Upload, X } from "lucide-react";
 import { viewableMime } from "@/lib/view";
 import { demoMode } from "@/lib/demo-flag";
 import { uploadEncrypted, uploadMode } from "@/lib/upload";
@@ -723,11 +723,11 @@ export function Drive() {
                   />
                 </label>
                 <span className="hidden sm:inline-flex items-center h-full px-1.5 gap-0.5" role="group" aria-label="View">
-                  <button className={`rounded-full px-2.5 py-1 text-xs ${view === "list" ? "bg-ink text-white" : "text-ink-2 hover:text-ink"}`} onClick={() => chooseView("list")} aria-pressed={view === "list"} data-testid="view-list">
-                    List
+                  <button className={`size-7 inline-flex items-center justify-center rounded-md ${view === "list" ? "text-ink bg-cream-2" : "text-ink-3 hover:text-ink"}`} onClick={() => chooseView("list")} aria-pressed={view === "list"} aria-label="List" title="List" data-testid="view-list">
+                    <LayoutList size={16} />
                   </button>
-                  <button className={`rounded-full px-2.5 py-1 text-xs ${view === "grid" ? "bg-ink text-white" : "text-ink-2 hover:text-ink"}`} onClick={() => chooseView("grid")} aria-pressed={view === "grid"} data-testid="view-grid">
-                    Grid
+                  <button className={`size-7 inline-flex items-center justify-center rounded-md ${view === "grid" ? "text-ink bg-cream-2" : "text-ink-3 hover:text-ink"}`} onClick={() => chooseView("grid")} aria-pressed={view === "grid"} aria-label="Grid" title="Grid" data-testid="view-grid">
+                    <LayoutGrid size={16} />
                   </button>
                 </span>
                 <button className="inline-flex items-center gap-1.5 h-full px-3.5 rounded-r-full text-sm text-ink-2 hover:text-ink hover:bg-cream-2 whitespace-nowrap" onClick={newFolder} data-testid="new-folder">

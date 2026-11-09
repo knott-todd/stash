@@ -249,7 +249,10 @@ export function Drive() {
   const isVisual = (f: FileRow) => f.stored && (f.mime.startsWith("image/") || f.mime.startsWith("video/"));
   function openAny(f: FileRow, pool: FileRow[]) {
     if (!isVisual(f)) return open(f);
-    const items = pool.filter(isVisual);
+    // Arrows follow what is on screen (sorted, filtered, grouped), not the raw list: read the rendered order.
+    const byId = new Map(pool.map((x) => [x.id, x]));
+    const shown = [...document.querySelectorAll<HTMLElement>("[data-file-id]")].map((e) => byId.get(e.dataset.fileId ?? "")).filter((x): x is FileRow => !!x);
+    const items = (shown.length ? shown : pool).filter(isVisual);
     const el = document.querySelector<HTMLElement>(`[data-file-id="${f.id}"]`);
     // The thumbnail travels, so hand over where it is and what it shows.
     const img = el?.querySelector("img") ?? null;

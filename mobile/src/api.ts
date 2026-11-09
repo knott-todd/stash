@@ -203,3 +203,65 @@ export async function uploadBytes(c: Config, key: Key, bytes: Uint8Array, meta: 
   if (!r.ok) throw new Error(`register failed (${r.status})`);
   return (await r.json()).file;
 }
+
+// --- Devices and Settings: the same routes the website's Devices and Settings pages call.
+
+export type DeviceFolder = { path: string; label: string; files: number; bytes: number; pending: number; failed: number; lastUpload?: number };
+export type DeviceRow = {
+  id: string;
+  name: string;
+  platform: string;
+  kind: "desktop" | "phone";
+  createdAt: number;
+  lastSeen: number;
+  files: number;
+  bytes: number;
+  state: { status: "idle" | "scanning" | "uploading" | "paused" | "error"; detail?: string; folders: DeviceFolder[]; version?: string; updatedAt: number } | null;
+};
+
+// GET /api/devices: every linked device, with what it has sent so far.
+export async function listDevices(c: Config): Promise<{ devices: DeviceRow[]; phoneFiles: number }> {
+  const r = await ok(await fetch(`${c.server}/api/devices`, { headers: auth(c) }), "devices");
+  const j = await r.json();
+  return { devices: j.devices ?? [], phoneFiles: Number(j.phoneFiles ?? 0) };
+}
+// PATCH /api/devices/{id}
+export async function renameDevice(c: Config, id: string, name: string) {
+  await ok(await fetch(`${c.server}/api/devices/${id}`, { method: "PATCH", headers: json(c), body: JSON.stringify({ name }) }), "rename");
+}
+// DELETE /api/devices/{id}: that device stops backing up at once; what it sent stays.
+export async function unlinkDevice(c: Config, id: string) {
+  await ok(await fetch(`${c.server}/api/devices/${id}`, { method: "DELETE", headers: auth(c) }), "unlink");
+}
+
+// GET /api/me, with the fields Settings shows (the account line, protection, imports).
+export type Account = {
+  email: string | null;
+  name: string | null;
+  picture: string | null;
+  protection: "standard" | "passcode" | null;
+  keyWrapped: { salt: string; iv: string; ct: string; iter: number; hint?: string } | null;
+  fileCount: number;
+  bytes: number;
+  googleConnected: boolean;
+};
+export async function account(c: Config): Promise<Account> {
+  const r = await fetch(`${c.server}/api/me`, { headers: auth(c) });
+  const j = await r.json();
+  if (!r.ok || !j.signedIn) throw Object.assign(new Error("unlinked"), { status: 401 });
+  return { email: j.email ?? null, name: j.name ?? null, picture: j.picture ?? null, protection: j.protection ?? null, keyWrapped: j.keyWrapped ?? null, fileCount: Number(j.fileCount ?? 0), bytes: Number(j.bytes ?? 0), googleConnected: !!j.googleConnected };
+}
+
+// POST /api/auth/signout?all=1: ends every browser session of the account; linked devices
+// keep theirs. Returns how many ended, or null when the server would not do it for a
+// linked device (it then answers ok without a count).
+export async function signOutEverywhere(c: Config): Promise<number | null> {
+  const r = await ok(await fetch(`${c.server}/api/auth/signout?all=1`, { method: "POST", headers: auth(c) }), "sign out");
+  const j = await r.json().catch(() => ({}));
+  return typeof j.ended === "number" ? j.ended : null;
+}
+
+// DELETE /api/google: forget the Google Drive connection; nothing already moved is touched.
+export async function disconnectGoogle(c: Config) {
+  await ok(await fetch(`${c.server}/api/google`, { method: "DELETE", headers: auth(c) }), "disconnect");
+}

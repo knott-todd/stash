@@ -21,6 +21,8 @@ import { StepsScreen } from "./src/screens/Steps";
 import { YouAreInScreen } from "./src/screens/Setup";
 import { DriveScreen } from "./src/screens/Drive";
 import { MovePickerScreen } from "./src/screens/MovePicker";
+import { DevicesScreen, LinkDeviceScreen } from "./src/screens/Devices";
+import { ProtectionScreen, SettingsScreen } from "./src/screens/Settings";
 import { useShareTarget } from "./src/share";
 import "./src/backup"; // registers the background task
 
@@ -60,6 +62,10 @@ function Root() {
         <Stack.Screen name="YouAreIn" component={YouAreInScreen} options={{ gestureEnabled: false, animation: "fade" }} />
         <Stack.Screen name="Drive" component={DriveScreen} options={{ animation: "fade" }} />
         <Stack.Screen name="DriveMove" component={MovePickerScreen} options={{ animation: "slide_from_bottom" }} />
+        <Stack.Screen name="Devices" component={DevicesScreen} />
+        <Stack.Screen name="LinkDevice" component={LinkDeviceScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="Protection" component={ProtectionScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

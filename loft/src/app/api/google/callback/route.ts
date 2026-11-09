@@ -28,17 +28,20 @@ export async function GET(req: Request) {
     }
   }
 
-  // Drive connection for the migration.
-  const uid = await getUid();
-  if (denied || !code || !uid || state.uid !== uid) return NextResponse.redirect(`${origin}/drive?google=denied`);
+  // Drive connection for the migration. From the phone app the state (our own httpOnly cookie,
+  // nonce-checked) names the account and the result goes back to the app.
+  const fromApp = state.next === "app";
+  const back = (result: string) => NextResponse.redirect(fromApp ? `stash://drive-connected?result=${result}` : `${origin}/drive?google=${result}`);
+  const uid = fromApp ? (state.uid ?? null) : await getUid();
+  if (denied || !code || !uid || state.uid !== uid) return back("denied");
   try {
     const t = await exchangeCode(origin, code);
     const db = store();
     const u = await db.getUser(uid);
     u.google = { accessToken: t.access_token, refreshToken: t.refresh_token ?? u.google?.refreshToken, expiresAt: Date.now() + t.expires_in * 1000 };
     await db.saveUser(u);
-    return NextResponse.redirect(`${origin}/drive?google=ok`);
+    return back("ok");
   } catch {
-    return NextResponse.redirect(`${origin}/drive?google=failed`);
+    return back("failed");
   }
 }

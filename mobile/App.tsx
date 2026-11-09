@@ -1,430 +1,67 @@
-// Stash for phones. One promise, kept quietly: every photo you take is safe.
-// Screens: Welcome (Continue with Google) → Passcode (Locked accounts only) →
-// Allow photos → Home (am I safe?) with Settings behind one link.
+// Stash for phones: the same product as the website, native. The journey is the
+// website's: the landing page as a carousel, then three full-screen steps (sign in,
+// move my files here, back up this phone), then "You're in", then the drive.
+// (docs/PHONE-APP-BRIEF-2026-11-08.md, docs/phone/01-onboarding-and-setup.md)
 
-import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, AppState, Image, Linking, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
-import * as MediaLibrary from "expo-media-library";
-import * as Device from "expo-device";
+import "react-native-gesture-handler";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
+import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Constants from "expo-constants";
-import { GoogleSignin, isErrorWithCode, statusCodes } from "@react-native-google-signin/google-signin";
-import { DEFAULT_SETTINGS, loadConfig, me, saveConfig, setProtection, settingsOf, signInWithGoogle, unlinkSelf, type Config, type Settings } from "./src/api";
-import { importKey, recoveryCode, unwrapKey, wrapKey } from "./src/crypto";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import { SessionProvider, useSession } from "./src/session";
+import { nextRoute, type Route } from "./src/flow";
+import { paper } from "./src/ui";
+import { CarouselScreen } from "./src/screens/Carousel";
+import { SignInScreen } from "./src/screens/SignIn";
+import { ChoosePasscodeScreen, DecideScreen, EnterPasscodeScreen, RecoveryScreen } from "./src/screens/Protection";
+import { BackupPhoneScreen, MoveFilesScreen, YouAreInScreen } from "./src/screens/Setup";
+import { DriveScreen } from "./src/screens/Drive";
+import "./src/backup"; // registers the background task
 
 GoogleSignin.configure({ webClientId: String(Constants.expoConfig?.extra?.googleWebClientId ?? "") });
-import { census, runBackup, scheduleBackground, type Progress } from "./src/backup";
 
-type Screen = "loading" | "welcome" | "decide" | "lock" | "recovery" | "passcode" | "allow" | "home" | "settings";
+const Stack = createNativeStackNavigator();
+const theme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: paper, card: paper, primary: "#111111" } };
+
+function Root() {
+  const { cfg, existing } = useSession();
+  const [initial, setInitial] = useState<Route | null>(null);
+  useEffect(() => {
+    if (!cfg || initial) return;
+    nextRoute(cfg, null, existing)
+      .then(setInitial)
+      .catch(() => setInitial("Carousel"));
+  }, [cfg, existing, initial]);
+  if (!initial)
+    return (
+      <View style={{ flex: 1, backgroundColor: paper, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator />
+      </View>
+    );
+  return (
+    <NavigationContainer theme={theme}>
+      <Stack.Navigator initialRouteName={initial} screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
+        <Stack.Screen name="Carousel" component={CarouselScreen} />
+        <Stack.Screen name="SignIn" component={SignInScreen} />
+        <Stack.Screen name="Decide" component={DecideScreen} options={{ gestureEnabled: false }} />
+        <Stack.Screen name="ChoosePasscode" component={ChoosePasscodeScreen} />
+        <Stack.Screen name="Recovery" component={RecoveryScreen} />
+        <Stack.Screen name="EnterPasscode" component={EnterPasscodeScreen} options={{ gestureEnabled: false }} />
+        <Stack.Screen name="MoveFiles" component={MoveFilesScreen} options={{ gestureEnabled: false }} />
+        <Stack.Screen name="BackupPhone" component={BackupPhoneScreen} options={{ gestureEnabled: false }} />
+        <Stack.Screen name="YouAreIn" component={YouAreInScreen} options={{ gestureEnabled: false, animation: "fade" }} />
+        <Stack.Screen name="Drive" component={DriveScreen} options={{ animation: "fade" }} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
 
 export default function App() {
-  const [cfg, setCfg] = useState<Config | null>(null);
-  const [screen, setScreen] = useState<Screen>("loading");
-  const [hint, setHint] = useState<string | undefined>();
-  const [passcode, setPasscode] = useState("");
-  const [progress, setProgress] = useState<Progress | null>(null);
-  const [recent, setRecent] = useState<MediaLibrary.Asset[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"signin" | "open" | "backup" | "lock" | null>(null);
-  const [newPass, setNewPass] = useState("");
-  const [newHint, setNewHint] = useState("");
-  const [recovery, setRecovery] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      const c = await loadConfig();
-      setCfg(c);
-      if (!c.token) return setScreen("welcome");
-      await afterLink(c);
-    })();
-  }, []);
-
-  // Coming back to the app: refresh the picture and send what is waiting.
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", (s) => {
-      if (s === "active" && screen === "home" && cfg) start(cfg);
-    });
-    return () => sub.remove();
-  }, [screen, cfg]);
-
-  async function afterLink(c: Config) {
-    try {
-      const who = await me(c);
-      if (!who.protection) return setScreen("decide");
-      if (c.key) {
-        try {
-          await importKey(c.key);
-        } catch {
-          c = { ...c, key: undefined };
-          await saveConfig(c);
-          setCfg(c);
-        }
-      }
-      if (!who.key && who.keyWrapped && !c.key) {
-        setHint(who.keyWrapped.hint);
-        return setScreen("passcode");
-      }
-      const perm = await MediaLibrary.getPermissionsAsync(false, ["photo", "video"]);
-      setScreen(perm.granted ? "home" : "allow");
-      if (perm.granted) start(c);
-    } catch {
-      setScreen("welcome");
-    }
-  }
-
-  // Continue with Google: the phone's own account picker; the server links this phone in the same step.
-  async function signIn() {
-    if (busy) return;
-    setBusy("signin");
-    setError(null);
-    const c = cfg ?? (await loadConfig());
-    try {
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      const res = await GoogleSignin.signIn();
-      if (res.type !== "success" || !res.data.idToken) return; // the person closed the picker
-      const who = await signInWithGoogle(c.server, res.data.idToken, `${Device.deviceName ?? "Phone"}`);
-      const next: Config = { ...c, token: who.token, deviceId: who.deviceId, email: who.email, pendingLink: undefined };
-      await saveConfig(next);
-      setCfg(next);
-      await afterLink(next);
-    } catch (e) {
-      if (isErrorWithCode(e) && e.code === statusCodes.SIGN_IN_CANCELLED) return;
-      setError(isErrorWithCode(e) && e.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE ? "This phone needs Google Play services to sign in." : String((e as Error).message));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function chooseStandard() {
-    if (!cfg || busy) return;
-    setBusy("lock");
-    try {
-      await setProtection(cfg, { mode: "standard" });
-      await afterLink(cfg);
-    } catch (e) {
-      setError(String((e as Error).message));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function chooseLocked() {
-    if (!cfg || busy) return;
-    if (newPass.length < 6) return setError("Use at least 6 characters.");
-    setBusy("lock");
-    setError(null);
-    try {
-      const who = await me(cfg);
-      if (!who.key) throw new Error("The account has no key to lock.");
-      const wrapped = await wrapKey(who.key, newPass, newHint.trim() || undefined);
-      await setProtection(cfg, { mode: "passcode", keyWrapped: wrapped });
-      const next = { ...cfg, key: who.key };
-      await saveConfig(next);
-      setCfg(next);
-      setRecovery(recoveryCode(who.key));
-      setNewPass("");
-      setScreen("recovery");
-    } catch (e) {
-      setError(String((e as Error).message));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function submitPasscode() {
-    if (!cfg || busy) return;
-    setBusy("open");
-    setError(null);
-    let raw: string | null = null;
-    try {
-      const who = await me(cfg);
-      raw = who.keyWrapped ? await unwrapKey(who.keyWrapped, passcode) : null;
-    } catch (e) {
-      setError(String((e as Error).message));
-      return;
-    } finally {
-      setBusy(null);
-    }
-    if (!raw) return setError("That passcode didn't open your files. Try again.");
-    const next = { ...cfg, key: raw };
-    await saveConfig(next);
-    setCfg(next);
-    setPasscode("");
-    afterLink(next);
-  }
-
-  async function allow() {
-    const perm = await MediaLibrary.requestPermissionsAsync(false, ["photo", "video"]);
-    if (!perm.granted) return setError("Stash needs access to your photos to keep them safe.");
-    setScreen("home");
-    if (cfg) start(cfg);
-  }
-
-  const start = useCallback(async (c: Config, force = false) => {
-    if (busy === "backup") return;
-    setBusy("backup");
-    setError(null);
-    try {
-      await scheduleBackground();
-      setProgress(await census(c));
-      setRecent((await MediaLibrary.getAssetsAsync({ mediaType: ["photo"], sortBy: [["creationTime", false]], first: 8 })).assets);
-      await runBackup(setProgress, 10 * 60 * 1000, force);
-      setCfg(await loadConfig());
-    } catch (e) {
-      const m = String((e as Error).message);
-      if (m === "locked") setScreen("passcode");
-      else if (m === "no-permission") setScreen("allow");
-      else setError(m);
-    } finally {
-      setBusy(null);
-    }
-  }, [busy]);
-
-  async function setSetting<K extends keyof Settings>(k: K, v: Settings[K]) {
-    if (!cfg) return;
-    const next = { ...cfg, settings: { ...settingsOf(cfg), [k]: v } };
-    await saveConfig(next);
-    setCfg(next);
-  }
-
-  function unlink() {
-    Alert.alert("Unlink this phone?", "It stops backing up. Everything already sent stays in Stash.", [
-      { text: "Keep linked", style: "cancel" },
-      {
-        text: "Unlink",
-        style: "destructive",
-        onPress: async () => {
-          if (cfg) await unlinkSelf(cfg);
-          const fresh: Config = { server: cfg?.server ?? (await loadConfig()).server };
-          await saveConfig(fresh);
-          setCfg(fresh);
-          setProgress(null);
-          setScreen("welcome");
-        },
-      },
-    ]);
-  }
-
-  const settings = cfg ? settingsOf(cfg) : DEFAULT_SETTINGS;
-
   return (
-    <SafeAreaView style={s.page}>
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={s.brand}>Stash.</Text>
-        {screen === "loading" && <ActivityIndicator />}
-
-        {screen === "welcome" && (
-          <View>
-            <Text style={s.h1}>Every photo you take, kept safe.</Text>
-            <Text style={s.p}>Sign in once. From then on your photos and videos back up on their own, and they are there on any device you sign in to.</Text>
-            <Pressable style={[s.btn, busy === "signin" && s.btnBusy]} onPress={signIn} disabled={!!busy}>
-              {busy === "signin" ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Continue with Google</Text>}
-            </Pressable>
-          </View>
-        )}
-
-        {screen === "decide" && (
-          <View>
-            <Text style={s.small}>One question before your photos</Text>
-            <Text style={s.h1}>How private should your photos be?</Text>
-            <Text style={s.p}>Every photo is encrypted before it is stored either way. You can change this later in Settings on the website.</Text>
-            <View style={s.card}>
-              <Text style={s.cardTitle}>Standard</Text>
-              <Text style={s.p}>Opens wherever you sign in. Nothing to remember.</Text>
-              <Text style={s.small}>Stash can open your photos, as Google Photos can. We never do unless you share one.</Text>
-              <Pressable style={[s.btn, busy === "lock" && s.btnBusy]} onPress={chooseStandard} disabled={!!busy}>
-                {busy === "lock" ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Use Standard</Text>}
-              </Pressable>
-            </View>
-            <View style={s.card}>
-              <Text style={s.cardTitle}>Locked</Text>
-              <Text style={s.p}>Only you can open them, with a passcode you choose.</Text>
-              <Text style={s.small}>Not even Stash can. Forget the passcode and the recovery code, and the photos are gone.</Text>
-              <Pressable style={s.btnGhost} onPress={() => setScreen("lock")} disabled={!!busy}>
-                <Text style={s.btnGhostText}>Lock my photos</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        {screen === "lock" && (
-          <View>
-            <Pressable onPress={() => setScreen("decide")}>
-              <Text style={s.back}>‹ Back</Text>
-            </Pressable>
-            <Text style={s.h1}>Choose a passcode</Text>
-            <Text style={s.p}>You'll type it once on each device. Keep the recovery code on the next screen somewhere safe: it is the only other way in.</Text>
-            <TextInput secureTextEntry value={newPass} onChangeText={setNewPass} placeholder="Passcode (6 or more characters)" style={s.input} autoFocus />
-            <TextInput value={newHint} onChangeText={setNewHint} placeholder="A hint only you understand (optional)" style={s.input} />
-            <Pressable style={[s.btn, busy === "lock" && s.btnBusy]} onPress={chooseLocked} disabled={!!busy}>
-              {busy === "lock" ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Lock my photos</Text>}
-            </Pressable>
-          </View>
-        )}
-
-        {screen === "recovery" && (
-          <View>
-            <Text style={s.h1}>Your recovery code</Text>
-            <Text style={s.p}>Write this down and keep it somewhere safe. With it you can open your photos even if you forget the passcode. Without both, nobody can.</Text>
-            <Text style={s.code} selectable>
-              {recovery}
-            </Text>
-            <Pressable style={s.btn} onPress={() => cfg && afterLink(cfg)}>
-              <Text style={s.btnText}>I've written it down</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {screen === "passcode" && (
-          <View>
-            <Text style={s.h1}>Your passcode</Text>
-            <Text style={s.p}>Your files are locked with a passcode only you know. Enter it once on this phone.{hint ? ` Hint: ${hint}` : ""}</Text>
-            <TextInput secureTextEntry value={passcode} onChangeText={setPasscode} placeholder="Passcode" style={s.input} autoFocus onSubmitEditing={submitPasscode} />
-            <Pressable style={[s.btn, busy === "open" && s.btnBusy]} onPress={submitPasscode} disabled={!!busy}>
-              {busy === "open" ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Open</Text>}
-            </Pressable>
-          </View>
-        )}
-
-        {screen === "allow" && (
-          <View>
-            <Text style={s.h1}>Allow photos</Text>
-            <Text style={s.p}>Stash needs to see your photos and videos to keep them safe. Nothing else on the phone. Nothing is deleted.</Text>
-            <Pressable style={s.btn} onPress={allow}>
-              <Text style={s.btnText}>Allow access to photos</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {screen === "home" && (
-          <View>
-            <Headline p={progress} busy={busy === "backup"} lastRun={cfg?.lastRun} />
-            {recent.length > 0 && (
-              <View style={s.strip}>
-                {recent.map((a) => (
-                  <Image key={a.id} source={{ uri: a.uri }} style={s.thumb} />
-                ))}
-              </View>
-            )}
-            <View style={s.row}>
-              <Pressable style={s.linkBtn} onPress={() => cfg && start(cfg, true)} disabled={busy === "backup"}>
-                <Text style={s.linkText}>{busy === "backup" ? "Checking…" : "Check now"}</Text>
-              </Pressable>
-              <Pressable style={s.linkBtn} onPress={() => cfg && Linking.openURL(`${cfg.server}/drive`).catch(() => {})}>
-                <Text style={s.linkText}>Open Stash</Text>
-              </Pressable>
-              <Pressable style={s.linkBtn} onPress={() => setScreen("settings")}>
-                <Text style={s.linkText}>Settings</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        {screen === "settings" && (
-          <View>
-            <Pressable onPress={() => setScreen("home")}>
-              <Text style={s.back}>‹ Back</Text>
-            </Pressable>
-            <Text style={s.h1}>Settings</Text>
-            <Toggle label="Only on Wi-Fi" note="Never uses mobile data." value={settings.wifiOnly} onChange={(v) => setSetting("wifiOnly", v)} />
-            <Toggle label="Only while charging" note="The big first backup happens overnight, not in your pocket." value={settings.chargingOnly} onChange={(v) => setSetting("chargingOnly", v)} />
-            <Toggle label="Include videos" note="Videos are large; turn this off to keep only photos safe." value={settings.videos} onChange={(v) => setSetting("videos", v)} />
-            <Text style={[s.small, { marginTop: 28 }]}>Linked as {cfg?.email ?? "your account"}</Text>
-            <Pressable style={s.linkBtn} onPress={unlink}>
-              <Text style={[s.linkText, { color: "#111" }]}>Unlink this phone</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {error && <Text style={s.error}>{error}</Text>}
-      </ScrollView>
-    </SafeAreaView>
+    <SessionProvider>
+      <Root />
+    </SessionProvider>
   );
 }
-
-// The one line that answers "am I safe?", and the line under it that says when.
-function Headline({ p, busy, lastRun }: { p: Progress | null; busy: boolean; lastRun?: Config["lastRun"] }) {
-  if (!p) return <ActivityIndicator />;
-  const when = lastRun?.at ? `Last checked ${ago(lastRun.at)}.` : "";
-  if (p.pending === 0 && p.failed === 0)
-    return (
-      <View>
-        <Text style={s.h1}>Your photos are safe.</Text>
-        <Text style={s.p}>
-          {p.total.toLocaleString()} {p.total === 1 ? "photo" : "photos and videos"} backed up. {when}
-        </Text>
-      </View>
-    );
-  if (p.current || (busy && !p.waitingFor))
-    return (
-      <View>
-        <Text style={s.h1}>Backing up…</Text>
-        <Text style={s.p}>
-          {p.pending.toLocaleString()} to go{p.current ? ` · ${p.current}` : ""}
-        </Text>
-      </View>
-    );
-  if (p.waitingFor)
-    return (
-      <View>
-        <Text style={s.h1}>{p.pending.toLocaleString()} waiting</Text>
-        <Text style={s.p}>{p.waitingFor === "wifi" ? "They'll back up when you're on Wi-Fi." : "They'll back up next time you charge the phone."} Or tap Check now to send them right away.</Text>
-      </View>
-    );
-  return (
-    <View>
-      <Text style={s.h1}>{p.pending.toLocaleString()} waiting</Text>
-      <Text style={s.p}>
-        {p.failed ? `${p.failed} couldn't be sent this time; they'll be tried again. ` : ""}
-        {when}
-      </Text>
-    </View>
-  );
-}
-
-function Toggle({ label, note, value, onChange }: { label: string; note: string; value: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <View style={s.toggle}>
-      <View style={{ flex: 1, paddingRight: 16 }}>
-        <Text style={s.toggleLabel}>{label}</Text>
-        <Text style={s.small}>{note}</Text>
-      </View>
-      <Switch value={value} onValueChange={onChange} trackColor={{ true: "#111" }} />
-    </View>
-  );
-}
-
-function ago(t: number) {
-  const m = Math.round((Date.now() - t) / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m} min ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h} h ago`;
-  return `${Math.round(h / 24)} days ago`;
-}
-
-const s = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#fafafa" },
-  scroll: { padding: 24, paddingTop: 36 },
-  brand: { fontSize: 22, fontWeight: "700", marginBottom: 32, color: "#111" },
-  h1: { fontSize: 30, fontWeight: "600", color: "#111", marginBottom: 8, lineHeight: 36 },
-  p: { fontSize: 16, color: "#6b6b6b", lineHeight: 22, marginBottom: 16 },
-  small: { fontSize: 13, color: "#8a8a8a", marginTop: 2 },
-  btn: { backgroundColor: "#111", borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 8 },
-  btnBusy: { opacity: 0.6 },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  input: { borderWidth: 1, borderColor: "#e4e4e4", borderRadius: 999, paddingHorizontal: 18, paddingVertical: 12, fontSize: 16, backgroundColor: "#fff", marginBottom: 12 },
-  error: { color: "#111", marginTop: 16 },
-  strip: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8, marginBottom: 8 },
-  thumb: { width: 72, height: 72, borderRadius: 8, backgroundColor: "#eee" },
-  row: { flexDirection: "row", gap: 20, marginTop: 16, flexWrap: "wrap" },
-  linkBtn: { paddingVertical: 10 },
-  linkText: { color: "#6b6b6b", fontSize: 15, textDecorationLine: "underline" },
-  back: { color: "#6b6b6b", fontSize: 16, marginBottom: 16 },
-  card: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#e4e4e4", borderRadius: 16, padding: 18, marginTop: 14 },
-  cardTitle: { fontSize: 20, fontWeight: "600", color: "#111", marginBottom: 6 },
-  btnGhost: { borderWidth: 1, borderColor: "#e4e4e4", borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 8, backgroundColor: "#fff" },
-  btnGhostText: { color: "#111", fontSize: 16, fontWeight: "600" },
-  code: { fontSize: 22, fontFamily: "monospace", letterSpacing: 1, textAlign: "center", backgroundColor: "#fff", borderWidth: 1, borderColor: "#e4e4e4", borderRadius: 12, padding: 16, marginBottom: 16, color: "#111" },
-  toggle: { flexDirection: "row", alignItems: "center", paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#eee" },
-  toggleLabel: { fontSize: 16, color: "#111" },
-});

@@ -20,6 +20,7 @@ export type Config = {
   email?: string | null;
   key?: string;
   settings?: Settings;
+  setup?: { seenCarousel?: boolean; moved?: boolean; backup?: boolean | "later" };
   lastRun?: { at: number; total: number; done: number; pending: number; failed: number };
   pendingLink?: { linkId: string; secret: string; code: string; url: string; expiresAt: number };
 };
@@ -80,7 +81,15 @@ export async function me(c: Config) {
   const r = await fetch(`${c.server}/api/me`, { headers: auth(c) });
   const j = await r.json();
   if (!r.ok || !j.signedIn) throw new Error("unlinked");
-  return j as { email?: string | null; key?: string | null; keyWrapped?: { salt: string; iv: string; ct: string; iter: number; hint?: string } | null; protection?: string; fileCount?: number };
+  return j as { email?: string | null; key?: string | null; keyWrapped?: { salt: string; iv: string; ct: string; iter: number; hint?: string } | null; protection?: string | null; fileCount?: number; bytes?: number; googleConnected?: boolean };
+}
+
+// The drive, as the website lists it (public fields only).
+export type FileRow = { id: string; name: string; size: number; mime: string; folder: string; source: string; createdAt: number; modifiedAt?: number | null; thumb?: boolean; stored?: boolean };
+export async function listFiles(c: Config): Promise<FileRow[]> {
+  const r = await fetch(`${c.server}/api/files`, { headers: auth(c) });
+  if (!r.ok) throw new Error(`files (${r.status})`);
+  return (await r.json()).files ?? [];
 }
 
 // This phone unlinks itself; what it already sent stays in the account.
@@ -114,8 +123,8 @@ async function postFile(c: Config, path: string, field: string, bytes: Uint8Arra
   }
 }
 
-export async function uploadBytes(c: Config, key: Key, bytes: Uint8Array, meta: { name: string; mime: string; folder: string; modifiedAt?: number }, thumb?: Uint8Array) {
-  const fields: Record<string, string> = { name: meta.name, mime: meta.mime, folder: meta.folder, source: "phone", size: String(bytes.length), encrypted: "1", ...(meta.modifiedAt ? { modifiedAt: String(meta.modifiedAt) } : {}) };
+export async function uploadBytes(c: Config, key: Key, bytes: Uint8Array, meta: { name: string; mime: string; folder: string; modifiedAt?: number }, thumb?: Uint8Array, source: "phone" | "google-drive" = "phone") {
+  const fields: Record<string, string> = { name: meta.name, mime: meta.mime, folder: meta.folder, source, size: String(bytes.length), encrypted: "1", ...(meta.modifiedAt ? { modifiedAt: String(meta.modifiedAt) } : {}) };
   if (bytes.length <= CHUNK_PLAIN_BYTES) {
     // One request for the file; the preview, if any, is attached right after.
     const r = await postFile(c, "/api/files", "file", await encryptChunk(key, bytes), fields);

@@ -167,13 +167,13 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
         data-testid="lightbox-box"
       >
         {/* the thumbnail, standing in until the real picture has painted */}
-        {ghost && <img src={ghost} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ opacity: shown ? 0 : 1, transition: "opacity 240ms ease-out" }} draggable={false} />}
+        {ghost && <img src={ghost} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ opacity: shown ? 0 : 1 }} draggable={false} />}
         {media && !media.video && (
           <img
             src={media.url}
             alt={f.name}
             className="absolute inset-0 h-full w-full object-contain"
-            style={{ opacity: shown ? 1 : 0, transition: "opacity 240ms ease-out" }}
+            style={{ opacity: shown ? 1 : 0 }}
             draggable={false}
           />
         )}
@@ -183,7 +183,7 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
             controls
             autoPlay
             className="absolute inset-0 h-full w-full"
-            style={{ opacity: shown ? 1 : 0, transition: "opacity 240ms ease-out" }}
+            style={{ opacity: shown ? 1 : 0 }}
             onLoadedMetadata={(e) => {
               const v = e.currentTarget;
               if (v.videoWidth && v.videoHeight) setSize(fit(v.videoWidth / v.videoHeight));

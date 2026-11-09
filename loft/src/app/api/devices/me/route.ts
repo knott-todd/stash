@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession, unauthorized } from "@/lib/session";
-import { getDevice, saveDevice, type DeviceState } from "@/lib/devices";
+import { getDevice, revokeDevice, saveDevice, type DeviceState } from "@/lib/devices";
 
 const STATUSES = ["idle", "scanning", "uploading", "paused", "error"] as const;
 
@@ -41,4 +41,12 @@ export async function GET() {
   const d = await getDevice(s.uid, s.deviceId);
   if (!d) return unauthorized();
   return NextResponse.json({ id: d.id, name: d.name, platform: d.platform, kind: d.kind, state: d.state ?? null });
+}
+
+// The device unlinks itself (the phone app's "Unlink this phone"). Files it sent stay in the account.
+export async function DELETE() {
+  const s = await getSession();
+  if (!s?.deviceId) return unauthorized();
+  const ok = await revokeDevice(s.uid, s.deviceId);
+  return ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: "not found" }, { status: 404 });
 }

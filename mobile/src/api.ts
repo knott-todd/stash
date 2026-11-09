@@ -38,6 +38,11 @@ export async function me(c: Config) {
   return j as { key?: string | null; keyWrapped?: { salt: string; iv: string; ct: string; iter: number; hint?: string } | null; protection?: string };
 }
 
+// This phone unlinks itself; what it already sent stays in the account.
+export async function unlinkSelf(c: Config) {
+  await fetch(`${c.server}/api/devices/me`, { method: "DELETE", headers: auth(c) }).catch(() => {});
+}
+
 export async function report(c: Config, state: object) {
   await fetch(`${c.server}/api/devices/me`, { method: "POST", headers: { ...auth(c), "content-type": "application/json" }, body: JSON.stringify(state) }).catch(() => {});
 }

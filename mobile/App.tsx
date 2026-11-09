@@ -2,10 +2,10 @@
 // Three screens in one file: Link, Allow, Status.
 
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as MediaLibrary from "expo-media-library";
 import * as Device from "expo-device";
-import { loadConfig, me, pollLink, saveConfig, startLink, type Config } from "./src/api";
+import { loadConfig, me, pollLink, saveConfig, startLink, unlinkSelf, type Config } from "./src/api";
 import { importKey, unwrapKey } from "./src/crypto";
 import { StashCrypto } from "./modules/stash-crypto";
 import { runBackup, scheduleBackground, type Progress } from "./src/backup";
@@ -22,6 +22,7 @@ export default function App() {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+  const [running, setRunning] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -141,12 +142,36 @@ export default function App() {
   }
 
   async function start(c: Config) {
+    if (running) return;
+    setRunning(true);
+    setError(null);
     try {
       await scheduleBackground();
       await runBackup(setProgress, 10 * 60 * 1000);
     } catch (e) {
       setError(String((e as Error).message));
+    } finally {
+      setRunning(false);
     }
+  }
+
+  function unlink() {
+    Alert.alert("Unlink this phone?", "It stops backing up. Everything already sent stays in Stash.", [
+      { text: "Keep linked", style: "cancel" },
+      {
+        text: "Unlink",
+        style: "destructive",
+        onPress: async () => {
+          if (cfg) await unlinkSelf(cfg);
+          const fresh: Config = { server: cfg?.server ?? (await loadConfig()).server };
+          await saveConfig(fresh);
+          setCfg(fresh);
+          setProgress(null);
+          setCode(null);
+          setScreen("link");
+        },
+      },
+    ]);
   }
 
   return (
@@ -207,6 +232,16 @@ export default function App() {
             <ActivityIndicator />
           )}
           <Text style={s.small}>New photos are sent when the phone gets a chance, usually within the hour. Open the app to send them right away.</Text>
+          <Pressable style={[s.btn, { marginTop: 24 }, running && { opacity: 0.6 }]} onPress={() => cfg && start(cfg)} disabled={running}>
+            {running ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Back up now</Text>}
+          </Pressable>
+          <Pressable style={s.linkBtn} onPress={() => cfg && Linking.openURL(`${cfg.server}/drive`).catch(() => {})}>
+            <Text style={s.linkText}>See my photos in Stash</Text>
+          </Pressable>
+          <Pressable style={s.linkBtn} onPress={unlink}>
+            <Text style={s.linkText}>Unlink this phone</Text>
+          </Pressable>
+          {cfg?.email ? <Text style={s.small}>Linked as {cfg.email}</Text> : null}
         </View>
       )}
 
@@ -226,4 +261,6 @@ const s = StyleSheet.create({
   btnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
   input: { borderWidth: 1, borderColor: "#e4e4e4", borderRadius: 999, paddingHorizontal: 18, paddingVertical: 12, fontSize: 16, backgroundColor: "#fff", marginBottom: 12 },
   error: { color: "#000", marginTop: 16 },
+  linkBtn: { paddingVertical: 12, alignItems: "center" },
+  linkText: { color: "#6b6b6b", fontSize: 15, textDecorationLine: "underline" },
 });

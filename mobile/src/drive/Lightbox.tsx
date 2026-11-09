@@ -15,7 +15,17 @@ import type { FileRow } from "../api";
 import { font } from "../ui";
 import { cachedThumb, isVideo, plainFile, thumb } from "./store";
 
-export function Lightbox({ items, start, onClose }: { items: FileRow[]; start: number; onClose: () => void }) {
+// Optional, for the Photos screen: `localUri` shows a picture straight from this phone (nothing to
+// fetch or decrypt), `caption` replaces the name in the top bar, `onShare` replaces the share,
+// and `footer` adds a bar of actions at the foot. Without them the viewer is as My drive uses it.
+export type LightboxExtras = {
+  localUri?: (f: FileRow) => string | null | undefined;
+  caption?: (f: FileRow) => string;
+  onShare?: (f: FileRow) => void;
+  footer?: (f: FileRow, close: () => void) => React.ReactNode;
+};
+
+export function Lightbox({ items, start, onClose, localUri, caption, onShare, footer }: { items: FileRow[]; start: number; onClose: () => void } & LightboxExtras) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [index, setIndex] = useState(start);
@@ -35,14 +45,14 @@ export function Lightbox({ items, start, onClose }: { items: FileRow[]; start: n
           windowSize={3}
           extraData={index}
           onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
-          renderItem={({ item, index: i }) => <Page f={item} width={width} height={height} active={i === index} />}
+          renderItem={({ item, index: i }) => <Page f={item} width={width} height={height} active={i === index} local={localUri?.(item) ?? null} />}
         />
         <View style={[s.bar, { paddingTop: insets.top + 6 }]}>
           <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Close" style={s.icon}>
             <X size={24} color="#fff" />
           </Pressable>
           <Text style={s.name} numberOfLines={1}>
-            {f?.name}
+            {f ? (caption ? caption(f) : f.name) : ""}
           </Text>
           <Pressable
             hitSlop={12}
@@ -50,6 +60,7 @@ export function Lightbox({ items, start, onClose }: { items: FileRow[]; start: n
             style={s.icon}
             onPress={async () => {
               if (!f) return;
+              if (onShare) return onShare(f);
               try {
                 await Sharing.shareAsync(await plainFile(f), { mimeType: f.mime, dialogTitle: f.name });
               } catch {}
@@ -58,17 +69,19 @@ export function Lightbox({ items, start, onClose }: { items: FileRow[]; start: n
             <Share2 size={22} color="#fff" />
           </Pressable>
         </View>
+        {footer && f && <View style={[s.foot, { paddingBottom: insets.bottom + 10 }]}>{footer(f, onClose)}</View>}
       </View>
     </Modal>
   );
 }
 
-function Page({ f, width, height, active }: { f: FileRow; width: number; height: number; active: boolean }) {
-  const [preview, setPreview] = useState<string | null>(() => cachedThumb(f.id));
-  const [full, setFull] = useState<string | null>(null);
+function Page({ f, width, height, active, local = null }: { f: FileRow; width: number; height: number; active: boolean; local?: string | null }) {
+  const [preview, setPreview] = useState<string | null>(() => local ?? cachedThumb(f.id));
+  const [full, setFull] = useState<string | null>(local);
   const [failed, setFailed] = useState(false);
   const video = isVideo(f);
   useEffect(() => {
+    if (local) return;
     let live = true;
     if (!preview) thumb(f).then((u) => live && u && setPreview(u));
     plainFile(f)
@@ -108,5 +121,6 @@ const s = StyleSheet.create({
   bar: { position: "absolute", left: 0, right: 0, top: 0, flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 10, backgroundColor: "rgba(0,0,0,0.35)" },
   icon: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   name: { flex: 1, color: "#fff", fontSize: 16, fontFamily: font.medium, textAlign: "center", marginHorizontal: 8 },
+  foot: { position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", justifyContent: "space-around", paddingTop: 10, backgroundColor: "rgba(0,0,0,0.35)" },
   fail: { color: "#fff", fontSize: 15, fontFamily: font.regular, position: "absolute", bottom: 80 },
 });

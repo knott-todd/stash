@@ -21,6 +21,7 @@ import { StepsScreen } from "./src/screens/Steps";
 import { YouAreInScreen } from "./src/screens/Setup";
 import { DriveScreen } from "./src/screens/Drive";
 import { MovePickerScreen } from "./src/screens/MovePicker";
+import { PhotosScreen } from "./src/screens/Photos";
 import { useShareTarget } from "./src/share";
 import "./src/backup"; // registers the background task
 
@@ -60,6 +61,7 @@ function Root() {
         <Stack.Screen name="YouAreIn" component={YouAreInScreen} options={{ gestureEnabled: false, animation: "fade" }} />
         <Stack.Screen name="Drive" component={DriveScreen} options={{ animation: "fade" }} />
         <Stack.Screen name="DriveMove" component={MovePickerScreen} options={{ animation: "slide_from_bottom" }} />
+        <Stack.Screen name="Photos" component={PhotosScreen} options={{ animation: "fade" }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

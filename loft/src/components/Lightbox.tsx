@@ -140,17 +140,20 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, items.length, onIndex]);
 
-  // Where the box rests, and the transform that puts it on the thumbnail.
-  const left = Math.round((window.innerWidth - size.w) / 2);
-  const top = Math.round((window.innerHeight - 56 - size.h) / 2);
-  let onThumb = "";
-  if (from) {
-    const r = from.rect;
-    const dx = r.left + r.width / 2 - (left + size.w / 2);
-    const dy = r.top + r.height / 2 - (top + size.h / 2);
-    onThumb = `translate(${dx}px, ${dy}px) scale(${r.width / size.w}, ${r.height / size.h})`;
-  }
+  // Where the box rests. On the thumbnail it takes the tile's real size, and the picture covers the
+  // box throughout: at the tile's shape that is the tile's own centre crop, and as the box grows to
+  // the picture's proportions the crop opens out until nothing is cropped. Size, not scale, so the
+  // framing changes continuously and the full picture can take over in the same framing.
+  // once the open move has finished, later size changes (arrows) are quick
+  const [settled, setSettled] = useState(!from);
+  useEffect(() => {
+    if (phase !== "open") return;
+    const t = setTimeout(() => setSettled(true), OPEN_MS * slowmo() + 50);
+    return () => clearTimeout(t);
+  }, [phase]);
   const atThumb = phase !== "open";
+  const rest = { left: Math.round((window.innerWidth - size.w) / 2), top: Math.round((window.innerHeight - 56 - size.h) / 2), w: size.w, h: size.h };
+  const geo = atThumb && from ? { left: from.rect.left, top: from.rect.top, w: from.rect.width, h: from.rect.height } : rest;
   const ms = (phase === "closing" ? CLOSE_MS : OPEN_MS) * slowmo();
   const chromeStyle = { opacity: atThumb ? 0 : 1, transition: `opacity ${ms}ms ease-out` } as const;
 
@@ -169,7 +172,7 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
       <div
         ref={box}
         className="fixed overflow-hidden rounded-2xl bg-black shadow-2xl"
-        style={{ left, top, width: size.w, height: size.h, transform: atThumb ? onThumb : "none", transformOrigin: "center", transition: `transform ${ms}ms ${EASE}, width 220ms ${EASE}, height 220ms ${EASE}, left 220ms ${EASE}, top 220ms ${EASE}` }}
+        style={{ left: geo.left, top: geo.top, width: geo.w, height: geo.h, borderRadius: atThumb ? 8 : 16, transition: phase === "start" ? "none" : `left ${settled ? 220 : ms}ms ${EASE}, top ${settled ? 220 : ms}ms ${EASE}, width ${settled ? 220 : ms}ms ${EASE}, height ${settled ? 220 : ms}ms ${EASE}, border-radius ${ms}ms ${EASE}` }}
         onClick={(e) => e.stopPropagation()}
         data-testid="lightbox-box"
       >
@@ -179,7 +182,7 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
           <img
             src={media.url}
             alt={f.name}
-            className="absolute inset-0 h-full w-full object-contain"
+            className="absolute inset-0 h-full w-full object-cover"
             style={{ opacity: shown ? 1 : 0 }}
             draggable={false}
           />
@@ -202,7 +205,7 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
         {failed && <p className="absolute inset-0 flex items-center justify-center text-white text-sm">Couldn&apos;t open this one.</p>}
       </div>
 
-      <div className="fixed left-0 right-0 flex items-center justify-center gap-4 text-sm text-white/90 px-4" style={{ top: top + size.h + 14, ...chromeStyle }} onClick={(e) => e.stopPropagation()}>
+      <div className="fixed left-0 right-0 flex items-center justify-center gap-4 text-sm text-white/90 px-4" style={{ top: rest.top + rest.h + 14, ...chromeStyle }} onClick={(e) => e.stopPropagation()}>
         <span className="truncate max-w-[50vw]" title={f.name}>
           {f.name}
         </span>

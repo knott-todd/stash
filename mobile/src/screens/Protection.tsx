@@ -32,9 +32,14 @@ export function DecideScreen() {
     }
   }
   return (
-    <Screen>
-      <Brand />
-      <Segments step={1} />
+    <Screen
+      top={
+        <>
+          <Brand />
+          <Segments step={1} />
+        </>
+      }
+    >
       <H1>How private should your files be?</H1>
       <P>You can change this later in Settings.</P>
       <Card emphasis>
@@ -73,6 +78,12 @@ export function ChoosePasscodeScreen() {
   return (
     <Screen
       centered
+      top={
+        <>
+          <Brand />
+          <Segments step={1} />
+        </>
+      }
       bottom={
         <>
           <ErrorLine text={error} />
@@ -80,8 +91,6 @@ export function ChoosePasscodeScreen() {
         </>
       }
     >
-      <Brand />
-      <Segments step={1} />
       <H1>Choose a passcode</H1>
       <P>You will type this on every new device. Stash never sees it, so Stash cannot reset it.</P>
       <Field secureTextEntry value={a} onChangeText={setA} placeholder="Passcode" autoFocus />
@@ -124,6 +133,12 @@ export function RecoveryScreen(props: unknown) {
   return (
     <Screen
       centered
+      top={
+        <>
+          <Brand />
+          <Segments step={1} />
+        </>
+      }
       bottom={
         <>
           <ErrorLine text={error} />
@@ -131,8 +146,6 @@ export function RecoveryScreen(props: unknown) {
         </>
       }
     >
-      <Brand />
-      <Segments step={1} />
       <H1>Your recovery code</H1>
       <P>If you ever forget the passcode, this code opens your files. Write it down somewhere safe.</P>
       <Text style={s.code} selectable>
@@ -182,8 +195,8 @@ export function EnterPasscodeScreen() {
           <Button title="Open" onPress={open} busy={busy} />
         </>
       }
+      top={<Brand />}
     >
-      <Brand />
       <H1>Your passcode</H1>
       <P>Your files are locked with a passcode only you know. Enter it once on this phone.{hint ? ` Hint: ${hint}` : ""}</P>
       <Field secureTextEntry value={pass} onChangeText={setPass} placeholder="Passcode" autoFocus onSubmitEditing={open} />

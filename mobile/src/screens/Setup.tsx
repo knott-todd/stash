@@ -64,6 +64,12 @@ export function MoveFilesScreen() {
   return (
     <Screen
       centered
+      top={
+        <>
+          <Brand />
+          <Segments step={2} />
+        </>
+      }
       bottom={
         <>
           <ErrorLine text={error} />
@@ -72,8 +78,6 @@ export function MoveFilesScreen() {
         </>
       }
     >
-      <Brand />
-      <Segments step={2} />
       <StepNumber n={2} />
       <H1>Move my files here</H1>
       {!copy && <P>Everything from Google Drive, folders included. Nothing is deleted there.</P>}
@@ -145,16 +149,14 @@ export function BackupPhoneScreen() {
           <Button title="Not now" kind="text" onPress={later} />
         </>
       }
-    >
-      <Brand />
-      {existing ? (
-        <Text style={s.eyebrow}>One step for this phone</Text>
-      ) : (
+      top={
         <>
-          <Segments step={3} />
-          <StepNumber n={3} />
+          <Brand />
+          {existing ? <Text style={s.eyebrow}>One step for this phone</Text> : <Segments step={3} />}
         </>
-      )}
+      }
+    >
+      {!existing && <StepNumber n={3} />}
       <H1>Back up this phone</H1>
       <P>Your photos and videos back up on their own. Nothing is deleted.</P>
       {denied === "partial" && <P small>Only the photos you picked will back up.</P>}

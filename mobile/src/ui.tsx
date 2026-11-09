@@ -12,8 +12,14 @@ export const line = "#e4e4e4";
 export const paper = "#fafafa";
 export const accent = "#1a56db";
 
-export function Screen({ children, bottom, scroll = true, centered = false }: { children: React.ReactNode; bottom?: React.ReactNode; scroll?: boolean; centered?: boolean }) {
-  const body = <View style={[s.body, centered && s.centered]}>{children}</View>;
+// `top` stays pinned (brand, step bar); with `centered` the children sit in the middle of the space below it.
+export function Screen({ children, bottom, top, scroll = true, centered = false }: { children: React.ReactNode; bottom?: React.ReactNode; top?: React.ReactNode; scroll?: boolean; centered?: boolean }) {
+  const body = (
+    <View style={s.body}>
+      {top}
+      <View style={[{ flex: 1 }, centered && s.centered]}>{children}</View>
+    </View>
+  );
   return (
     <SafeAreaView style={s.page}>
       {scroll ? (

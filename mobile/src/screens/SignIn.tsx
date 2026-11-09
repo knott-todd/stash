@@ -54,6 +54,12 @@ export function SignInScreen() {
   return (
     <Screen
       centered
+      top={
+        <>
+          <Brand />
+          {!existing && <Segments step={1} />}
+        </>
+      }
       bottom={
         <>
           <ErrorLine text={error} />
@@ -61,8 +67,6 @@ export function SignInScreen() {
         </>
       }
     >
-      <Brand />
-      {!existing && <Segments step={1} />}
       {!existing && <StepNumber n={1} />}
       <H1>Sign in with Google</H1>
       <P>Your files follow your Google account.</P>

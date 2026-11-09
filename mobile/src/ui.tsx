@@ -4,6 +4,7 @@
 import React from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Image } from "expo-image";
 
 export const ink = "#111111";
 export const ink2 = "#6b6b6b";
@@ -34,10 +35,14 @@ export function Screen({ children, bottom, top, scroll = true, centered = false 
   );
 }
 
+// The mark from the brand kit (loft/src/app/icon.svg) beside the wordmark, as the web header shows it.
 export const Brand = () => (
-  <Text style={s.brand}>
-    Stash<Text style={{ color: accent }}>.</Text>
-  </Text>
+  <View style={s.brandRow}>
+    <Image source={require("../assets/mark.svg")} style={s.mark} contentFit="contain" />
+    <Text style={s.brand}>
+      Stash<Text style={{ color: accent }}>.</Text>
+    </Text>
+  </View>
 );
 
 export const H1 = ({ children }: { children: React.ReactNode }) => <Text style={s.h1}>{children}</Text>;
@@ -82,7 +87,9 @@ const s = StyleSheet.create({
   body: { flex: 1, paddingHorizontal: 24, paddingTop: 20 },
   centered: { justifyContent: "center", paddingBottom: 80 },
   bottom: { paddingHorizontal: 24, paddingBottom: 20, paddingTop: 8, gap: 4 },
-  brand: { fontSize: 22, fontWeight: "700", color: ink, marginBottom: 28 },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 28 },
+  mark: { width: 30, height: 30, borderRadius: 7 },
+  brand: { fontSize: 22, fontWeight: "700", color: ink },
   h1: { fontSize: 30, lineHeight: 36, fontWeight: "600", color: ink, marginBottom: 10 },
   p: { fontSize: 16, lineHeight: 23, color: ink2, marginBottom: 14 },
   small: { fontSize: 13, lineHeight: 18, color: ink3, marginBottom: 10 },

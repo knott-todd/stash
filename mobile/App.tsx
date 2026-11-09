@@ -13,12 +13,12 @@ import { useFonts, Geist_400Regular, Geist_500Medium, Geist_600SemiBold, Geist_7
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SessionProvider, useSession } from "./src/session";
-import { nextRoute, type Route } from "./src/flow";
+import { nextRoute, type Dest } from "./src/flow";
 import { paper } from "./src/ui";
 import { CarouselScreen } from "./src/screens/Carousel";
-import { SignInScreen } from "./src/screens/SignIn";
 import { ChoosePasscodeScreen, DecideScreen, EnterPasscodeScreen, RecoveryScreen } from "./src/screens/Protection";
-import { BackupPhoneScreen, MoveFilesScreen, YouAreInScreen } from "./src/screens/Setup";
+import { StepsScreen } from "./src/screens/Steps";
+import { YouAreInScreen } from "./src/screens/Setup";
 import { DriveScreen } from "./src/screens/Drive";
 import "./src/backup"; // registers the background task
 
@@ -30,12 +30,12 @@ const theme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: p
 function Root() {
   const { cfg, existing } = useSession();
   const [fontsReady] = useFonts({ Geist_400Regular, Geist_500Medium, Geist_600SemiBold, Geist_700Bold });
-  const [initial, setInitial] = useState<Route | null>(null);
+  const [initial, setInitial] = useState<Dest | null>(null);
   useEffect(() => {
     if (!cfg || initial) return;
     nextRoute(cfg, null, existing)
       .then(setInitial)
-      .catch(() => setInitial("Carousel"));
+      .catch(() => setInitial({ name: "Carousel" }));
   }, [cfg, existing, initial]);
   if (!initial || !fontsReady)
     return (
@@ -45,15 +45,13 @@ function Root() {
     );
   return (
     <NavigationContainer theme={theme}>
-      <Stack.Navigator initialRouteName={initial} screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
+      <Stack.Navigator initialRouteName={initial.name} screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
         <Stack.Screen name="Carousel" component={CarouselScreen} />
-        <Stack.Screen name="SignIn" component={SignInScreen} />
+        <Stack.Screen name="Steps" component={StepsScreen} initialParams={initial.name === "Steps" ? initial.params : { step: 1 }} options={{ gestureEnabled: false }} />
         <Stack.Screen name="Decide" component={DecideScreen} options={{ gestureEnabled: false }} />
         <Stack.Screen name="ChoosePasscode" component={ChoosePasscodeScreen} />
         <Stack.Screen name="Recovery" component={RecoveryScreen} />
         <Stack.Screen name="EnterPasscode" component={EnterPasscodeScreen} options={{ gestureEnabled: false }} />
-        <Stack.Screen name="MoveFiles" component={MoveFilesScreen} options={{ gestureEnabled: false }} />
-        <Stack.Screen name="BackupPhone" component={BackupPhoneScreen} options={{ gestureEnabled: false }} />
         <Stack.Screen name="YouAreIn" component={YouAreInScreen} options={{ gestureEnabled: false, animation: "fade" }} />
         <Stack.Screen name="Drive" component={DriveScreen} options={{ animation: "fade" }} />
       </Stack.Navigator>

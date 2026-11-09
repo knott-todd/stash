@@ -71,34 +71,6 @@ export function Button({ title, onPress, busy = false, disabled = false, kind = 
 
 export const Field = (props: TextInputProps) => <TextInput placeholderTextColor={ink3} {...props} style={[s.input, props.style]} />;
 
-// "3 easy steps" as one stacked title, the way the website stacks "Free. Unlimited. Private.":
-// the current step large in ink, the other two small and faded in their places (done ones struck).
-// This is the only place a step screen shows progress: no bar, no "Step N of 3", no ticks.
-const STEPS = ["Sign in with Google", "Move my files here", "Back up this phone"];
-// `alone` (a returning account doing one step): the same large title, without numeral or list.
-export function StepTitle({ current, alone = false }: { current: number; alone?: boolean }) {
-  if (alone)
-    return (
-      <View style={s.stack}>
-        <Text style={s.stepNow} accessibilityRole="header">
-          {STEPS[current - 1]}
-        </Text>
-      </View>
-    );
-  return (
-    <View style={s.stack} accessible accessibilityRole="header" accessibilityLabel={`Step ${current} of 3. ${STEPS[current - 1]}`}>
-      {STEPS.map((label, i) => {
-        const n = i + 1;
-        return (
-          <Text key={n} style={n === current ? s.stepNow : [s.stepOther, n < current && s.stepDone]}>
-            {n}. {label}
-          </Text>
-        );
-      })}
-    </View>
-  );
-}
-
 export function Card({ children, emphasis = false }: { children: React.ReactNode; emphasis?: boolean }) {
   return <View style={[s.card, emphasis && { borderColor: ink }]}>{children}</View>;
 }
@@ -123,10 +95,5 @@ const s = StyleSheet.create({
   textBtn: { paddingVertical: 12, alignItems: "center" },
   textBtnLabel: { color: ink2, fontSize: 16, fontFamily: font.regular },
   input: { borderWidth: 1, borderColor: line, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 13, fontSize: 17, fontFamily: font.regular, backgroundColor: "#fff", marginBottom: 12, color: ink },
-  // The website's hero: semibold, line-height ~1.05, tracking -0.035em; the other steps at a quiet 22.
-  stack: { marginTop: 20, marginBottom: 20 },
-  stepNow: { fontSize: 42, lineHeight: 45, fontFamily: font.semibold, color: ink, letterSpacing: -0.035 * 42, marginVertical: 10 },
-  stepOther: { fontSize: 22, lineHeight: 29, fontFamily: font.semibold, color: faint, ...tight(22) },
-  stepDone: { textDecorationLine: "line-through" },
   card: { backgroundColor: "#fff", borderWidth: 1, borderColor: line, borderRadius: 16, padding: 18, marginBottom: 12 },
 });

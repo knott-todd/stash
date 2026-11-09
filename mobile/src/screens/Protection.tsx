@@ -24,7 +24,7 @@ export function DecideScreen() {
     try {
       await setProtection(cfg, { mode: "standard" });
       const next = await update({});
-      nav.reset({ index: 0, routes: [{ name: await nextRoute(next, null, existing) }] });
+      nav.reset({ index: 0, routes: [await nextRoute(next, null, existing, 1)] });
     } catch (e) {
       setError(String((e as Error).message));
     } finally {
@@ -120,7 +120,7 @@ export function RecoveryScreen(props: unknown) {
       const wrapped = await wrapKey(key, route.params.passcode, route.params.hint);
       await setProtection(cfg, { mode: "passcode", keyWrapped: wrapped });
       const next = await update({ key });
-      nav.reset({ index: 0, routes: [{ name: await nextRoute(next, null, existing) }] });
+      nav.reset({ index: 0, routes: [await nextRoute(next, null, existing, 1)] });
     } catch (e) {
       setError(String((e as Error).message));
     } finally {
@@ -174,7 +174,7 @@ export function EnterPasscodeScreen() {
       const raw = w.keyWrapped ? await unwrapKey(w.keyWrapped, pass) : null;
       if (!raw) return setError("That passcode didn’t open your files. Try again.");
       const next = await update({ key: raw });
-      nav.reset({ index: 0, routes: [{ name: await nextRoute(next, w, existing) }] });
+      nav.reset({ index: 0, routes: [await nextRoute(next, w, existing, 1)] });
     } catch (e) {
       setError(String((e as Error).message));
     } finally {

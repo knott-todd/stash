@@ -13,7 +13,7 @@ const slides = [
 ];
 
 export function CarouselScreen() {
-  const nav = useNavigation<NativeStackNavigationProp<Record<string, undefined>>>();
+  const nav = useNavigation<NativeStackNavigationProp<Record<string, { step?: 1 | 2 | 3 } | undefined>>>();
   const { cfg, update, setExisting } = useSession();
   const width = Dimensions.get("window").width - 48; // the screen already pads 24 each side
   const list = useRef<FlatList>(null);
@@ -25,7 +25,7 @@ export function CarouselScreen() {
   const start = async (existing: boolean) => {
     await update((c) => ({ ...c, setup: { ...(c.setup ?? {}), seenCarousel: true } }));
     setExisting(existing);
-    nav.navigate("SignIn");
+    nav.navigate("Steps", { step: 1 });
   };
   const last = i === 3;
   return (

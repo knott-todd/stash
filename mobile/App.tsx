@@ -1,47 +1,47 @@
-// Stash for phones: link once, allow photos once, then it backs up on its own.
-// Three screens in one file: Link, Allow, Status.
+// Stash for phones. One promise, kept quietly: every photo you take is safe.
+// Screens: Welcome (Continue with Google) → Passcode (Locked accounts only) →
+// Allow photos → Home (am I safe?) with Settings behind one link.
 
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Alert, AppState, Image, Linking, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import * as MediaLibrary from "expo-media-library";
 import * as Device from "expo-device";
-import { loadConfig, me, pollLink, saveConfig, startLink, unlinkSelf, type Config } from "./src/api";
+import { DEFAULT_SETTINGS, loadConfig, me, pollLink, saveConfig, settingsOf, signInSheet, startLink, unlinkSelf, type Config, type Settings } from "./src/api";
 import { importKey, unwrapKey } from "./src/crypto";
-import { StashCrypto } from "./modules/stash-crypto";
-import { runBackup, scheduleBackground, type Progress } from "./src/backup";
+import { census, runBackup, scheduleBackground, type Progress } from "./src/backup";
 
-type Screen = "loading" | "link" | "passcode" | "allow" | "status";
+type Screen = "loading" | "welcome" | "passcode" | "allow" | "home" | "settings";
 
 export default function App() {
   const [cfg, setCfg] = useState<Config | null>(null);
   const [screen, setScreen] = useState<Screen>("loading");
-  const [code, setCode] = useState<string | null>(null);
-  const [url, setUrl] = useState<string | null>(null);
   const [hint, setHint] = useState<string | undefined>();
   const [passcode, setPasscode] = useState("");
   const [progress, setProgress] = useState<Progress | null>(null);
+  const [recent, setRecent] = useState<MediaLibrary.Asset[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [opening, setOpening] = useState(false);
-  const [running, setRunning] = useState(false);
+  const [busy, setBusy] = useState<"signin" | "open" | "backup" | null>(null);
 
   useEffect(() => {
     (async () => {
       const c = await loadConfig();
       setCfg(c);
-      if (!c.token) {
-        setScreen("link");
-        // A code was requested and the app was closed before approval: keep waiting for it.
-        if (c.pendingLink && c.pendingLink.expiresAt > Date.now()) waitForApproval(c, c.pendingLink);
-        return;
-      }
+      if (!c.token) return setScreen("welcome");
       await afterLink(c);
     })();
   }, []);
 
+  // Coming back to the app: refresh the picture and send what is waiting.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active" && screen === "home" && cfg) start(cfg);
+    });
+    return () => sub.remove();
+  }, [screen, cfg]);
+
   async function afterLink(c: Config) {
     try {
       const who = await me(c);
-      // A saved key that no longer decodes (an older build stored it wrongly) is dropped, so the passcode is asked again.
       if (c.key) {
         try {
           await importKey(c.key);
@@ -56,40 +56,31 @@ export default function App() {
         return setScreen("passcode");
       }
       const perm = await MediaLibrary.getPermissionsAsync(false, ["photo", "video"]);
-      setScreen(perm.granted ? "status" : "allow");
+      setScreen(perm.granted ? "home" : "allow");
       if (perm.granted) start(c);
     } catch {
-      setScreen("link");
+      setScreen("welcome");
     }
   }
 
-  async function link() {
+  // Continue with Google: the website signs the person in and links this phone in one tap.
+  async function signIn() {
+    if (busy) return;
+    setBusy("signin");
     setError(null);
     const c = cfg ?? (await loadConfig());
     try {
       const l = await startLink(c.server, `${Device.deviceName ?? "Phone"}`);
       const pending = { linkId: l.linkId, secret: l.secret, code: l.code, url: l.url, expiresAt: Date.now() + l.expiresInSeconds * 1000 };
       await saveConfig({ ...c, pendingLink: pending });
-      Linking.openURL(l.url).catch(() => {});
-      await waitForApproval(c, pending);
-    } catch (e) {
-      setError(String((e as Error).message));
-    }
-  }
-
-  // Poll until the browser approves the code or it expires. Survives dropped requests and app restarts.
-  async function waitForApproval(c: Config, l: NonNullable<Config["pendingLink"]>) {
-    setCode(l.code);
-    setUrl(l.url);
-    try {
-      const deadline = l.expiresAt;
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 2500));
-        // A dropped request (mobile data, a tunnel change) is not a reason to give up; keep asking until the code expires.
+      await signInSheet(c.server, l);
+      // The sheet has closed; the approval is on the server if they said yes.
+      for (let i = 0; i < 6; i++) {
         let s;
         try {
           s = await pollLink(c.server, l.linkId, l.secret);
         } catch {
+          await new Promise((r) => setTimeout(r, 1500));
           continue;
         }
         if (s.state === "approved") {
@@ -99,60 +90,70 @@ export default function App() {
           return afterLink(next);
         }
         if (s.state !== "waiting") break;
+        await new Promise((r) => setTimeout(r, 1500));
       }
-      await saveConfig({ ...c, pendingLink: undefined });
-      setError("The code expired. Try again.");
-      setCode(null);
+      setError("Sign-in didn't finish. Try again.");
     } catch (e) {
       setError(String((e as Error).message));
+    } finally {
+      setBusy(null);
     }
   }
 
   async function submitPasscode() {
-    if (!cfg || opening) return;
-    setOpening(true);
+    if (!cfg || busy) return;
+    setBusy("open");
     setError(null);
     let raw: string | null = null;
-    const t0 = Date.now();
     try {
       const who = await me(cfg);
-      console.log("passcode: wrapped?", !!who.keyWrapped, "iter", who.keyWrapped?.iter, "native", !!StashCrypto);
       raw = who.keyWrapped ? await unwrapKey(who.keyWrapped, passcode) : null;
-      console.log("passcode: unwrap", raw ? `ok ${raw.length} chars` : "null", `${Date.now() - t0} ms`);
     } catch (e) {
-      console.log("passcode: threw", String((e as Error).message));
       setError(String((e as Error).message));
       return;
     } finally {
-      setOpening(false);
+      setBusy(null);
     }
-    if (!raw) return setError("That passcode didn't open the files.");
+    if (!raw) return setError("That passcode didn't open your files. Try again.");
     const next = { ...cfg, key: raw };
     await saveConfig(next);
     setCfg(next);
-    setError(null);
+    setPasscode("");
     afterLink(next);
   }
 
   async function allow() {
     const perm = await MediaLibrary.requestPermissionsAsync(false, ["photo", "video"]);
-    if (!perm.granted) return setError("Stash needs access to your photos to back them up.");
-    setScreen("status");
+    if (!perm.granted) return setError("Stash needs access to your photos to keep them safe.");
+    setScreen("home");
     if (cfg) start(cfg);
   }
 
-  async function start(c: Config) {
-    if (running) return;
-    setRunning(true);
+  const start = useCallback(async (c: Config, force = false) => {
+    if (busy === "backup") return;
+    setBusy("backup");
     setError(null);
     try {
       await scheduleBackground();
-      await runBackup(setProgress, 10 * 60 * 1000);
+      setProgress(await census(c));
+      setRecent((await MediaLibrary.getAssetsAsync({ mediaType: ["photo"], sortBy: [["creationTime", false]], first: 8 })).assets);
+      await runBackup(setProgress, 10 * 60 * 1000, force);
+      setCfg(await loadConfig());
     } catch (e) {
-      setError(String((e as Error).message));
+      const m = String((e as Error).message);
+      if (m === "locked") setScreen("passcode");
+      else if (m === "no-permission") setScreen("allow");
+      else setError(m);
     } finally {
-      setRunning(false);
+      setBusy(null);
     }
+  }, [busy]);
+
+  async function setSetting<K extends keyof Settings>(k: K, v: Settings[K]) {
+    if (!cfg) return;
+    const next = { ...cfg, settings: { ...settingsOf(cfg), [k]: v } };
+    await saveConfig(next);
+    setCfg(next);
   }
 
   function unlink() {
@@ -167,100 +168,176 @@ export default function App() {
           await saveConfig(fresh);
           setCfg(fresh);
           setProgress(null);
-          setCode(null);
-          setScreen("link");
+          setScreen("welcome");
         },
       },
     ]);
   }
 
+  const settings = cfg ? settingsOf(cfg) : DEFAULT_SETTINGS;
+
   return (
     <SafeAreaView style={s.page}>
-      <Text style={s.brand}>Stash.</Text>
-      {screen === "loading" && <ActivityIndicator />}
+      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+        <Text style={s.brand}>Stash.</Text>
+        {screen === "loading" && <ActivityIndicator />}
 
-      {screen === "link" && (
-        <View>
-          <Text style={s.h1}>Link this phone</Text>
-          <Text style={s.p}>Your photos back up to your Stash account on their own. Link once; nothing to do after that.</Text>
-          {code ? (
-            <View>
-              <Text style={s.code}>{code}</Text>
-              <Text style={s.p}>Approve it in the page that opened, or at {url}</Text>
-              <ActivityIndicator style={{ marginTop: 16 }} />
-            </View>
-          ) : (
-            <Pressable style={s.btn} onPress={link}>
-              <Text style={s.btnText}>Get a code</Text>
+        {screen === "welcome" && (
+          <View>
+            <Text style={s.h1}>Every photo you take, kept safe.</Text>
+            <Text style={s.p}>Sign in once. From then on your photos and videos back up on their own, and they are there on any device you sign in to.</Text>
+            <Pressable style={[s.btn, busy === "signin" && s.btnBusy]} onPress={signIn} disabled={!!busy}>
+              {busy === "signin" ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Continue with Google</Text>}
             </Pressable>
-          )}
-        </View>
-      )}
+          </View>
+        )}
 
-      {screen === "passcode" && (
-        <View>
-          <Text style={s.h1}>Enter your passcode</Text>
-          <Text style={s.p}>Your files are locked with a passcode. Enter it once on this phone.{hint ? ` Hint: ${hint}` : ""}</Text>
-          <TextInput secureTextEntry value={passcode} onChangeText={setPasscode} placeholder="Passcode" style={s.input} />
-          <Pressable style={[s.btn, opening && { opacity: 0.6 }]} onPress={submitPasscode} disabled={opening}>
-            {opening ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Open</Text>}
-          </Pressable>
-        </View>
-      )}
+        {screen === "passcode" && (
+          <View>
+            <Text style={s.h1}>Your passcode</Text>
+            <Text style={s.p}>Your files are locked with a passcode only you know. Enter it once on this phone.{hint ? ` Hint: ${hint}` : ""}</Text>
+            <TextInput secureTextEntry value={passcode} onChangeText={setPasscode} placeholder="Passcode" style={s.input} autoFocus onSubmitEditing={submitPasscode} />
+            <Pressable style={[s.btn, busy === "open" && s.btnBusy]} onPress={submitPasscode} disabled={!!busy}>
+              {busy === "open" ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Open</Text>}
+            </Pressable>
+          </View>
+        )}
 
-      {screen === "allow" && (
-        <View>
-          <Text style={s.h1}>Allow photos</Text>
-          <Text style={s.p}>One permission, then every photo and video you take is backed up, encrypted, without you doing anything.</Text>
-          <Pressable style={s.btn} onPress={allow}>
-            <Text style={s.btnText}>Allow access to photos</Text>
-          </Pressable>
-        </View>
-      )}
+        {screen === "allow" && (
+          <View>
+            <Text style={s.h1}>Allow photos</Text>
+            <Text style={s.p}>Stash needs to see your photos and videos to keep them safe. Nothing else on the phone. Nothing is deleted.</Text>
+            <Pressable style={s.btn} onPress={allow}>
+              <Text style={s.btnText}>Allow access to photos</Text>
+            </Pressable>
+          </View>
+        )}
 
-      {screen === "status" && (
-        <View>
-          <Text style={s.h1}>Backing up</Text>
-          {progress ? (
-            <Text style={s.p}>
-              {progress.done.toLocaleString()} of {progress.total.toLocaleString()} backed up
-              {progress.pending ? ` · ${progress.pending.toLocaleString()} to go` : " · up to date"}
-              {progress.failed ? ` · ${progress.failed} couldn't be sent` : ""}
-              {progress.current ? `\n${progress.current}` : ""}
-            </Text>
-          ) : (
-            <ActivityIndicator />
-          )}
-          <Text style={s.small}>New photos are sent when the phone gets a chance, usually within the hour. Open the app to send them right away.</Text>
-          <Pressable style={[s.btn, { marginTop: 24 }, running && { opacity: 0.6 }]} onPress={() => cfg && start(cfg)} disabled={running}>
-            {running ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Back up now</Text>}
-          </Pressable>
-          <Pressable style={s.linkBtn} onPress={() => cfg && Linking.openURL(`${cfg.server}/drive`).catch(() => {})}>
-            <Text style={s.linkText}>See my photos in Stash</Text>
-          </Pressable>
-          <Pressable style={s.linkBtn} onPress={unlink}>
-            <Text style={s.linkText}>Unlink this phone</Text>
-          </Pressable>
-          {cfg?.email ? <Text style={s.small}>Linked as {cfg.email}</Text> : null}
-        </View>
-      )}
+        {screen === "home" && (
+          <View>
+            <Headline p={progress} busy={busy === "backup"} lastRun={cfg?.lastRun} />
+            {recent.length > 0 && (
+              <View style={s.strip}>
+                {recent.map((a) => (
+                  <Image key={a.id} source={{ uri: a.uri }} style={s.thumb} />
+                ))}
+              </View>
+            )}
+            <View style={s.row}>
+              <Pressable style={s.linkBtn} onPress={() => cfg && start(cfg, true)} disabled={busy === "backup"}>
+                <Text style={s.linkText}>{busy === "backup" ? "Checking…" : "Check now"}</Text>
+              </Pressable>
+              <Pressable style={s.linkBtn} onPress={() => cfg && Linking.openURL(`${cfg.server}/drive`).catch(() => {})}>
+                <Text style={s.linkText}>Open Stash</Text>
+              </Pressable>
+              <Pressable style={s.linkBtn} onPress={() => setScreen("settings")}>
+                <Text style={s.linkText}>Settings</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
-      {error && <Text style={s.error}>{error}</Text>}
+        {screen === "settings" && (
+          <View>
+            <Pressable onPress={() => setScreen("home")}>
+              <Text style={s.back}>‹ Back</Text>
+            </Pressable>
+            <Text style={s.h1}>Settings</Text>
+            <Toggle label="Only on Wi-Fi" note="Never uses mobile data." value={settings.wifiOnly} onChange={(v) => setSetting("wifiOnly", v)} />
+            <Toggle label="Only while charging" note="The big first backup happens overnight, not in your pocket." value={settings.chargingOnly} onChange={(v) => setSetting("chargingOnly", v)} />
+            <Toggle label="Include videos" note="Videos are large; turn this off to keep only photos safe." value={settings.videos} onChange={(v) => setSetting("videos", v)} />
+            <Text style={[s.small, { marginTop: 28 }]}>Linked as {cfg?.email ?? "your account"}</Text>
+            <Pressable style={s.linkBtn} onPress={unlink}>
+              <Text style={[s.linkText, { color: "#111" }]}>Unlink this phone</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {error && <Text style={s.error}>{error}</Text>}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
+// The one line that answers "am I safe?", and the line under it that says when.
+function Headline({ p, busy, lastRun }: { p: Progress | null; busy: boolean; lastRun?: Config["lastRun"] }) {
+  if (!p) return <ActivityIndicator />;
+  const when = lastRun?.at ? `Last checked ${ago(lastRun.at)}.` : "";
+  if (p.pending === 0 && p.failed === 0)
+    return (
+      <View>
+        <Text style={s.h1}>Your photos are safe.</Text>
+        <Text style={s.p}>
+          {p.total.toLocaleString()} {p.total === 1 ? "photo" : "photos and videos"} backed up. {when}
+        </Text>
+      </View>
+    );
+  if (p.current || (busy && !p.waitingFor))
+    return (
+      <View>
+        <Text style={s.h1}>Backing up…</Text>
+        <Text style={s.p}>
+          {p.pending.toLocaleString()} to go{p.current ? ` · ${p.current}` : ""}
+        </Text>
+      </View>
+    );
+  if (p.waitingFor)
+    return (
+      <View>
+        <Text style={s.h1}>{p.pending.toLocaleString()} waiting</Text>
+        <Text style={s.p}>{p.waitingFor === "wifi" ? "They'll back up when you're on Wi-Fi." : "They'll back up next time you charge the phone."} Or tap Check now to send them right away.</Text>
+      </View>
+    );
+  return (
+    <View>
+      <Text style={s.h1}>{p.pending.toLocaleString()} waiting</Text>
+      <Text style={s.p}>
+        {p.failed ? `${p.failed} couldn't be sent this time; they'll be tried again. ` : ""}
+        {when}
+      </Text>
+    </View>
+  );
+}
+
+function Toggle({ label, note, value, onChange }: { label: string; note: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <View style={s.toggle}>
+      <View style={{ flex: 1, paddingRight: 16 }}>
+        <Text style={s.toggleLabel}>{label}</Text>
+        <Text style={s.small}>{note}</Text>
+      </View>
+      <Switch value={value} onValueChange={onChange} trackColor={{ true: "#111" }} />
+    </View>
+  );
+}
+
+function ago(t: number) {
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} h ago`;
+  return `${Math.round(h / 24)} days ago`;
+}
+
 const s = StyleSheet.create({
-  page: { flex: 1, padding: 24, backgroundColor: "#fafafa" },
+  page: { flex: 1, backgroundColor: "#fafafa" },
+  scroll: { padding: 24, paddingTop: 36 },
   brand: { fontSize: 22, fontWeight: "700", marginBottom: 32, color: "#111" },
-  h1: { fontSize: 28, fontWeight: "600", color: "#111", marginBottom: 8 },
+  h1: { fontSize: 30, fontWeight: "600", color: "#111", marginBottom: 8, lineHeight: 36 },
   p: { fontSize: 16, color: "#6b6b6b", lineHeight: 22, marginBottom: 16 },
-  small: { fontSize: 13, color: "#8a8a8a", marginTop: 16 },
-  code: { fontSize: 36, fontWeight: "700", letterSpacing: 6, color: "#111", textAlign: "center", marginVertical: 16 },
+  small: { fontSize: 13, color: "#8a8a8a", marginTop: 2 },
   btn: { backgroundColor: "#111", borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 8 },
+  btnBusy: { opacity: 0.6 },
   btnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
   input: { borderWidth: 1, borderColor: "#e4e4e4", borderRadius: 999, paddingHorizontal: 18, paddingVertical: 12, fontSize: 16, backgroundColor: "#fff", marginBottom: 12 },
-  error: { color: "#000", marginTop: 16 },
-  linkBtn: { paddingVertical: 12, alignItems: "center" },
+  error: { color: "#111", marginTop: 16 },
+  strip: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8, marginBottom: 8 },
+  thumb: { width: 72, height: 72, borderRadius: 8, backgroundColor: "#eee" },
+  row: { flexDirection: "row", gap: 20, marginTop: 16, flexWrap: "wrap" },
+  linkBtn: { paddingVertical: 10 },
   linkText: { color: "#6b6b6b", fontSize: 15, textDecorationLine: "underline" },
+  back: { color: "#6b6b6b", fontSize: 16, marginBottom: 16 },
+  toggle: { flexDirection: "row", alignItems: "center", paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  toggleLabel: { fontSize: 16, color: "#111" },
 });

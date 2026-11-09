@@ -25,7 +25,12 @@ export default function App() {
     (async () => {
       const c = await loadConfig();
       setCfg(c);
-      if (!c.token) return setScreen("link");
+      if (!c.token) {
+        setScreen("link");
+        // A code was requested and the app was closed before approval: keep waiting for it.
+        if (c.pendingLink && c.pendingLink.expiresAt > Date.now()) waitForApproval(c, c.pendingLink);
+        return;
+      }
       await afterLink(c);
     })();
   }, []);
@@ -50,21 +55,39 @@ export default function App() {
     const c = cfg ?? (await loadConfig());
     try {
       const l = await startLink(c.server, `${Device.deviceName ?? "Phone"}`);
-      setCode(l.code);
-      setUrl(l.url);
+      const pending = { linkId: l.linkId, secret: l.secret, code: l.code, url: l.url, expiresAt: Date.now() + l.expiresInSeconds * 1000 };
+      await saveConfig({ ...c, pendingLink: pending });
       Linking.openURL(l.url).catch(() => {});
-      const deadline = Date.now() + l.expiresInSeconds * 1000;
+      await waitForApproval(c, pending);
+    } catch (e) {
+      setError(String((e as Error).message));
+    }
+  }
+
+  // Poll until the browser approves the code or it expires. Survives dropped requests and app restarts.
+  async function waitForApproval(c: Config, l: NonNullable<Config["pendingLink"]>) {
+    setCode(l.code);
+    setUrl(l.url);
+    try {
+      const deadline = l.expiresAt;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 2500));
-        const s = await pollLink(c.server, l.linkId, l.secret);
+        // A dropped request (mobile data, a tunnel change) is not a reason to give up; keep asking until the code expires.
+        let s;
+        try {
+          s = await pollLink(c.server, l.linkId, l.secret);
+        } catch {
+          continue;
+        }
         if (s.state === "approved") {
-          const next = { ...c, token: s.token, deviceId: s.deviceId, email: s.email };
+          const next = { ...c, token: s.token, deviceId: s.deviceId, email: s.email, pendingLink: undefined };
           await saveConfig(next);
           setCfg(next);
           return afterLink(next);
         }
         if (s.state !== "waiting") break;
       }
+      await saveConfig({ ...c, pendingLink: undefined });
       setError("The code expired. Try again.");
       setCode(null);
     } catch (e) {

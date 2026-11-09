@@ -6,7 +6,7 @@ import { encryptChunk, CHUNK_PLAIN_BYTES, type Key } from "./crypto";
 
 export const DEFAULT_SERVER = "https://stash.olusanyatodd.com";
 
-export type Config = { server: string; token?: string; deviceId?: string; email?: string | null; key?: string };
+export type Config = { server: string; token?: string; deviceId?: string; email?: string | null; key?: string; pendingLink?: { linkId: string; secret: string; code: string; url: string; expiresAt: number } };
 
 export async function loadConfig(): Promise<Config> {
   const raw = await SecureStore.getItemAsync("stash_config");

@@ -241,7 +241,7 @@ export function FileBrowser({
             const k = keyOf(r);
             const isSel = selected.has(k);
             // Selected tile: it grows a touch and its name banner turns selection blue; no ring.
-            const sel = isSel ? "scale-[1.03] shadow-md border-[#c7d9f6]" : "hover:border-ink-3";
+            const sel = isSel ? "scale-[1.03] shadow-md border-[#c7d9f6] bg-[#e8f0fe]" : "hover:border-ink-3"; // blue under the banner too, so no white fringe at the clipped corners
             const grow = "transition-[transform,box-shadow,border-color] duration-150";
             if (r.kind === "folder")
               return (

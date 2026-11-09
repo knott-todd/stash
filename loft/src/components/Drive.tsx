@@ -706,43 +706,45 @@ export function Drive() {
               ))}
           </nav>
           {!empty && (
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <label className="relative w-full sm:w-auto order-last sm:order-none">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" aria-hidden />
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search"
-                  aria-label="Search files"
-                  className="w-full sm:w-44 sm:focus:w-64 transition-[width] rounded-full border border-line bg-white pl-8 pr-3 py-2 text-sm outline-none focus:border-ink"
-                  data-testid="search"
-                />
-              </label>
-              <span className="hidden sm:inline-flex items-center rounded-full border border-line bg-white p-0.5" role="group" aria-label="View">
-                <button className={`rounded-full px-2.5 py-1 text-xs ${view === "list" ? "bg-ink text-white" : "text-ink-2 hover:text-ink"}`} onClick={() => chooseView("list")} aria-pressed={view === "list"} data-testid="view-list">
-                  List
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+              {/* One bar for the tools: search, view, New folder; dividers between. Upload is the
+                  only filled control and sits beside it at the same height and radius. */}
+              <div className="flex items-center h-9 w-full sm:w-auto rounded-full border border-line bg-white divide-x divide-line" role="toolbar" aria-label="Files">
+                <label className="relative flex-1 sm:flex-none h-full">
+                  <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3" aria-hidden />
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search"
+                    aria-label="Search files"
+                    className="h-full w-full sm:w-40 sm:focus:w-56 transition-[width] rounded-l-full bg-transparent pl-9 pr-3 text-sm outline-none"
+                    data-testid="search"
+                  />
+                </label>
+                <span className="hidden sm:inline-flex items-center h-full px-1.5 gap-0.5" role="group" aria-label="View">
+                  <button className={`rounded-full px-2.5 py-1 text-xs ${view === "list" ? "bg-ink text-white" : "text-ink-2 hover:text-ink"}`} onClick={() => chooseView("list")} aria-pressed={view === "list"} data-testid="view-list">
+                    List
+                  </button>
+                  <button className={`rounded-full px-2.5 py-1 text-xs ${view === "grid" ? "bg-ink text-white" : "text-ink-2 hover:text-ink"}`} onClick={() => chooseView("grid")} aria-pressed={view === "grid"} data-testid="view-grid">
+                    Grid
+                  </button>
+                </span>
+                <button className="inline-flex items-center gap-1.5 h-full px-3.5 rounded-r-full text-sm text-ink-2 hover:text-ink hover:bg-cream-2 whitespace-nowrap" onClick={newFolder} data-testid="new-folder">
+                  <FolderPlus size={15} /> New folder
                 </button>
-                <button className={`rounded-full px-2.5 py-1 text-xs ${view === "grid" ? "bg-ink text-white" : "text-ink-2 hover:text-ink"}`} onClick={() => chooseView("grid")} aria-pressed={view === "grid"} data-testid="view-grid">
-                  Grid
-                </button>
-              </span>
-              <button className="btn-ghost whitespace-nowrap inline-flex items-center gap-1.5" onClick={newFolder} data-testid="new-folder">
-                <FolderPlus size={15} /> New folder
-              </button>
-              {/* On a phone the job is its own camera roll; Google Drive moves are a laptop job.
-                  Chosen in CSS (pointer-coarse) so the right one is there on first paint. */}
+              </div>
+              {/* On a phone the job is its own camera roll; Add is the floating button below. */}
               <span className="hidden pointer-coarse:contents">
-                <Link href="/m" className="btn-ghost flex-1 border border-line text-ink whitespace-nowrap" data-testid="toolbar-photos">
+                <Link href="/m" className="btn-ghost h-9 py-0 px-4 rounded-full border border-line text-ink text-sm whitespace-nowrap" data-testid="toolbar-photos">
                   {folder === "Phone photos" ? "Back up new photos" : "Back up photos"}
                 </Link>
               </span>
-              {/* On a phone, Add is the floating button below. */}
               <span className="contents pointer-coarse:hidden">
                 {/* .btn-primary is unlayered CSS, so utility classes can't shrink it; inline style can. */}
                 <button
                   className="btn-primary text-sm inline-flex items-center gap-1.5"
-                  style={{ padding: "0.4rem 0.85rem", borderRadius: "0.5rem" }}
+                  style={{ height: "2.25rem", padding: "0 1rem", borderRadius: "9999px" }}
                   onClick={() => inputRef.current?.click()}
                   data-testid="upload"
                   disabled={!!busy}

@@ -96,7 +96,7 @@ function fit(aspect: number) {
   return { w: Math.round(w), h: Math.round(h) };
 }
 
-export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: { items: FileRow[]; index: number; from?: Origin; onIndex: (i: number) => void; onClose: () => void; onDownload: (f: FileRow) => void }) {
+export function Lightbox({ items, index, from, locate, onIndex, onClose, onDownload }: { items: FileRow[]; index: number; from?: Origin; locate?: (f: FileRow) => Origin | undefined; onIndex: (i: number) => void; onClose: () => void; onDownload: (f: FileRow) => void }) {
   const f = items[index];
   const video = f.mime.startsWith("video/");
   const [media, setMedia] = useState<{ url: string; video: boolean } | null>(null); // what is on screen; stays until the next one is ready
@@ -122,8 +122,13 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
     return () => cancelAnimationFrame(raf);
   }, [from, ghostReady]);
 
+  // Close: shrink back into the tile of the picture showing now (after arrows that is a different
+  // tile from the one we opened from). If its tile is off screen, fade out in place instead.
+  const [exit, setExit] = useState<Origin | null>(null);
   function close() {
-    if (!from || index !== first.current) return onClose();
+    if (phase === "closing") return;
+    const target = locate?.(f) ?? (index === first.current ? from : undefined);
+    setExit(target ?? null);
     setPhase("closing");
     setTimeout(onClose, CLOSE_MS * slowmo());
   }
@@ -188,7 +193,9 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
   }, [phase]);
   const atThumb = phase !== "open";
   const rest = { left: Math.round((window.innerWidth - size.w) / 2), top: Math.round((window.innerHeight - 56 - size.h) / 2), w: size.w, h: size.h };
-  const geo = atThumb && from ? { left: from.rect.left, top: from.rect.top, w: from.rect.width, h: from.rect.height } : rest;
+  const origin = phase === "closing" ? exit : from;
+  const geo = atThumb && origin ? { left: origin.rect.left, top: origin.rect.top, w: origin.rect.width, h: origin.rect.height } : rest;
+  const fadeOut = phase === "closing" && !exit;
   const ms = (phase === "closing" ? CLOSE_MS : OPEN_MS) * slowmo();
   const chromeStyle = { opacity: atThumb ? 0 : 1, transition: `opacity ${ms}ms ease-out` } as const;
 
@@ -207,7 +214,7 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
       <div
         ref={box}
         className={`fixed overflow-hidden rounded-2xl ${atThumb ? "" : "bg-black shadow-2xl"}`}
-        style={{ left: geo.left, top: geo.top, width: geo.w, height: geo.h, borderRadius: atThumb && from ? (from.radii ?? [8, 8, 8, 8]).map((v) => `${v}px`).join(" ") : 16, transition: phase === "start" ? "none" : `left ${settled ? 320 : ms}ms ${EASE}, top ${settled ? 320 : ms}ms ${EASE}, width ${settled ? 320 : ms}ms ${EASE}, height ${settled ? 320 : ms}ms ${EASE}, border-radius ${ms}ms ${EASE}` }}
+        style={{ left: geo.left, top: geo.top, width: geo.w, height: geo.h, borderRadius: atThumb && origin ? (origin.radii ?? [8, 8, 8, 8]).map((v) => `${v}px`).join(" ") : 16, opacity: fadeOut ? 0 : 1, transition: phase === "start" ? "none" : `left ${settled && !atThumb ? 320 : ms}ms ${EASE}, top ${settled && !atThumb ? 320 : ms}ms ${EASE}, width ${settled && !atThumb ? 320 : ms}ms ${EASE}, height ${settled && !atThumb ? 320 : ms}ms ${EASE}, border-radius ${ms}ms ${EASE}, opacity ${ms}ms ease-out` }}
         onClick={(e) => e.stopPropagation()}
         data-testid="lightbox-box"
       >

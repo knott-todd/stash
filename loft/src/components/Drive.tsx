@@ -281,12 +281,18 @@ export function Drive() {
     const byId = new Map(pool.map((x) => [x.id, x]));
     const shown = [...document.querySelectorAll<HTMLElement>("[data-file-id]")].map((e) => byId.get(e.dataset.fileId ?? "")).filter((x): x is FileRow => !!x);
     const items = (shown.length ? shown : pool).filter(isVisual);
+    setLightbox({ items, index: Math.max(0, items.findIndex((x) => x.id === f.id)), from: originFor(f) });
+  }
+
+  // Where a file's tile is on screen right now, and what it shows: the lightbox grows out of it and
+  // shrinks back into it. Undefined when the tile is not on screen.
+  function originFor(f: FileRow): Origin | undefined {
     const el = document.querySelector<HTMLElement>(`[data-file-id="${f.id}"]`);
-    // The thumbnail travels, so hand over where it is and what it shows.
-    const img = el?.querySelector("img") ?? null;
-    const rect = (img ?? el)?.getBoundingClientRect();
-    const from: Origin | undefined = rect ? { rect, src: img?.currentSrc || undefined, aspect: img && img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : undefined, radii: cornerRadii(img ?? el) } : undefined;
-    setLightbox({ items, index: Math.max(0, items.findIndex((x) => x.id === f.id)), from });
+    if (!el) return undefined;
+    const img = el.querySelector("img");
+    const rect = (img ?? el).getBoundingClientRect();
+    if (rect.width === 0 || rect.bottom < 0 || rect.top > window.innerHeight) return undefined;
+    return { rect, src: img?.currentSrc || undefined, aspect: img && img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : undefined, radii: cornerRadii(img ?? el) };
   }
 
   useEffect(() => {
@@ -886,7 +892,7 @@ export function Drive() {
         )}
         {moveIds && <MoveDialog folders={allFolders} count={moveIds.length} current={folder} onMove={(target) => moveFiles(moveIds, target)} onClose={() => setMoveIds(null)} />}
         {shareFile && <ShareDialog f={shareFile} onClose={() => setShareFile(null)} onChanged={refresh} />}
-        {lightbox && <Lightbox items={lightbox.items} index={lightbox.index} from={lightbox.from} onIndex={(i) => setLightbox((s) => s && { ...s, index: i })} onClose={() => setLightbox(null)} onDownload={(f) => open(f, true)} />}
+        {lightbox && <Lightbox items={lightbox.items} index={lightbox.index} from={lightbox.from} locate={originFor} onIndex={(i) => setLightbox((s) => s && { ...s, index: i })} onClose={() => setLightbox(null)} onDownload={(f) => open(f, true)} />}
         {/* Room under the last row so the floating + never covers its menu. */}
         {!empty && files && <div className="hidden pointer-coarse:block h-20" aria-hidden />}
       </div>

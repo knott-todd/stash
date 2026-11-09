@@ -693,12 +693,9 @@ export function Drive() {
             <div className="flex-1">
               <p className="font-semibold">Your Google Drive is here.</p>
               <p className="text-sm text-ink-2">
-                {migration.total.toLocaleString()} files · {fmtBytes(migration.bytes)}. You can cancel Google One now.
+                {migration.total.toLocaleString()} files · {fmtBytes(migration.bytes)}. Google Drive stays as it was.
               </p>
             </div>
-            <a className="btn-ghost text-ok underline underline-offset-4" href="https://one.google.com/storage" target="_blank" rel="noreferrer">
-              Cancel Google One →
-            </a>
           </div>
         )}
         {(migration.phase === "copying" || migration.phase === "scanning" || migration.phase === "stopped") && (

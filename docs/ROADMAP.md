@@ -42,6 +42,7 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 
 ## Proposed (not started, in rough priority)
 
+-1. **Storage resilience.** The store rests on a Telegram-side behaviour that could close at any time, so Stash must never be the only copy. Two pieces: a full export that runs from any device (web, desktop, phone) with no per-file clicking, and a second storage backend behind the same file API so a closed door becomes a migration, not a loss. Until both exist, no copy or feature nudges people to delete or cancel the copy they already have.
 0. **New-user onboarding as a short checklist** on the empty drive: 1. Move from your current provider (Google Drive now; Dropbox/iCloud later), 2. Set up automatic backup (phone photos; WhatsApp on Android), 3. Open on your other devices. Each step one tap, ticks off when done, disappears when all three are done. Replaces the three tiles.
 1. **Staging via Cloudflare R2** (needs an R2 bucket + token from Olusanya) while Blob is paused; small files already bypass staging.
 2. ~~Storage in the user's own Telegram~~ **Out** (Olusanya, 2026-11-08 night): never decided, and it would mean asking people to open a Telegram account, which the product never mentions. Storage stays operator-side.
@@ -92,6 +93,7 @@ Also from the frontier list, not yet turned into product ideas: on-device search
 
 ## Decisions log
 
+- 2026-11-08 (night): **copy, never delete.** Stash never nudges people to cancel Google One, delete their Google Drive, or free phone originals. Reason: the data store depends on an exploit that could be patched at any moment, so Stash cannot yet be anyone's only copy. Removed the "Cancel Google One" link (web and phone); "Free up space" shelved; storage resilience added at the top of Proposed.
 - 2026-11-08 (evening): **accounts.** Sign in with Google; Stash holds each account's file key (Google Drive's position: encrypted in storage, readable by the service when the user asks). Reason: a device-held key made sign out unsafe and sign in meaningless, and recovery codes were too much to ask. QR unlock, email links and recovery codes removed. End-to-end "lock with a passcode" can return as an opt-in. Google consent screen must be published (non-sensitive scopes, no verification) before people outside the test-user list can sign in.
 - 2026-11-07: device-first identity, no accounts. Client-side encryption (option A). Email link carries the key; server never stores it.
 - 2026-11-07: supplier (Telegram) never named in the product.

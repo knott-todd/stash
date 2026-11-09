@@ -19,7 +19,7 @@
 
 - **Each picture appears once**: a backed-up phone picture shows as its Stash copy. Backup must record each picture's Stash file.
 - **Not yet sent**: a small Lucide `cloud-upload` mark.
-- **Free up space** (later): removes from the phone pictures already safe in Stash. They stay in the grid. Reserved copy: *Free up 1,240 photos from this phone? They stay safe in Stash.*
+- **Free up space**: not planned. It would delete phone originals on the promise that Stash holds the only copy, which Stash does not make until it has a full export and a second storage backend (ROADMAP, decisions log 2026-11-08).
 
 ## Backup strip
 

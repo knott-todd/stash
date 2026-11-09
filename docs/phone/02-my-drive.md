@@ -40,7 +40,7 @@ Search icon in every folder's top bar opens a full-width `Search` field over the
 
 ## Root-only strips
 - Copying: `Copying from Google Drive · 340 of 1,200`, thin bar; tap opens Move my files here.
-- Done: `Your Google Drive is here.` **Cancel Google One**.
+- Done: `Your Google Drive is here. Google Drive stays as it was.` No nudge to cancel anything: Stash copies and never asks people to drop the copy they have (ROADMAP, decisions log 2026-11-08).
 - Setup: only while Move my files here is undone; **Hide**.
 
 ## Empty

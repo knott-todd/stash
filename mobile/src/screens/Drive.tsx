@@ -5,7 +5,7 @@
 // change made in one folder shows in every screen beneath it.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, AppState, BackHandler, FlatList, Linking, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, AppState, BackHandler, FlatList, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
 import { useFocusEffect, useNavigation, usePreventRemove, useRoute, type RouteProp } from "@react-navigation/native";
@@ -278,10 +278,7 @@ export function DriveScreen() {
       )}
       {root && !searching && copy?.phase === "done" && !copyDoneHidden && (
         <View style={[s.stripBox, s.stripRow]}>
-          <Text style={[s.stripText, { flex: 1 }]}>Your Google Drive is here.</Text>
-          <Pressable hitSlop={8} onPress={() => Linking.openURL("https://one.google.com/storage")}>
-            <Text style={s.stripAction}>Cancel Google One</Text>
-          </Pressable>
+          <Text style={[s.stripText, { flex: 1 }]}>Your Google Drive is here. Google Drive stays as it was.</Text>
           <Pressable hitSlop={10} onPress={() => setCopyDoneHidden(true)} accessibilityLabel="Hide">
             <X size={18} color={ink3} />
           </Pressable>

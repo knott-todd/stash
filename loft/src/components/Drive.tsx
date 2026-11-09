@@ -726,6 +726,7 @@ export function Drive() {
                   <button className={`size-7 inline-flex items-center justify-center rounded-md ${view === "list" ? "text-ink" : "text-ink-3 hover:text-ink-2"}`} onClick={() => chooseView("list")} aria-pressed={view === "list"} aria-label="List" title="List" data-testid="view-list">
                     <LayoutList size={16} />
                   </button>
+                  <span className="h-4 w-px bg-line mx-1" aria-hidden />
                   <button className={`size-7 inline-flex items-center justify-center rounded-md ${view === "grid" ? "text-ink" : "text-ink-3 hover:text-ink-2"}`} onClick={() => chooseView("grid")} aria-pressed={view === "grid"} aria-label="Grid" title="Grid" data-testid="view-grid">
                     <LayoutGrid size={16} />
                   </button>

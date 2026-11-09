@@ -36,17 +36,52 @@ async function plainBytes(f: FileRow) {
   return f.encrypted ? decryptFile(bytes, f.chunked) : bytes;
 }
 
-const prefetched = new Set<string>();
-function prefetch(f: FileRow) {
-  if (!f.stored || prefetched.has(f.id)) return;
-  prefetched.add(f.id);
-  cacheGet(f.id).then((hit) => {
-    if (hit) return;
-    fetch(`/api/files/${f.id}/download`)
-      .then((r) => (r.ok ? r.arrayBuffer() : null))
-      .then((b) => b && cachePut(f.id, b))
-      .catch(() => {});
-  });
+// A picture ready to show: decrypted, decoded and downscaled to the screen's pixel size, so the
+// box never has to rasterise a huge bitmap while it animates. Kept for the last few pictures
+// so arrows are instant; the full file is only touched for Download.
+type Ready = { url: string; w: number; h: number; video: boolean };
+const ready = new Map<string, Promise<Ready>>();
+const READY_MAX = 6;
+
+function screenPixels() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  return { w: Math.ceil(window.innerWidth * dpr), h: Math.ceil(window.innerHeight * dpr) };
+}
+
+function prepare(f: FileRow): Promise<Ready> {
+  const hit = ready.get(f.id);
+  if (hit) return hit;
+  const p = (async (): Promise<Ready> => {
+    const bytes = await plainBytes(f);
+    const blob = new Blob([bytes], { type: f.mime });
+    if (f.mime.startsWith("video/")) return { url: URL.createObjectURL(blob), w: 0, h: 0, video: true };
+    const max = screenPixels();
+    let bmp = await createImageBitmap(blob);
+    const scale = Math.min(1, max.w / bmp.width, max.h / bmp.height);
+    const w = bmp.width;
+    const h = bmp.height;
+    if (scale < 1 && typeof OffscreenCanvas !== "undefined") {
+      const small = await createImageBitmap(blob, { resizeWidth: Math.round(w * scale), resizeHeight: Math.round(h * scale), resizeQuality: "high" });
+      bmp.close();
+      bmp = small;
+      const c = new OffscreenCanvas(bmp.width, bmp.height);
+      c.getContext("2d")!.drawImage(bmp, 0, 0);
+      bmp.close();
+      const out = await c.convertToBlob({ type: "image/webp", quality: 0.92 });
+      return { url: URL.createObjectURL(out), w, h, video: false };
+    }
+    bmp.close();
+    return { url: URL.createObjectURL(blob), w, h, video: false };
+  })();
+  p.catch(() => ready.delete(f.id));
+  ready.set(f.id, p);
+  // drop the oldest beyond the limit
+  if (ready.size > READY_MAX) {
+    const oldest = ready.keys().next().value as string;
+    ready.get(oldest)?.then((r) => URL.revokeObjectURL(r.url)).catch(() => {});
+    ready.delete(oldest);
+  }
+  return p;
 }
 
 function fit(aspect: number) {
@@ -100,28 +135,20 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
   const [slow, setSlow] = useState(false);
   useEffect(() => {
     let alive = true;
-    let made: string | null = null;
     setFailed(false);
     const navigating = media !== null;
     setSlow(navigating);
     const slowTimer = setTimeout(() => alive && setSlow(true), navigating ? 0 : 300);
     (async () => {
       try {
-        const bytes = await plainBytes(f);
+        const r = await prepare(f);
         if (!alive) return;
-        made = URL.createObjectURL(new Blob([bytes], { type: f.mime }));
-        if (!video) {
-          const im = new Image();
-          im.src = made;
-          await im.decode().catch(() => {});
-          if (!alive) return;
-          if (im.naturalWidth && im.naturalHeight) setSize(fit(im.naturalWidth / im.naturalHeight));
-        }
+        if (!r.video && r.w && r.h) setSize(fit(r.w / r.h));
         clearTimeout(slowTimer);
         setSlow(false);
-        setMedia({ url: made, video });
+        setMedia({ url: r.url, video: r.video });
         setShown(true);
-        for (const n of [items[index + 1], items[index - 1]]) if (n) prefetch(n);
+        for (const n of [items[index + 1], items[index - 1]]) if (n?.stored) prepare(n).catch(() => {});
       } catch {
         if (alive) setFailed(true);
       }
@@ -129,7 +156,6 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
     return () => {
       alive = false;
       clearTimeout(slowTimer);
-      if (made) setTimeout(() => URL.revokeObjectURL(made!), 1000); // after the swap has painted
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [f]);

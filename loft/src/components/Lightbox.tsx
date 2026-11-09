@@ -93,16 +93,18 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
     setTimeout(onClose, CLOSE_MS * slowmo());
   }
 
-  // Fetch, decrypt, hand the browser a real file. The picture already on screen stays
-  // until the next one has decoded, so arrows never flash a loader; the spinner only
-  // appears when the wait runs past 300 ms. Neighbours are fetched ahead.
+  // Fetch, decrypt, hand the browser a real file. On arrows the picture already on screen stays,
+  // dimmed with a spinner from the first frame, until the next one has decoded. On the first open
+  // the thumbnail stands in, so the spinner only appears if the wait runs past 300 ms.
+  // Neighbours are fetched ahead.
   const [slow, setSlow] = useState(false);
   useEffect(() => {
     let alive = true;
     let made: string | null = null;
     setFailed(false);
-    setSlow(false);
-    const slowTimer = setTimeout(() => alive && setSlow(true), 300);
+    const navigating = media !== null;
+    setSlow(navigating);
+    const slowTimer = setTimeout(() => alive && setSlow(true), navigating ? 0 : 300);
     (async () => {
       try {
         const bytes = await plainBytes(f);
@@ -179,7 +181,7 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
       <div
         ref={box}
         className={`fixed overflow-hidden rounded-2xl ${atThumb ? "" : "bg-black shadow-2xl"}`}
-        style={{ left: geo.left, top: geo.top, width: geo.w, height: geo.h, borderRadius: atThumb && from ? (from.radii ?? [8, 8, 8, 8]).map((v) => `${v}px`).join(" ") : 16, transition: phase === "start" ? "none" : `left ${settled ? 220 : ms}ms ${EASE}, top ${settled ? 220 : ms}ms ${EASE}, width ${settled ? 220 : ms}ms ${EASE}, height ${settled ? 220 : ms}ms ${EASE}, border-radius ${ms}ms ${EASE}` }}
+        style={{ left: geo.left, top: geo.top, width: geo.w, height: geo.h, borderRadius: atThumb && from ? (from.radii ?? [8, 8, 8, 8]).map((v) => `${v}px`).join(" ") : 16, transition: phase === "start" ? "none" : `left ${settled ? 320 : ms}ms ${EASE}, top ${settled ? 320 : ms}ms ${EASE}, width ${settled ? 320 : ms}ms ${EASE}, height ${settled ? 320 : ms}ms ${EASE}, border-radius ${ms}ms ${EASE}` }}
         onClick={(e) => e.stopPropagation()}
         data-testid="lightbox-box"
       >
@@ -190,7 +192,7 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
             src={media.url}
             alt={f.name}
             className="absolute inset-0 h-full w-full object-cover"
-            style={{ opacity: shown ? 1 : 0 }}
+            style={{ opacity: !shown ? 0 : slow ? 0.35 : 1, transition: "opacity 150ms ease-out" }}
             draggable={false}
           />
         )}
@@ -200,7 +202,7 @@ export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: {
             controls
             autoPlay
             className="absolute inset-0 h-full w-full"
-            style={{ opacity: shown ? 1 : 0 }}
+            style={{ opacity: !shown ? 0 : slow ? 0.35 : 1, transition: "opacity 150ms ease-out" }}
             onLoadedMetadata={(e) => {
               const v = e.currentTarget;
               if (v.videoWidth && v.videoHeight) setSize(fit(v.videoWidth / v.videoHeight));

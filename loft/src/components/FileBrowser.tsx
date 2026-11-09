@@ -240,12 +240,14 @@ export function FileBrowser({
           {rows.map((r) => {
             const k = keyOf(r);
             const isSel = selected.has(k);
-            const sel = isSel ? "ring-2 ring-[#1a73e8] bg-[#e8f0fe]" : "hover:border-ink-3";
+            // Selected tile: it grows a touch and its name banner turns selection blue; no ring.
+            const sel = isSel ? "scale-[1.03] shadow-md border-[#c7d9f6]" : "hover:border-ink-3";
+            const grow = "transition-[transform,box-shadow,border-color] duration-150";
             if (r.kind === "folder")
               return (
                 <li key={k}>
                   <button
-                    className={`card w-full p-4 flex items-center gap-3 text-left ${sel} ${dropTarget === r.path ? "bg-cream-2 border-ink" : ""}`}
+                    className={`card w-full p-4 flex items-center gap-3 text-left ${grow} ${sel} ${isSel ? "bg-[#e8f0fe]" : ""} ${dropTarget === r.path ? "bg-cream-2 border-ink" : ""}`}
                     onClick={(e) => pick(r, e)}
                     onDoubleClick={() => onOpenFolder(r.path)}
                     draggable
@@ -264,7 +266,7 @@ export function FileBrowser({
             return (
               <li key={k}>
                 <div
-                  className={`card overflow-hidden cursor-default ${sel}`}
+                  className={`card overflow-hidden cursor-default ${grow} ${sel}`}
                   onClick={(e) => pick(r, e)}
                   onDoubleClick={() => onOpen(f)}
                   onContextMenu={(e) => contextMenu(f, e)}
@@ -275,7 +277,7 @@ export function FileBrowser({
                   data-testid="grid-file"
                 >
                   <Thumb f={f} className="aspect-[4/3] w-full" />
-                  <div className="px-3 py-2 flex items-center gap-2">
+                  <div className={`px-3 py-2 flex items-center gap-2 transition-colors duration-150 ${isSel ? "bg-[#e8f0fe]" : ""}`}>
                     <p className="min-w-0 flex-1 text-sm font-medium truncate" title={f.name}>
                       {f.name}
                     </p>

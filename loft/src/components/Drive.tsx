@@ -723,10 +723,10 @@ export function Drive() {
                   />
                 </label>
                 <span className="hidden sm:inline-flex items-center h-full px-1.5 gap-0.5" role="group" aria-label="View">
-                  <button className={`size-7 inline-flex items-center justify-center rounded-md ${view === "list" ? "text-ink bg-cream-2" : "text-ink-3 hover:text-ink"}`} onClick={() => chooseView("list")} aria-pressed={view === "list"} aria-label="List" title="List" data-testid="view-list">
+                  <button className={`size-7 inline-flex items-center justify-center rounded-md ${view === "list" ? "text-ink" : "text-ink-3 hover:text-ink-2"}`} onClick={() => chooseView("list")} aria-pressed={view === "list"} aria-label="List" title="List" data-testid="view-list">
                     <LayoutList size={16} />
                   </button>
-                  <button className={`size-7 inline-flex items-center justify-center rounded-md ${view === "grid" ? "text-ink bg-cream-2" : "text-ink-3 hover:text-ink"}`} onClick={() => chooseView("grid")} aria-pressed={view === "grid"} aria-label="Grid" title="Grid" data-testid="view-grid">
+                  <button className={`size-7 inline-flex items-center justify-center rounded-md ${view === "grid" ? "text-ink" : "text-ink-3 hover:text-ink-2"}`} onClick={() => chooseView("grid")} aria-pressed={view === "grid"} aria-label="Grid" title="Grid" data-testid="view-grid">
                     <LayoutGrid size={16} />
                   </button>
                 </span>

@@ -20,6 +20,7 @@ export default function App() {
   const [passcode, setPasscode] = useState("");
   const [progress, setProgress] = useState<Progress | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -96,9 +97,16 @@ export default function App() {
   }
 
   async function submitPasscode() {
-    if (!cfg) return;
-    const who = await me(cfg);
-    const raw = who.keyWrapped ? await unwrapKey(who.keyWrapped, passcode) : null;
+    if (!cfg || opening) return;
+    setOpening(true);
+    setError(null);
+    let raw: string | null = null;
+    try {
+      const who = await me(cfg);
+      raw = who.keyWrapped ? await unwrapKey(who.keyWrapped, passcode) : null;
+    } finally {
+      setOpening(false);
+    }
     if (!raw) return setError("That passcode didn't open the files.");
     const next = { ...cfg, key: raw };
     await saveConfig(next);
@@ -151,8 +159,8 @@ export default function App() {
           <Text style={s.h1}>Enter your passcode</Text>
           <Text style={s.p}>Your files are locked with a passcode. Enter it once on this phone.{hint ? ` Hint: ${hint}` : ""}</Text>
           <TextInput secureTextEntry value={passcode} onChangeText={setPasscode} placeholder="Passcode" style={s.input} />
-          <Pressable style={s.btn} onPress={submitPasscode}>
-            <Text style={s.btnText}>Open</Text>
+          <Pressable style={[s.btn, opening && { opacity: 0.6 }]} onPress={submitPasscode} disabled={opening}>
+            {opening ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Open</Text>}
           </Pressable>
         </View>
       )}

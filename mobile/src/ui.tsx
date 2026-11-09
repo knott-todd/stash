@@ -68,9 +68,6 @@ export function Segments({ step, of = 3 }: { step: number; of?: number }) {
       {Array.from({ length: of }, (_, i) => (
         <View key={i} style={[s.segment, i < step && { backgroundColor: ink }]} />
       ))}
-      <Text style={s.segmentLabel}>
-        Step {step} of {of}
-      </Text>
     </View>
   );
 }
@@ -99,6 +96,5 @@ const s = StyleSheet.create({
   input: { borderWidth: 1, borderColor: line, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 13, fontSize: 16, backgroundColor: "#fff", marginBottom: 12, color: ink },
   segments: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 22 },
   segment: { flex: 1, height: 4, borderRadius: 2, backgroundColor: line },
-  segmentLabel: { marginLeft: 8, fontSize: 12, color: ink3 },
   card: { backgroundColor: "#fff", borderWidth: 1, borderColor: line, borderRadius: 16, padding: 18, marginBottom: 12 },
 });

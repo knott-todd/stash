@@ -34,6 +34,9 @@ export const Brand = () => (
   </Text>
 );
 
+// The step's number, large, above its title: the three easy steps, counted.
+export const StepNumber = ({ n }: { n: number }) => <Text style={s.stepNumber}>{n}.</Text>;
+
 export const H1 = ({ children }: { children: React.ReactNode }) => <Text style={s.h1}>{children}</Text>;
 export const P = ({ children, small = false }: { children: React.ReactNode; small?: boolean }) => <Text style={small ? s.small : s.p}>{children}</Text>;
 export const ErrorLine = ({ text }: { text: string | null }) => (text ? <Text style={s.error}>{text}</Text> : null);
@@ -81,6 +84,7 @@ const s = StyleSheet.create({
   bottom: { paddingHorizontal: 24, paddingBottom: 20, paddingTop: 8, gap: 4 },
   brand: { fontSize: 22, fontWeight: "700", color: ink, marginBottom: 28 },
   h1: { fontSize: 30, lineHeight: 36, fontWeight: "600", color: ink, marginBottom: 10 },
+  stepNumber: { fontSize: 64, lineHeight: 68, fontWeight: "700", color: ink, letterSpacing: -2, marginBottom: 4 },
   p: { fontSize: 16, lineHeight: 23, color: ink2, marginBottom: 14 },
   small: { fontSize: 13, lineHeight: 18, color: ink3, marginBottom: 10 },
   error: { fontSize: 14, color: ink, marginBottom: 10 },

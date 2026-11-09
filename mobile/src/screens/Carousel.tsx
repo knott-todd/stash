@@ -62,7 +62,6 @@ export function CarouselScreen() {
                 </Text>
                 <View style={{ height: 36 }} />
                 <Button title="Switch to Stash in 3 easy steps" onPress={() => start(false)} />
-                <P small>Sign in with Google. No card.</P>
                 <Button title="I already have an account" kind="text" onPress={() => start(true)} />
               </>
             )}

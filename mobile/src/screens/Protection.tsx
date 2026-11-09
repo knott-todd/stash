@@ -72,6 +72,7 @@ export function ChoosePasscodeScreen() {
   }
   return (
     <Screen
+      centered
       bottom={
         <>
           <ErrorLine text={error} />
@@ -122,6 +123,7 @@ export function RecoveryScreen(props: unknown) {
   }
   return (
     <Screen
+      centered
       bottom={
         <>
           <ErrorLine text={error} />
@@ -173,6 +175,7 @@ export function EnterPasscodeScreen() {
   }
   return (
     <Screen
+      centered
       bottom={
         <>
           <ErrorLine text={error} />

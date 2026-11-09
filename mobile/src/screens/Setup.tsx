@@ -4,7 +4,7 @@ import { AppState, Linking, StyleSheet, Switch, Text, View } from "react-native"
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as MediaLibrary from "expo-media-library";
-import { Brand, Button, ErrorLine, H1, ink, ink2, ink3, line, P, Screen, Segments } from "../ui";
+import { Brand, Button, ErrorLine, H1, ink, ink2, ink3, line, P, Screen, Segments, StepNumber } from "../ui";
 import { useSession } from "../session";
 import { DEFAULT_SETTINGS, me, settingsOf, type Settings } from "../api";
 import { connectGoogleDrive, isGoogleConnected, runDriveCopy, type CopyState } from "../drivecopy";
@@ -63,6 +63,7 @@ export function MoveFilesScreen() {
   const running = copy && (copy.phase === "scanning" || copy.phase === "copying");
   return (
     <Screen
+      centered
       bottom={
         <>
           <ErrorLine text={error} />
@@ -73,6 +74,7 @@ export function MoveFilesScreen() {
     >
       <Brand />
       <Segments step={2} />
+      <StepNumber n={2} />
       <H1>Move my files here</H1>
       {!copy && <P>Everything from Google Drive, folders included. Nothing is deleted there.</P>}
       {copy?.phase === "scanning" && <P>Looking through your Google Drive…</P>}
@@ -128,6 +130,7 @@ export function BackupPhoneScreen() {
 
   return (
     <Screen
+      centered
       bottom={
         <>
           <ErrorLine text={error} />
@@ -147,7 +150,10 @@ export function BackupPhoneScreen() {
       {existing ? (
         <Text style={s.eyebrow}>One step for this phone</Text>
       ) : (
-        <Segments step={3} />
+        <>
+          <Segments step={3} />
+          <StepNumber n={3} />
+        </>
       )}
       <H1>Back up this phone</H1>
       <P>Your photos and videos back up on their own. Nothing is deleted.</P>

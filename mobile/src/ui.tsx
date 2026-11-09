@@ -2,7 +2,8 @@
 // one primary action at the bottom, quiet secondaries. Colours and type follow the website.
 
 import React from "react";
-import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export const ink = "#111111";
 export const ink2 = "#6b6b6b";

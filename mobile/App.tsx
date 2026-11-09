@@ -10,6 +10,7 @@ import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Constants from "expo-constants";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SessionProvider, useSession } from "./src/session";
 import { nextRoute, type Route } from "./src/flow";
 import { paper } from "./src/ui";

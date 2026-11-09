@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { collectLink, startLink } from "@/lib/devices";
 import { requestOrigin } from "@/lib/public-url";
+import { clientIp, limit } from "@/lib/ratelimit";
 
 // A device asks to be linked: it gets a code to show, and polls until the
 // signed-in browser approves it at /devices/link?code=.
 export async function POST(req: Request) {
+  const hit = await limit("linkstart", await clientIp(), 10, 600);
+  if (hit) return hit;
   const body = await req.json().catch(() => ({}));
   const name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : "A device";
   const platform = typeof body.platform === "string" ? body.platform : "unknown";
@@ -14,6 +17,8 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
+  const hit = await limit("linkpoll", await clientIp(), 240, 60);
+  if (hit) return hit;
   const u = new URL(req.url);
   const id = u.searchParams.get("id") ?? "";
   const secret = u.searchParams.get("secret") ?? "";

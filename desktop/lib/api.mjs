@@ -65,7 +65,9 @@ export class Api {
 
   // Encrypt and send one file from disk. Small files in one request; larger ones
   // piece by piece, streaming from disk so memory stays flat.
-  async uploadFile(key, filePath, meta, thumb, onProgress) {
+  // `resume` (optional) remembers the upload id per file path between runs, so a backup that
+  // stopped at piece 40 of 60 carries on from 41 instead of starting again.
+  async uploadFile(key, filePath, meta, thumb, onProgress, resume) {
     const st = fs.statSync(filePath);
     const fields = { ...meta, size: String(st.size), encrypted: "1", modifiedAt: String(Math.round(st.mtimeMs)) };
     if (st.size <= CHUNK_PLAIN_BYTES) {
@@ -80,7 +82,25 @@ export class Api {
       onProgress?.(st.size, st.size);
       return j.file;
     }
-    const parts = [];
+    // Resume if this file's upload was started before (same size and mtime), else start one.
+    let upload = resume?.get?.(filePath, st);
+    let have = new Set();
+    let haveThumb = false;
+    if (upload) {
+      const r = await this.send(`/api/uploads/${upload}`);
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && Array.isArray(j.pieces)) {
+        have = new Set(j.pieces);
+        haveThumb = !!j.thumb;
+      } else upload = null;
+    }
+    if (!upload) {
+      const r = await this.send("/api/uploads", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: meta.name }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.upload) throw new Error(j.error ?? `upload start failed (${r.status})`);
+      upload = j.upload;
+      resume?.set?.(filePath, st, upload);
+    }
     const fh = await fs.promises.open(filePath, "r");
     try {
       const buf = Buffer.allocUnsafe(CHUNK_PLAIN_BYTES);
@@ -88,15 +108,16 @@ export class Api {
       for (let i = 0; ; i++) {
         const { bytesRead } = await fh.read(buf, 0, CHUNK_PLAIN_BYTES, i * CHUNK_PLAIN_BYTES);
         if (bytesRead === 0) break;
-        const cipher = await encryptChunk(key, buf.subarray(0, bytesRead));
-        const fd = new FormData();
-        fd.set("piece", new Blob([cipher]), `${meta.name}.part${i}.stash`);
-        fd.set("name", meta.name);
-        fd.set("index", String(i));
-        const r = await this.send("/api/files/part", { method: "POST", body: fd });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(j.error ?? `piece ${i} failed (${r.status})`);
-        parts.push(j.part);
+        if (!have.has(i)) {
+          const cipher = await encryptChunk(key, buf.subarray(0, bytesRead));
+          const fd = new FormData();
+          fd.set("piece", new Blob([cipher]), `${meta.name}.part${i}.stash`);
+          fd.set("upload", upload);
+          fd.set("index", String(i));
+          const r = await this.send("/api/files/part", { method: "POST", body: fd });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(j.error ?? `piece ${i} failed (${r.status})`);
+        }
         sent += bytesRead;
         onProgress?.(sent, st.size);
         if (bytesRead < CHUNK_PLAIN_BYTES) break;
@@ -104,23 +125,17 @@ export class Api {
     } finally {
       await fh.close();
     }
-    let thumbPart = null;
-    if (thumb) {
+    if (thumb && !haveThumb) {
       const fd = new FormData();
-      fd.set("piece", new Blob([await encryptChunk(key, thumb)]), `${meta.name}.thumb.stash`);
-      fd.set("name", `${meta.name}.thumb`);
-      fd.set("index", "0");
-      const r = await this.send("/api/files/part", { method: "POST", body: fd });
-      const j = await r.json().catch(() => ({}));
-      if (r.ok) thumbPart = j.part;
+      fd.set("piece", new Blob([await encryptChunk(key, thumb)]), "thumb.stash");
+      fd.set("upload", upload);
+      fd.set("index", "thumb");
+      await this.send("/api/files/part", { method: "POST", body: fd });
     }
-    const r = await this.send("/api/files", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...fields, parts, ...(thumbPart ? { thumb: thumbPart } : {}) }),
-    });
+    const r = await this.send("/api/files", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...fields, upload }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error ?? `register failed (${r.status})`);
+    resume?.del?.(filePath);
     return j.file;
   }
 }

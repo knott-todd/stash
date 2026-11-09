@@ -133,3 +133,17 @@ export const publicDevice = (d: Device, extra: { files: number; bytes: number })
   state: d.state ?? null,
   ...extra,
 });
+
+// Link codes older than their lifetime (approved or not): forget them.
+export async function sweepLinks(now = Date.now()) {
+  const db = store();
+  const rows = await db.kvList("dlink:");
+  let n = 0;
+  for (const r of rows) {
+    const l = r.value as Link;
+    if (now - l.createdAt <= LINK_TTL) continue;
+    await Promise.all([db.kvDelete(r.key), db.kvDelete(kLinkId(l.linkId))]);
+    n++;
+  }
+  return n;
+}

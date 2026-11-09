@@ -35,3 +35,7 @@ real URL.
 
 After that, nothing needs you: I push unfinished work to `staging`, you try it,
 and only what you approve is merged to `main`.
+
+## Housekeeping cron
+
+`vercel.json` runs `/api/cron/sweep` daily at 04:00 UTC (unregistered uploads, idle sessions, stale link codes, old rate-limit windows). Vercel sends `Authorization: Bearer $CRON_SECRET`; set **CRON_SECRET** (any long random string) in Vercel for Production and Preview, or the route answers 404 there.

@@ -177,6 +177,18 @@ export function pgStore(): Store {
       await ensure();
       await sql`DELETE FROM kv WHERE key = ${key}`;
     },
+    async kvList(prefix) {
+      await ensure();
+      const rows = await sql`SELECT key, value FROM kv WHERE key LIKE ${prefix.replace(/[%_\\]/g, "\\$&") + "%"}`;
+      return rows as { key: string; value: unknown }[];
+    },
+    async kvIncr(key, by) {
+      await ensure();
+      const rows = await sql`INSERT INTO kv (key, value) VALUES (${key}, ${JSON.stringify(by)}::jsonb)
+                ON CONFLICT (key) DO UPDATE SET value = to_jsonb((kv.value #>> '{}')::numeric + ${by})
+                RETURNING value`;
+      return Number(rows[0]?.value ?? by);
+    },
     async reset(uid) {
       await ensure();
       await sql`DELETE FROM files WHERE uid = ${uid}`;

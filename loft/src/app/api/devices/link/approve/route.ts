@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession, unauthorized } from "@/lib/session";
 import { approveLink, peekLink } from "@/lib/devices";
 import { store } from "@/lib/store";
+import { limit } from "@/lib/ratelimit";
 
 // What is asking to be linked (GET) and the signed-in person's yes (POST).
 export async function GET(req: Request) {
@@ -16,6 +17,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const s = await getSession();
   if (!s || s.deviceId) return unauthorized();
+  const hit = await limit("approve", s.uid, 10, 60);
+  if (hit) return hit;
   const { code } = await req.json().catch(() => ({}));
   if (typeof code !== "string") return NextResponse.json({ error: "code required" }, { status: 400 });
   const u = await store().getUser(s.uid);

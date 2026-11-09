@@ -221,11 +221,18 @@ export function Drive() {
     cacheHas(files.map((f) => f.id)).then(setLocal);
   }, [files]);
 
-  // Live: while a device is sending files the list refreshes every 10 s, otherwise every 60 s.
+  // Live: while a device is sending files the list is checked every 10 s, otherwise every 60 s.
+  // The check is the catalogue's revision number, a few bytes; the list itself is fetched only when it moved.
+  const rev = useRef<number | null>(null);
   useEffect(() => {
     if (!files) return;
-    const t = setInterval(() => {
-      if (document.visibilityState === "visible") refresh().catch(() => {});
+    const t = setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
+      const j = await fetch("/api/files/rev").then((r) => r.json()).catch(() => null);
+      if (!j || typeof j.rev !== "number") return;
+      if (rev.current !== null && j.rev === rev.current) return;
+      rev.current = j.rev;
+      refresh().catch(() => {});
     }, deviceBusy ? 10_000 : 60_000);
     return () => clearInterval(t);
   }, [files, deviceBusy, refresh]);
@@ -607,7 +614,11 @@ export function Drive() {
   }, [pairOpen]);
   useEffect(() => {
     if (!pairOpen && folder !== "Phone photos") return;
+    let last: number | null = null;
     const t = setInterval(async () => {
+      const j = await fetch("/api/files/rev").then((r) => r.json()).catch(() => null);
+      if (!j || typeof j.rev !== "number" || j.rev === last) return;
+      last = j.rev;
       const f = await fetch("/api/files").then((r) => r.json()).catch(() => null);
       if (!f) return;
       setFiles(f.files);

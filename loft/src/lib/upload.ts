@@ -77,9 +77,12 @@ export async function uploadEncrypted(file: File, opts: UploadOpts = {}): Promis
     cipherForCache = cipher;
     opts.onProgress?.(file.size, file.size);
   } else {
-    // Pieces, two in flight, each piece retried on its own.
+    // Pieces, two in flight, each piece retried on its own. The server records every
+    // piece under the upload id it issued; registration names only that id.
     const total = Math.ceil(file.size / CHUNK_PLAIN_BYTES);
-    const parts: unknown[] = new Array(total);
+    const ur = await send("/api/uploads", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: file.name }) }, opts.signal);
+    const upload: string = (await ur.json().catch(() => ({}))).upload;
+    if (!ur.ok || !upload) throw new Error("upload-failed");
     const cipherPieces: Blob[] = new Array(total);
     let next = 0;
     let sent = 0;
@@ -90,24 +93,19 @@ export async function uploadEncrypted(file: File, opts: UploadOpts = {}): Promis
         const cipher = await encryptBytes(plain);
         const fd = new FormData();
         fd.set("piece", cipher, `${file.name}.part${i}.stash`);
-        fd.set("name", file.name);
+        fd.set("upload", upload);
         fd.set("index", String(i));
         const pr = await send("/api/files/part", { method: "POST", body: fd }, opts.signal);
         const pj = await pr.json().catch(() => ({}));
         if (!pr.ok) throw new Error(pj.error ?? "upload-failed");
-        parts[i] = pj.part;
         if (file.size <= CACHE_MAX_BYTES) cipherPieces[i] = cipher;
         sent += plain.byteLength;
         opts.onProgress?.(sent, file.size);
       }
     };
     await Promise.all([worker(), worker()]);
-    const thumbPart = thumb ? await uploadThumb(thumb, file.name, opts.signal) : null;
-    r = await send(
-      "/api/files",
-      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...meta, parts, ...(thumbPart ? { thumb: thumbPart } : {}) }) },
-      opts.signal,
-    );
+    if (thumb) await uploadThumb(thumb, upload, opts.signal);
+    r = await send("/api/files", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...meta, upload }) }, opts.signal);
     if (file.size <= CACHE_MAX_BYTES) cipherForCache = new Blob(cipherPieces);
   }
   const j = await r.json().catch(() => ({}));
@@ -116,14 +114,13 @@ export async function uploadEncrypted(file: File, opts: UploadOpts = {}): Promis
   return j.file;
 }
 
-async function uploadThumb(thumb: Blob, name: string, signal?: AbortSignal) {
+async function uploadThumb(thumb: Blob, upload: string, signal?: AbortSignal) {
   const fd = new FormData();
-  fd.set("piece", await encryptBytes(await thumb.arrayBuffer()), `${name}.thumb.stash`);
-  fd.set("name", `${name}.thumb`);
-  fd.set("index", "0");
+  fd.set("piece", await encryptBytes(await thumb.arrayBuffer()), "thumb.stash");
+  fd.set("upload", upload);
+  fd.set("index", "thumb");
   const r = await send("/api/files/part", { method: "POST", body: fd }, signal);
-  const j = await r.json().catch(() => ({}));
-  return r.ok ? j.part : null;
+  return r.ok;
 }
 
 // Content fingerprint, so the same photo picked twice is skipped. Names and

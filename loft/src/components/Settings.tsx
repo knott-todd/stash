@@ -64,9 +64,21 @@ export function Settings() {
 
         <div className="mt-6 card divide-y divide-line">
           <Row icon={<User size={22} strokeWidth={1.6} />} title={me.name ?? me.email ?? "Your account"} line={`${me.email ?? ""} · ${(me.fileCount ?? 0).toLocaleString()} files · ${fmtBytes(me.bytes ?? 0)}`}>
-            <button className="btn-ghost border border-line text-sm py-2" onClick={() => signOutEverywhereHere()} data-testid="settings-signout">
-              Sign out
-            </button>
+            <span className="flex flex-wrap items-center gap-3 justify-end">
+              <button
+                className="text-sm text-ink-3 hover:text-ink underline underline-offset-4"
+                onClick={async () => {
+                  if (!confirm("Sign out of Stash in every browser where this account is signed in? Linked devices keep backing up.")) return;
+                  await signOutEverywhereHere(true);
+                }}
+                data-testid="settings-signout-all"
+              >
+                Sign out everywhere
+              </button>
+              <button className="btn-ghost border border-line text-sm py-2" onClick={() => signOutEverywhereHere()} data-testid="settings-signout">
+                Sign out
+              </button>
+            </span>
           </Row>
 
           <Row icon={<Shield size={22} strokeWidth={1.6} />} title="How your files are protected" line="Encrypted before they are stored either way. The difference is whether Stash can open them for you, or only you can." full>

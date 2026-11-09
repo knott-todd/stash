@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { store } from "@/lib/store";
 import { getFileStream } from "@/lib/telegram";
 import { decryptingStream, importRawKey } from "@/lib/server-crypto";
+import { clientIp, limit } from "@/lib/ratelimit";
 
 // Streams or long listings: allow the function the time it needs.
 export const maxDuration = 300;
@@ -10,6 +11,8 @@ export const maxDuration = 300;
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   if (!/^[A-Za-z0-9_-]{10,64}$/.test(token)) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const hit = await limit("sharelink", await clientIp(), 120, 60);
+  if (hit) return hit;
   const db = store();
   const ref = await db.kvGet<{ uid: string; fileId: string }>(`share:${token}`);
   if (!ref) return NextResponse.json({ error: "This link no longer works." }, { status: 404 });

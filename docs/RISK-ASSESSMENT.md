@@ -140,3 +140,19 @@ Ordered by the score, then by how cheap the fix is.
 - Locked mode: PBKDF2 600k rounds, the wrapped key only, a recovery code shown at the moment of choice.
 - httpOnly, SameSite=Lax, Secure cookies; dev sign-in dead on Vercel; share links are 144-bit random; all file routes check ownership by `uid`.
 - Registration last: no half-uploaded file can appear in the drive, and an interrupted move resumes without duplicates.
+
+## 6. Status (2026-11-08, evening)
+
+Every finding rated High or Critical, and what was done about it.
+
+| # | Rating | Status | What changed |
+| --- | --- | --- | --- |
+| T-1 | High | **Fixed** | Clients never send storage pointers. `POST /api/uploads` issues an upload id; `POST /api/files/part` records each piece under that id with the owner; `POST /api/files` registers by id and the server assembles the pieces from its own ledger. Previews attach as bytes (`PUT /api/files/:id/thumb` multipart). Verified: pointer bodies are refused, another account cannot register someone else's upload id. |
+| R-1 | RPN 432 | **Fixed** | `GET /api/uploads/:id` lists the pieces that arrived; the desktop agent keeps the upload id per file and resumes from the first missing piece (verified: a drop after 2 of 3 pieces resent exactly one). Daily sweeper (`/api/cron/sweep`, Vercel Cron 04:00 UTC) deletes uploads older than 24 h that were never registered. **Needs `CRON_SECRET` set in Vercel (Production and Preview).** |
+| I-1, I-2, I-8 | High | Fixed earlier | Safe inline types with `CSP: sandbox`, SVG as download, nosniff, CSP, frame and referrer headers. |
+| S-2 | High | **Fixed** | Sessions expire after 30 days unused (server-side, cookie to match), every sign-in mints a new id and ends the one the browser held, per-account session list, "Sign out everywhere" in Settings (`POST /api/auth/signout?all=1`). Sweeper drops idle sessions and stale link codes. |
+| D-3 | High | **Fixed** | Fixed-window limits counted in kv: sign-in 20–30/min per IP, link start 10 per 10 min per IP, link polling 240/min per IP, approve 10/min per account, public links 120/min per IP, pieces 600/min and registrations 300/min per account, preview attach 120/min. 429 with `retry-after`. |
+| D-1 | Critical at scale | **Partly** | Per-account upload budget of 10 GB per hour, enforced on every piece and single-file upload; over it, storage answers 503 with `retryAfter`, which every client already honours and the desktop agent shows as "waiting". Not done: several bots with per-user assignment (needs more than a few users to justify). |
+| D-2 | Critical | **Partly** | Pollers read `GET /api/files/rev` (a counter bumped on every catalogue change: add, rename, move, trash, preview, folder, link) and fetch the list only when it moved: the drive's 10 s/60 s poll and the phone-photo poll. Listing already returns only public fields; counts come from an aggregate query. Not done: pagination of the list itself for accounts past ~50k files. |
+
+Clients on the old contract: Stash Desktop 0.2.0 registers large files with a `parts` list, which is now refused; 0.2.1 (this commit) uses the ledger and resumes. Files up to 4 MB are unaffected. Install 0.2.1 on any linked computer.

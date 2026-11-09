@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession, unauthorized } from "@/lib/session";
 import { store } from "@/lib/store";
 import { deleteObjects } from "@/lib/telegram";
+import { bumpRev } from "@/lib/rev";
 
 // Rename / move (PATCH) and trash (DELETE) one file.
 
@@ -16,6 +17,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (typeof body.name === "string" && body.name.trim()) f.name = body.name.trim().slice(0, 255);
   if (typeof body.folder === "string") f.folder = body.folder.replace(/^\/+|\/+$/g, "");
   await db.updateFile(f);
+  await bumpRev(s.uid);
   return NextResponse.json({ ok: true });
 }
 
@@ -27,5 +29,6 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   if (!f) return NextResponse.json({ error: "not found" }, { status: 404 });
   // Best effort: remove the bytes too. The index entry is already gone either way.
   deleteObjects(f).catch(() => {});
+  await bumpRev(s.uid);
   return NextResponse.json({ ok: true });
 }

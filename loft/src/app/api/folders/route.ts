@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { bumpRev } from "@/lib/rev";
 import { getSession, unauthorized } from "@/lib/session";
 import { store } from "@/lib/store";
 
@@ -22,6 +23,7 @@ export async function POST(req: Request) {
   const db = store();
   const list = (await db.kvGet<string[]>(key(s.uid))) ?? [];
   if (!list.includes(path)) await db.kvSet(key(s.uid), [...list, path].slice(0, 2000));
+  await bumpRev(s.uid);
   return NextResponse.json({ ok: true, path });
 }
 
@@ -34,5 +36,6 @@ export async function DELETE(req: Request) {
   const db = store();
   const list = (await db.kvGet<string[]>(key(s.uid))) ?? [];
   await db.kvSet(key(s.uid), list.filter((p) => p !== path && !p.startsWith(path + "/")));
+  await bumpRev(s.uid);
   return NextResponse.json({ ok: true });
 }

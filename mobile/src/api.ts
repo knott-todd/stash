@@ -53,17 +53,26 @@ export async function uploadBytes(c: Config, key: CryptoKey, bytes: Uint8Array, 
     if (!r.ok) throw new Error(`upload failed (${r.status})`);
     return (await r.json()).file;
   }
-  const parts: unknown[] = [];
+  // The server issues the upload id, records each piece under it, and assembles them at registration.
+  const ur = await fetch(`${c.server}/api/uploads`, { method: "POST", headers: { ...auth(c), "content-type": "application/json" }, body: JSON.stringify({ name: meta.name }) });
+  if (!ur.ok) throw new Error(`upload start failed (${ur.status})`);
+  const upload: string = (await ur.json()).upload;
   for (let i = 0, off = 0; off < bytes.length; i++, off += CHUNK_PLAIN_BYTES) {
     const fd = new FormData();
     fd.append("piece", { uri: `data:application/octet-stream;base64,${toB64(await encryptChunk(key, bytes.subarray(off, off + CHUNK_PLAIN_BYTES)))}`, name: `${meta.name}.part${i}.stash`, type: "application/octet-stream" } as unknown as Blob);
-    fd.append("name", meta.name);
+    fd.append("upload", upload);
     fd.append("index", String(i));
     const r = await fetch(`${c.server}/api/files/part`, { method: "POST", headers: auth(c), body: fd });
     if (!r.ok) throw new Error(`piece ${i} failed (${r.status})`);
-    parts.push((await r.json()).part);
   }
-  const r = await fetch(`${c.server}/api/files`, { method: "POST", headers: { ...auth(c), "content-type": "application/json" }, body: JSON.stringify({ ...fields, parts }) });
+  if (thumb) {
+    const fd = new FormData();
+    fd.append("piece", { uri: `data:application/octet-stream;base64,${toB64(await encryptChunk(key, thumb))}`, name: "thumb.stash", type: "application/octet-stream" } as unknown as Blob);
+    fd.append("upload", upload);
+    fd.append("index", "thumb");
+    await fetch(`${c.server}/api/files/part`, { method: "POST", headers: auth(c), body: fd });
+  }
+  const r = await fetch(`${c.server}/api/files`, { method: "POST", headers: { ...auth(c), "content-type": "application/json" }, body: JSON.stringify({ ...fields, upload }) });
   if (!r.ok) throw new Error(`register failed (${r.status})`);
   return (await r.json()).file;
 }

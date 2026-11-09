@@ -3,6 +3,8 @@ import { randomBytes } from "node:crypto";
 import { getSession, unauthorized } from "@/lib/session";
 import { store } from "@/lib/store";
 import { requestOrigin } from "@/lib/public-url";
+import { bumpRev } from "@/lib/rev";
+import { limit } from "@/lib/ratelimit";
 
 // A public link for one file. Only on Standard accounts: the server must be
 // able to decrypt for a stranger's browser, and on a Locked account it cannot.
@@ -10,6 +12,8 @@ import { requestOrigin } from "@/lib/public-url";
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const s = await getSession();
   if (!s || s.deviceId) return unauthorized();
+  const hit = await limit("share", s.uid, 60, 60);
+  if (hit) return hit;
   const { id } = await params;
   const db = store();
   const [u, f] = await Promise.all([db.getUser(s.uid), db.getFile(s.uid, id)]);
@@ -19,6 +23,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     f.share = { token: randomBytes(18).toString("base64url"), createdAt: Date.now() };
     await db.updateFile(f);
     await db.kvSet(`share:${f.share.token}`, { uid: s.uid, fileId: f.id });
+    await bumpRev(s.uid);
   }
   return NextResponse.json({ url: `${requestOrigin(req)}/s/${f.share.token}`, createdAt: f.share.createdAt });
 }
@@ -34,6 +39,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     await db.kvDelete(`share:${f.share.token}`);
     delete f.share;
     await db.updateFile(f);
+    await bumpRev(s.uid);
   }
   return NextResponse.json({ ok: true });
 }

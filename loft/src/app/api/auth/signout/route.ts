@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
-import { endSession } from "@/lib/session";
+import { endAllSessions, endSession, getSession } from "@/lib/session";
 
 // Sign out: the session is gone from the server and the browser. The browser
 // drops the key and its local copies itself. Files stay in the account.
-export async function POST() {
+// ?all=1 ends every browser session of the account (a lost laptop, a shared PC).
+export async function POST(req: Request) {
+  const all = new URL(req.url).searchParams.get("all") === "1";
+  const s = await getSession();
+  if (all && s && !s.deviceId) {
+    const n = await endAllSessions(s.uid);
+    return NextResponse.json({ ok: true, ended: n });
+  }
   await endSession();
   return NextResponse.json({ ok: true });
 }

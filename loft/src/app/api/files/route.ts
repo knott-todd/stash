@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSession, unauthorized } from "@/lib/session";
-import { CHUNK_CIPHER_BYTES, newId, store, type StashFile, type StoredPart } from "@/lib/store";
+import { newId, store, type StashFile } from "@/lib/store";
 import { putFile, StorageBusy } from "@/lib/telegram";
-import { busy, isPart, ONE_PIECE_MAX, pub } from "@/lib/files-api";
+import { busy, ONE_PIECE_MAX, pub } from "@/lib/files-api";
+import { assemble, finishUpload } from "@/lib/uploads";
+import { limit, spendBudget } from "@/lib/ratelimit";
+import { bumpRev } from "@/lib/rev";
 
 // Streams or long listings: allow the function the time it needs.
 export const maxDuration = 300;
@@ -29,6 +32,8 @@ async function upload(req: Request) {
   const s = await getSession();
   if (!s) return unauthorized();
   const uid = s.uid;
+  const hit = await limit("files", uid, 300, 60);
+  if (hit) return hit;
   const id = newId();
   let meta: Record<string, string>;
   let stored: Pick<StashFile, "tg" | "blob" | "parts" | "thumb">;
@@ -36,11 +41,12 @@ async function upload(req: Request) {
   if (req.headers.get("content-type")?.includes("application/json")) {
     const body = await req.json().catch(() => ({}));
     meta = body;
-    const parts = body.parts;
-    if (!Array.isArray(parts) || !parts.length || !parts.every(isPart)) return NextResponse.json({ error: "no pieces" }, { status: 400 });
-    // Every piece but the last must be the standard size, or no reader can split the stream.
-    if (parts.slice(0, -1).some((p: StoredPart) => p.size !== CHUNK_CIPHER_BYTES)) return NextResponse.json({ error: "pieces must be the standard size" }, { status: 400 });
-    stored = { parts, ...(isPart(body.thumb) ? { thumb: body.thumb } : {}) };
+    // The pieces come from the server's own ledger for this upload id; the client names only the id.
+    if (typeof body.upload !== "string") return NextResponse.json({ error: "Send pieces first, then register the upload id." }, { status: 400 });
+    const got = await assemble(uid, body.upload);
+    if ("error" in got) return NextResponse.json({ error: got.error, ...(got.missing ? { missing: got.missing } : {}) }, { status: 400 });
+    stored = got;
+    await finishUpload(body.upload);
   } else {
     const form = await req.formData();
     const file = form.get("file");
@@ -49,6 +55,8 @@ async function upload(req: Request) {
     meta = Object.fromEntries([...form.entries()].filter(([, v]) => typeof v === "string") as [string, string][]);
     meta.name ??= file.name;
     meta.size ??= String(file.size);
+    const over = await spendBudget(uid, file.size);
+    if (over) return over;
     const bytes = Buffer.from(await file.arrayBuffer());
     stored = await putFile(uid, id, meta.encrypted === "1" ? `${meta.name}.stash` : meta.name, bytes);
     const thumb = form.get("thumb");
@@ -73,6 +81,7 @@ async function upload(req: Request) {
     ...stored,
   };
   await store().addFile(f);
+  await bumpRev(uid);
   return NextResponse.json({ file: pub(f) });
 }
 

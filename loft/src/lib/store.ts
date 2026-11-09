@@ -98,6 +98,8 @@ export interface Store {
   kvGet<T>(key: string): Promise<T | undefined>;
   kvSet(key: string, value: unknown): Promise<void>;
   kvDelete(key: string): Promise<void>;
+  kvList(prefix: string): Promise<{ key: string; value: unknown }[]>; // every key under a prefix (ledgers, sweeps)
+  kvIncr(key: string, by: number): Promise<number>; // atomic counter; creates at 0
   reset(uid: string): Promise<void>; // forget every file and key; keeps who the account is
 }
 

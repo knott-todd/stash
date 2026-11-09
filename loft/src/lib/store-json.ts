@@ -141,6 +141,16 @@ export function jsonStore(): Store {
       delete (load().kv ??= {})[key];
       save();
     },
+    async kvList(prefix) {
+      return Object.entries(load().kv ??= {}).filter(([k]) => k.startsWith(prefix)).map(([key, value]) => ({ key, value }));
+    },
+    async kvIncr(key, by) {
+      const kv = (load().kv ??= {});
+      const n = (Number(kv[key]) || 0) + by;
+      kv[key] = n;
+      save();
+      return n;
+    },
     async reset(uid) {
       const d = load();
       d.files = d.files.filter((f) => f.uid !== uid);

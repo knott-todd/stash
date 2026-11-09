@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { AUTH_ENABLED, beginOAuth } from "@/lib/auth";
 import { requestOrigin } from "@/lib/public-url";
+import { clientIp, limit } from "@/lib/ratelimit";
 
 // Start "Sign in with Google". ?hint=<email> goes straight to that account;
 // ?next=<path> is where to land afterwards.
 export async function GET(req: Request) {
   if (!AUTH_ENABLED) return NextResponse.json({ error: "Sign-in isn't configured" }, { status: 503 });
+  const hit = await limit("auth", await clientIp(), 30, 60);
+  if (hit) return hit;
   const url = new URL(req.url);
   const hint = url.searchParams.get("hint") ?? undefined;
   const next = url.searchParams.get("next") ?? "/drive";

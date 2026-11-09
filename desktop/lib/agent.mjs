@@ -15,7 +15,7 @@ import { loadState, saveConfig, saveState } from "./config.mjs";
 const PARALLEL = 2;
 const RESCAN_MS = 10 * 60 * 1000;
 const REPORT_MS = 10 * 60 * 1000; // a report every minute kept the database awake all day
-export const VERSION = "0.2.0";
+export const VERSION = "0.2.1";
 
 export function createAgent({ cfg, dir, log = () => {}, onState = () => {}, askPasscode = null }) {
   const api = new Api(cfg.server, cfg.token, cfg.bypass ?? process.env.STASH_BYPASS);
@@ -47,6 +47,23 @@ export function createAgent({ cfg, dir, log = () => {}, onState = () => {}, askP
     }
   };
 
+  // Upload ids for files whose pieces are still going up: a stopped run carries on from where it was.
+  const resumeStore = {
+    get: (p, st) => {
+      const r = state.__uploads?.[p];
+      return r && r.size === st.size && r.mtimeMs === st.mtimeMs ? r.upload : null;
+    },
+    set: (p, st, upload) => {
+      (state.__uploads ??= {})[p] = { size: st.size, mtimeMs: st.mtimeMs, upload };
+      saveState(dir, state);
+    },
+    del: (p) => {
+      if (state.__uploads?.[p]) {
+        delete state.__uploads[p];
+        saveState(dir, state);
+      }
+    },
+  };
   const freshStats = (f) => ({ ...f, files: 0, bytes: 0, pending: 0, failed: 0, lastUpload: lastUploadFor(state, f.path) });
 
   async function prepare() {
@@ -115,7 +132,7 @@ export function createAgent({ cfg, dir, log = () => {}, onState = () => {}, askP
           try {
             const mime = mimeOf(name);
             const thumb = await makeThumb(item.path, mime);
-            const file = await api.uploadFile(key, item.path, { name, mime, folder: stashFolder, source: "desktop" }, thumb);
+            const file = await api.uploadFile(key, item.path, { name, mime, folder: stashFolder, source: "desktop" }, thumb, undefined, resumeStore);
             if (item.previousId) api.deleteFile(item.previousId).catch(() => {});
             state[item.path] = { size: item.size, mtimeMs: item.mtimeMs, fileId: file.id, at: Date.now() };
             saveState(dir, state);

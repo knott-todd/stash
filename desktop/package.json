@@ -1,6 +1,6 @@
 {
   "name": "stash-desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Keeps folders on this computer backed up to Stash, encrypted, automatically.",
   "type": "module",
   "main": "app/main.mjs",

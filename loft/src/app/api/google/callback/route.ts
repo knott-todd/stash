@@ -4,9 +4,12 @@ import { store } from "@/lib/store";
 import { exchangeCode } from "@/lib/google";
 import { completeSignIn, takeOAuthState } from "@/lib/auth";
 import { requestOrigin } from "@/lib/public-url";
+import { clientIp, limit } from "@/lib/ratelimit";
 
 // One callback for both Google flows; the state cookie says which.
 export async function GET(req: Request) {
+  const hit = await limit("auth", await clientIp(), 30, 60);
+  if (hit) return hit;
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const denied = url.searchParams.get("error");

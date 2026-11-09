@@ -66,15 +66,9 @@ async function generate(f: FileRow): Promise<string | null> {
     (async () => {
       const enc = await encryptBytes(await thumb.arrayBuffer());
       const fd = new FormData();
-      fd.set("piece", enc, "thumb.stash");
-      fd.set("name", `${f.name}.thumb`);
-      fd.set("index", "0");
-      const r = await fetch("/api/files/part", { method: "POST", body: fd });
-      const j = await r.json().catch(() => ({}));
-      if (r.ok && j.part) {
-        await fetch(`/api/files/${f.id}/thumb`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ thumb: j.part }) });
-        cachePut(THUMB_CACHE_PREFIX + f.id, await enc.arrayBuffer());
-      }
+      fd.set("thumb", enc, "thumb.stash");
+      const r = await fetch(`/api/files/${f.id}/thumb`, { method: "PUT", body: fd });
+      if (r.ok) cachePut(THUMB_CACHE_PREFIX + f.id, await enc.arrayBuffer());
     })().catch(() => {});
     return url;
   } catch {

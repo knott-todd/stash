@@ -178,6 +178,10 @@ export function Drive() {
       const ctrl = new AbortController();
       copyCtrl.current = ctrl;
       setProvider(p);
+      // Mark the copy as begun right away, so leaving during the scan (before any file lands) still resumes next time.
+      try {
+        if (!localStorage.getItem(doneKey(p))) localStorage.setItem(doneKey(p), "[]");
+      } catch {}
       runProviderCopy(p, setMigration, refresh, ctrl.signal, logEvent).catch(() => {
         if (!ctrl.signal.aborted) setToast({ text: `${PROVIDER_LABEL[p]} stopped answering. The copy resumes when you reopen Stash.`, retry: () => location.reload() });
       });

@@ -19,7 +19,7 @@
       "permissions": ["READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO", "READ_EXTERNAL_STORAGE"]
     },
     "plugins": [
-      ["expo-media-library", { "photosPermission": "Stash backs up your photos and videos automatically.", "savePhotosPermission": false, "isAccessMediaLocationEnabled": false }],
+      ["expo-media-library", { "photosPermission": "Stash backs up your photos and videos automatically.", "savePhotosPermission": false, "isAccessMediaLocationEnabled": false, "granularPermissions": ["photo", "video"] }],
       "expo-background-task",
       "expo-secure-store"
     ]

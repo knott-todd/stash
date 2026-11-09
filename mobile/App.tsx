@@ -6,7 +6,7 @@ import { ActivityIndicator, Linking, Pressable, SafeAreaView, StyleSheet, Text, 
 import * as MediaLibrary from "expo-media-library";
 import * as Device from "expo-device";
 import { loadConfig, me, pollLink, saveConfig, startLink, type Config } from "./src/api";
-import { unwrapKey } from "./src/crypto";
+import { importKey, unwrapKey } from "./src/crypto";
 import { runBackup, scheduleBackground, type Progress } from "./src/backup";
 
 type Screen = "loading" | "link" | "passcode" | "allow" | "status";
@@ -39,11 +39,21 @@ export default function App() {
   async function afterLink(c: Config) {
     try {
       const who = await me(c);
+      // A saved key that no longer decodes (an older build stored it wrongly) is dropped, so the passcode is asked again.
+      if (c.key) {
+        try {
+          await importKey(c.key);
+        } catch {
+          c = { ...c, key: undefined };
+          await saveConfig(c);
+          setCfg(c);
+        }
+      }
       if (!who.key && who.keyWrapped && !c.key) {
         setHint(who.keyWrapped.hint);
         return setScreen("passcode");
       }
-      const perm = await MediaLibrary.getPermissionsAsync();
+      const perm = await MediaLibrary.getPermissionsAsync(false, ["photo", "video"]);
       setScreen(perm.granted ? "status" : "allow");
       if (perm.granted) start(c);
     } catch {
@@ -116,7 +126,7 @@ export default function App() {
   }
 
   async function allow() {
-    const perm = await MediaLibrary.requestPermissionsAsync();
+    const perm = await MediaLibrary.requestPermissionsAsync(false, ["photo", "video"]);
     if (!perm.granted) return setError("Stash needs access to your photos to back them up.");
     setScreen("status");
     if (cfg) start(cfg);

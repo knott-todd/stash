@@ -35,8 +35,10 @@ export async function runBackup(onProgress: (p: Progress) => void = () => {}, bu
   const who = await me(cfg);
   const raw = who.key ?? cfg.key;
   if (!raw) throw new Error("locked"); // the app asks for the passcode in the foreground
-  const key = await importKey(raw);
-  const perm = await MediaLibrary.getPermissionsAsync();
+  const key = await importKey(raw).catch((e) => {
+    throw new Error(`key: ${(e as Error).message} (${raw.length} chars)`);
+  });
+  const perm = await MediaLibrary.getPermissionsAsync(false, ["photo", "video"]);
   if (!perm.granted) throw new Error("no-permission");
 
   const done = await doneSet();

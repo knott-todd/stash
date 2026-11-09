@@ -47,7 +47,7 @@ Production: Vercel (serverless) + Neon Postgres (catalogue) + Vercel Blob (priva
 2. ~~Storage in the user's own Telegram~~ **Out** (Olusanya, 2026-11-08 night): never decided, and it would mean asking people to open a Telegram account, which the product never mentions. Storage stays operator-side.
 3. ~~Files over 20 MB via chunking~~ → built 2026-11-09 (see Complete).
 4. ~~Journeys 2–7 specified in full~~ → docs/JOURNEYS.md.
-5. Native mobile app: journey 1 only (photo auto-backup, keychain-stored key, background transfer).
+5. Native mobile app: journey 1 only (photo auto-backup, keychain-stored key, background transfer). **Android APK builds (2026-11-08, `exports/android/Stash-0.1.0.apk`); not yet run on a phone.** iOS needs the Apple developer account.
 6. Export everything (zip of decrypted files).
 7. ~~Passkeys or PIN escrow for lost-everything recovery~~ → moot with accounts; an opt-in "lock with a passcode" is the only remaining form.
 8. Desktop sync folder; Gmail attachment button; Android WhatsApp import.

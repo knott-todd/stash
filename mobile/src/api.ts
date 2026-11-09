@@ -2,7 +2,7 @@
 // each file in encrypted pieces with a device token.
 
 import * as SecureStore from "expo-secure-store";
-import { encryptChunk, CHUNK_PLAIN_BYTES } from "./crypto";
+import { encryptChunk, CHUNK_PLAIN_BYTES, type Key } from "./crypto";
 
 export const DEFAULT_SERVER = "https://stash.olusanyatodd.com";
 
@@ -42,7 +42,7 @@ export async function report(c: Config, state: object) {
 }
 
 // Upload one file's bytes (already read into memory) in pieces.
-export async function uploadBytes(c: Config, key: CryptoKey, bytes: Uint8Array, meta: { name: string; mime: string; folder: string; modifiedAt?: number }, thumb?: Uint8Array) {
+export async function uploadBytes(c: Config, key: Key, bytes: Uint8Array, meta: { name: string; mime: string; folder: string; modifiedAt?: number }, thumb?: Uint8Array) {
   const fields: Record<string, string> = { name: meta.name, mime: meta.mime, folder: meta.folder, source: "phone", size: String(bytes.length), encrypted: "1", ...(meta.modifiedAt ? { modifiedAt: String(meta.modifiedAt) } : {}) };
   if (bytes.length <= CHUNK_PLAIN_BYTES) {
     const fd = new FormData();

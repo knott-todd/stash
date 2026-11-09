@@ -23,6 +23,7 @@ import { DriveScreen } from "./src/screens/Drive";
 import { MovePickerScreen } from "./src/screens/MovePicker";
 import { DevicesScreen, LinkDeviceScreen } from "./src/screens/Devices";
 import { ProtectionScreen, SettingsScreen } from "./src/screens/Settings";
+import { PhotosScreen } from "./src/screens/Photos";
 import { useShareTarget } from "./src/share";
 import "./src/backup"; // registers the background task
 
@@ -66,6 +67,7 @@ function Root() {
         <Stack.Screen name="LinkDevice" component={LinkDeviceScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="Protection" component={ProtectionScreen} />
+        <Stack.Screen name="Photos" component={PhotosScreen} options={{ animation: "fade" }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

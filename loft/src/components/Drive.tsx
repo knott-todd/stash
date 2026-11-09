@@ -245,12 +245,14 @@ export function Drive() {
   }
 
   // Pictures and videos open in place; everything else opens in a tab or downloads.
-  const [lightbox, setLightbox] = useState<{ items: FileRow[]; index: number } | null>(null);
+  const [lightbox, setLightbox] = useState<{ items: FileRow[]; index: number; from?: DOMRect } | null>(null);
   const isVisual = (f: FileRow) => f.stored && (f.mime.startsWith("image/") || f.mime.startsWith("video/"));
   function openAny(f: FileRow, pool: FileRow[]) {
     if (!isVisual(f)) return open(f);
     const items = pool.filter(isVisual);
-    setLightbox({ items, index: Math.max(0, items.findIndex((x) => x.id === f.id)) });
+    const el = document.querySelector<HTMLElement>(`[data-file-id="${f.id}"]`);
+    const from = (el?.querySelector("img") ?? el)?.getBoundingClientRect();
+    setLightbox({ items, index: Math.max(0, items.findIndex((x) => x.id === f.id)), from });
   }
 
   useEffect(() => {
@@ -718,7 +720,7 @@ export function Drive() {
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search"
                     aria-label="Search files"
-                    className="h-full w-full sm:w-40 sm:focus:w-56 transition-[width] rounded-l-full bg-transparent pl-9 pr-3 text-sm outline-none"
+                    className="h-full w-full sm:w-44 rounded-l-full bg-transparent pl-9 pr-3 text-sm outline-none"
                     data-testid="search"
                   />
                 </label>
@@ -850,7 +852,7 @@ export function Drive() {
         )}
         {moveIds && <MoveDialog folders={allFolders} count={moveIds.length} current={folder} onMove={(target) => moveFiles(moveIds, target)} onClose={() => setMoveIds(null)} />}
         {shareFile && <ShareDialog f={shareFile} onClose={() => setShareFile(null)} onChanged={refresh} />}
-        {lightbox && <Lightbox items={lightbox.items} index={lightbox.index} onIndex={(i) => setLightbox((s) => s && { ...s, index: i })} onClose={() => setLightbox(null)} onDownload={(f) => open(f, true)} />}
+        {lightbox && <Lightbox items={lightbox.items} index={lightbox.index} from={lightbox.from} onIndex={(i) => setLightbox((s) => s && { ...s, index: i })} onClose={() => setLightbox(null)} onDownload={(f) => open(f, true)} />}
         {/* Room under the last row so the floating + never covers its menu. */}
         {!empty && files && <div className="hidden pointer-coarse:block h-20" aria-hidden />}
       </div>

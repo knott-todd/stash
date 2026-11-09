@@ -271,6 +271,7 @@ export function FileBrowser({
                   draggable
                   onDragStart={(e) => dragStart(e, r)}
                   aria-selected={isSel}
+                  data-file-id={f.id}
                   data-testid="grid-file"
                 >
                   <Thumb f={f} className="aspect-[4/3] w-full" />
@@ -352,6 +353,7 @@ export function FileBrowser({
               draggable
               onDragStart={(e) => dragStart(e, r)}
               aria-selected={isSel}
+              data-file-id={f.id}
             >
               {f.stored && (f.mime.startsWith("image/") || f.mime.startsWith("video/")) ? <Thumb f={f} small className="size-7 rounded-md" /> : <FileTypeIcon kind={fileIcon(f.mime, f.name)} className="text-ink-2" />}
               <div className="min-w-0">

@@ -47,6 +47,7 @@ export function PhotosView({ files, opening, onOpen }: { files: FileRow[]; openi
                   className={`block w-full aspect-square rounded-lg overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${opening === f.id ? "opacity-60" : ""}`}
                   onClick={() => onOpen(f)}
                   title={f.name}
+                  data-file-id={f.id}
                   aria-label={`Open ${f.name}`}
                 >
                   <Thumb f={f} className="h-full w-full" />

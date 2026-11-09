@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { decryptFile } from "@/lib/crypto";
 import { cacheGet, cachePut } from "@/lib/filecache";
@@ -10,8 +10,31 @@ import type { FileRow } from "./Drive";
 // Pictures and videos open in place: a panel grows out of the tile over a
 // dimmed page. Arrows and Esc move around; Download saves the original.
 
-export function Lightbox({ items, index, onIndex, onClose, onDownload }: { items: FileRow[]; index: number; onIndex: (i: number) => void; onClose: () => void; onDownload: (f: FileRow) => void }) {
+export function Lightbox({ items, index, from, onIndex, onClose, onDownload }: { items: FileRow[]; index: number; from?: DOMRect; onIndex: (i: number) => void; onClose: () => void; onDownload: (f: FileRow) => void }) {
   const f = items[index];
+  const panel = useRef<HTMLDivElement>(null);
+
+  // Grow out of the tile that was clicked: start the panel where the thumbnail is, then let it settle.
+  useEffect(() => {
+    const el = panel.current;
+    if (!el || !from) return;
+    const to = el.getBoundingClientRect();
+    const s = Math.max(0.05, Math.min(from.width / to.width, from.height / to.height));
+    const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+    const dy = from.top + from.height / 2 - (to.top + to.height / 2);
+    el.style.transition = "none";
+    el.style.transform = `translate(${dx}px, ${dy}px) scale(${s})`;
+    el.style.opacity = "0.4";
+    const raf = requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        el.style.transition = "transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 200ms ease-out";
+        el.style.transform = "";
+        el.style.opacity = "";
+      }),
+    );
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on open
+  }, []);
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -60,7 +83,7 @@ export function Lightbox({ items, index, onIndex, onClose, onDownload }: { items
   const video = f.mime.startsWith("video/");
   return (
     <div className="fixed inset-0 z-[110] bg-ink/70 flex items-center justify-center p-4 sm:p-10 lightbox-in" onClick={onClose} role="dialog" aria-modal="true" aria-label={f.name} data-testid="lightbox">
-      <div className="relative max-w-full max-h-full flex flex-col items-center lightbox-grow" onClick={(e) => e.stopPropagation()}>
+      <div ref={panel} className={`relative max-w-full max-h-full flex flex-col items-center ${from ? "" : "lightbox-grow"}`} onClick={(e) => e.stopPropagation()}>
         <div className="rounded-2xl overflow-hidden bg-black shadow-2xl flex items-center justify-center min-w-[16rem] min-h-[12rem]">
           {url && !video && <img src={url} alt={f.name} className="max-h-[80vh] max-w-[90vw] object-contain" />}
           {url && video && <video src={url} controls autoPlay className="max-h-[80vh] max-w-[90vw]" />}

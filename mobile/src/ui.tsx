@@ -12,8 +12,8 @@ export const line = "#e4e4e4";
 export const paper = "#fafafa";
 export const accent = "#1a56db";
 
-export function Screen({ children, bottom, scroll = true }: { children: React.ReactNode; bottom?: React.ReactNode; scroll?: boolean }) {
-  const body = <View style={s.body}>{children}</View>;
+export function Screen({ children, bottom, scroll = true, centered = false }: { children: React.ReactNode; bottom?: React.ReactNode; scroll?: boolean; centered?: boolean }) {
+  const body = <View style={[s.body, centered && s.centered]}>{children}</View>;
   return (
     <SafeAreaView style={s.page}>
       {scroll ? (
@@ -77,6 +77,7 @@ const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: paper },
   scroll: { flexGrow: 1 },
   body: { flex: 1, paddingHorizontal: 24, paddingTop: 20 },
+  centered: { justifyContent: "center", paddingBottom: 80 },
   bottom: { paddingHorizontal: 24, paddingBottom: 20, paddingTop: 8, gap: 4 },
   brand: { fontSize: 22, fontWeight: "700", color: ink, marginBottom: 28 },
   h1: { fontSize: 30, lineHeight: 36, fontWeight: "600", color: ink, marginBottom: 10 },

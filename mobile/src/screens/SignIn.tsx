@@ -43,7 +43,7 @@ export function SignInScreen() {
 
   if (newAccount)
     return (
-      <Screen bottom={<Button title="Let's make one" onPress={() => nav.reset({ index: 0, routes: [{ name: "Decide" }] })} />}>
+      <Screen centered bottom={<Button title="Let's make one" onPress={() => nav.reset({ index: 0, routes: [{ name: "Decide" }] })} />}>
         <Brand />
         <Segments step={1} />
         <H1>No Stash account yet</H1>

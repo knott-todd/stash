@@ -181,7 +181,7 @@ export function YouAreInScreen() {
     Promise.all([me(cfg), census(cfg).catch(() => null)]).then(([w, c]) => setFacts({ locked: w.protection === "passcode", files: w.fileCount ?? 0, photos: c?.pending ?? 0 })).catch(() => setFacts({ locked: false, files: 0, photos: 0 }));
   }, [cfg]);
   return (
-    <Screen bottom={<Button title="Open my drive" onPress={() => nav.reset({ index: 0, routes: [{ name: "Drive" }] })} />}>
+    <Screen centered bottom={<Button title="Open my drive" onPress={() => nav.reset({ index: 0, routes: [{ name: "Drive" }] })} />}>
       <View style={{ flex: 1, justifyContent: "center" }}>
         <Text style={s.in}>You’re in.</Text>
         <Text style={s.fact}>3 steps.</Text>

@@ -8,3 +8,6 @@ exports/
 desktop/node_modules/
 desktop/dist/
 mobile/node_modules/
+mobile/android/
+mobile/ios/
+mobile/.expo/

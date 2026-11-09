@@ -20,7 +20,7 @@ export async function importKey(raw: string) {
 
 export async function encryptChunk(key: CryptoKey, plain: Uint8Array) {
   const iv = (globalThis as unknown as { crypto: Crypto }).crypto.getRandomValues(new Uint8Array(12));
-  const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv }, key, plain));
+  const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv }, key, plain as unknown as BufferSource));
   const out = new Uint8Array(12 + ct.length);
   out.set(iv);
   out.set(ct, 12);

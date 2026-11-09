@@ -4,7 +4,7 @@
 // sees fit, roughly a few times a day; Android about every 15 minutes).
 
 import * as MediaLibrary from "expo-media-library";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as TaskManager from "expo-task-manager";
 import * as BackgroundTask from "expo-background-task";
 import { loadConfig, me, report, uploadBytes } from "./api";

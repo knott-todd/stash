@@ -4,7 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Device from "expo-device";
 import { GoogleSignin, isErrorWithCode, statusCodes } from "@react-native-google-signin/google-signin";
-import { Brand, Button, ErrorLine, H1, P, Screen, Segments, StepNumber } from "../ui";
+import { Brand, Button, ErrorLine, H1, P, Screen, Segments } from "../ui";
 import { useSession } from "../session";
 import { me, signInWithGoogle } from "../api";
 import { nextRoute } from "../flow";
@@ -67,8 +67,7 @@ export function SignInScreen() {
         </>
       }
     >
-      {!existing && <StepNumber n={1} />}
-      <H1>Sign in with Google</H1>
+      <H1>{existing ? "" : "1. "}Sign in with Google</H1>
       <P>Your files follow your Google account.</P>
     </Screen>
   );

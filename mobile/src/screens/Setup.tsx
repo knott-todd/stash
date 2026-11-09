@@ -4,7 +4,7 @@ import { AppState, Linking, StyleSheet, Switch, Text, View } from "react-native"
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as MediaLibrary from "expo-media-library";
-import { Brand, Button, ErrorLine, font, H1, ink, ink2, ink3, line, P, Screen, StepList, tight } from "../ui";
+import { Brand, Button, ErrorLine, font, ink, ink2, ink3, line, P, Screen, StepTitle, tight } from "../ui";
 import { useSession } from "../session";
 import { DEFAULT_SETTINGS, me, settingsOf, type Settings } from "../api";
 import { connectGoogleDrive, isGoogleConnected, runDriveCopy, type CopyState } from "../drivecopy";
@@ -63,11 +63,7 @@ export function MoveFilesScreen() {
   const running = copy && (copy.phase === "scanning" || copy.phase === "copying");
   return (
     <Screen
-      top={
-        <>
-          <Brand />
-        </>
-      }
+      top={<Brand />}
       bottom={
         <>
           <ErrorLine text={error} />
@@ -76,9 +72,8 @@ export function MoveFilesScreen() {
         </>
       }
     >
-      <H1>2. Move my files here</H1>
+      <StepTitle current={2} />
       {!copy && <P>Everything from Google Drive, folders included. Nothing is deleted there.</P>}
-      {!copy && <StepList current={2} />}
       {copy?.phase === "scanning" && <P>Looking through your Google Drive…</P>}
       {copy && copy.phase !== "scanning" && (
         <View>
@@ -141,7 +136,7 @@ export function BackupPhoneScreen() {
               <Button title="Open settings" onPress={() => Linking.openSettings()} />
             </>
           ) : (
-            <Button title="Back up this phone" onPress={go} busy={busy} />
+            <Button title="Start backing up" onPress={go} busy={busy} />
           )}
           <Button title="Not now" kind="text" onPress={later} />
         </>
@@ -153,10 +148,10 @@ export function BackupPhoneScreen() {
         </>
       }
     >
-      <H1>{existing ? "" : "3. "}Back up this phone</H1>
+      <StepTitle current={3} alone={existing} />
       <P>Your photos and videos back up on their own. Nothing is deleted.</P>
-      {!existing && <StepList current={3} />}
       {denied === "partial" && <P small>Only the photos you picked will back up.</P>}
+      <View style={{ height: 8 }} />
       <Row label="Only on Wi-Fi" note="Never uses mobile data." value={set.wifiOnly} onChange={toggle("wifiOnly")} />
       <Row label="Only while charging" note="The big first backup happens overnight, not in your pocket." value={set.chargingOnly} onChange={toggle("chargingOnly")} />
       <Row label="Include videos" note="Videos are large; off keeps only photos safe." value={set.videos} onChange={toggle("videos")} />

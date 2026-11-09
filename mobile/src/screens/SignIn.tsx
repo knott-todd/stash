@@ -4,7 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Device from "expo-device";
 import { GoogleSignin, isErrorWithCode, statusCodes } from "@react-native-google-signin/google-signin";
-import { Brand, Button, ErrorLine, H1, P, Screen, StepList } from "../ui";
+import { Brand, Button, ErrorLine, H1, P, Screen, StepTitle } from "../ui";
 import { useSession } from "../session";
 import { me, signInWithGoogle } from "../api";
 import { nextRoute } from "../flow";
@@ -51,22 +51,16 @@ export function SignInScreen() {
 
   return (
     <Screen
-      top={
-        <>
-          <Brand />
-        </>
-      }
+      top={<Brand />}
       bottom={
         <>
           <ErrorLine text={error} />
-          <P small>No password to make. Your Google account is enough.</P>
           <Button title="Continue with Google" onPress={signIn} busy={busy} />
         </>
       }
     >
-      <H1>{existing ? "" : "1. "}Sign in with Google</H1>
-      <P>Your files follow your Google account.</P>
-      {!existing && <StepList current={1} />}
+      <StepTitle current={1} alone={existing} />
+      <P>No password to make. Your Google account is enough.</P>
     </Screen>
   );
 }

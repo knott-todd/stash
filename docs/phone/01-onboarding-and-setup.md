@@ -56,10 +56,16 @@ Step 1 Back returns to slide 4; inside step 1, recovery → passcode → decisio
 | Web | Native |
 |---|---|
 | Landing hero, answers | Carousel |
-| Step cards | Full screens, segment bar |
+| Step cards | Full screens, stacked step title |
 | Protection cards | Stacked cards |
 | Passcode, recovery dialogs | Full screens |
-| Green "Linked" | Filled segment |
+| Green "Linked" | Step struck through in the stack |
 | Copy panel, Resume | Notification, automatic resume |
 | Devices "My phone" | Step 3 |
 | Set up strip | Reopen routing |
+
+## Step screens, revised 2026-11-08
+
+Each step is one full screen: the brand (mark + wordmark) centred at the top, then the three steps stacked as one title, the way the website stacks *Free. Unlimited. Private.* The current step is large in ink (42, semibold, -0.035em tracking); the other two sit in their places, small (22) and faded; steps already done are also struck through. Under the stack, one line of body copy. At the bottom, one primary button and at most one quiet text button.
+
+The stack is the only place progress is shown: no bar, no *Step N of 3*, no circles or ticks, and nothing repeats the title. So step 1's button stays **Continue with Google**, and step 3's button becomes **Start backing up**. A returning account sees the same large title without numeral or stack.

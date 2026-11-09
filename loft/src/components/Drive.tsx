@@ -18,7 +18,7 @@ import { rememberAccount } from "@/lib/accounts";
 import Link from "next/link";
 import { doneKey, PROVIDER_LABEL, providerEndpoints, runProviderCopy, type CopyEvent, type Provider } from "@/lib/provider-client";
 import { cacheClear, cacheDelete, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
-import { Lightbox } from "./Lightbox";
+import { Lightbox, type Origin } from "./Lightbox";
 import { Download, FolderPlus, HardDrive, HardDriveDownload, LayoutGrid, LayoutList, Search, Trash2, Upload, X } from "lucide-react";
 import { viewableMime } from "@/lib/view";
 import { demoMode } from "@/lib/demo-flag";
@@ -245,13 +245,16 @@ export function Drive() {
   }
 
   // Pictures and videos open in place; everything else opens in a tab or downloads.
-  const [lightbox, setLightbox] = useState<{ items: FileRow[]; index: number; from?: DOMRect } | null>(null);
+  const [lightbox, setLightbox] = useState<{ items: FileRow[]; index: number; from?: Origin } | null>(null);
   const isVisual = (f: FileRow) => f.stored && (f.mime.startsWith("image/") || f.mime.startsWith("video/"));
   function openAny(f: FileRow, pool: FileRow[]) {
     if (!isVisual(f)) return open(f);
     const items = pool.filter(isVisual);
     const el = document.querySelector<HTMLElement>(`[data-file-id="${f.id}"]`);
-    const from = (el?.querySelector("img") ?? el)?.getBoundingClientRect();
+    // The thumbnail travels, so hand over where it is and what it shows.
+    const img = el?.querySelector("img") ?? null;
+    const rect = (img ?? el)?.getBoundingClientRect();
+    const from: Origin | undefined = rect ? { rect, src: img?.currentSrc || undefined, aspect: img && img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : undefined } : undefined;
     setLightbox({ items, index: Math.max(0, items.findIndex((x) => x.id === f.id)), from });
   }
 
@@ -690,8 +693,8 @@ export function Drive() {
         )}
 
         {tab === "drive" && (
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 min-h-12">
-          <nav className="flex items-center gap-1 text-lg" aria-label="Folder path">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 mb-4 min-h-12">
+          <nav className="flex items-center gap-1 text-lg min-w-0 truncate" aria-label="Folder path">
             <button className="font-semibold hover:underline rounded px-1 -mx-1" onClick={() => setFolder("")} {...crumbDrop("")}>
               My drive
             </button>
@@ -708,7 +711,7 @@ export function Drive() {
               ))}
           </nav>
           {!empty && (
-            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto sm:shrink-0">
               {/* One bar for the tools: search, view, New folder; dividers between. Upload is the
                   only filled control and sits beside it at the same height and radius. */}
               <div className="flex items-center h-9 w-full sm:w-auto rounded-full border border-line bg-white divide-x divide-line" role="toolbar" aria-label="Files">
@@ -733,8 +736,8 @@ export function Drive() {
                     <LayoutGrid size={16} />
                   </button>
                 </span>
-                <button className="inline-flex items-center gap-1.5 h-full px-3.5 rounded-r-full text-sm text-ink-2 hover:text-ink hover:bg-cream-2 whitespace-nowrap" onClick={newFolder} data-testid="new-folder">
-                  <FolderPlus size={15} /> New folder
+                <button className="inline-flex items-center gap-1.5 h-full px-3.5 rounded-r-full text-sm text-ink-2 hover:text-ink hover:bg-cream-2 whitespace-nowrap" onClick={newFolder} aria-label="New folder" title="New folder" data-testid="new-folder">
+                  <FolderPlus size={15} /> <span className="hidden md:inline">New folder</span>
                 </button>
               </div>
               {/* On a phone the job is its own camera roll; Add is the floating button below. */}

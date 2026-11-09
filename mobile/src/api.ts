@@ -2,6 +2,7 @@
 // each file in encrypted pieces with a device token.
 
 import * as SecureStore from "expo-secure-store";
+import * as FileSystem from "expo-file-system/legacy";
 import { encryptChunk, CHUNK_PLAIN_BYTES, type Key } from "./crypto";
 
 export const DEFAULT_SERVER = "https://stash.olusanyatodd.com";
@@ -41,37 +42,48 @@ export async function report(c: Config, state: object) {
   await fetch(`${c.server}/api/devices/me`, { method: "POST", headers: { ...auth(c), "content-type": "application/json" }, body: JSON.stringify(state) }).catch(() => {});
 }
 
-// Upload one file's bytes (already read into memory) in pieces.
+// Upload one file's bytes (already read into memory) in pieces. Each encrypted piece is
+// written to a temp file and streamed by the native multipart uploader: FormData with
+// data URIs does not work for multi-megabyte parts on Android.
+async function postFile(c: Config, path: string, field: string, bytes: Uint8Array, filename: string, params: Record<string, string>, method: "POST" | "PUT" = "POST") {
+  const tmp = `${FileSystem.cacheDirectory}up-${Date.now()}-${Math.random().toString(36).slice(2)}.bin`;
+  await FileSystem.writeAsStringAsync(tmp, toB64(bytes), { encoding: FileSystem.EncodingType.Base64 });
+  try {
+    const r = await FileSystem.uploadAsync(`${c.server}${path}`, tmp, {
+      httpMethod: method,
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: field,
+      mimeType: "application/octet-stream",
+      parameters: params,
+      headers: auth(c),
+    });
+    return { ok: r.status >= 200 && r.status < 300, status: r.status, body: r.body };
+  } finally {
+    FileSystem.deleteAsync(tmp, { idempotent: true }).catch(() => {});
+  }
+}
+
 export async function uploadBytes(c: Config, key: Key, bytes: Uint8Array, meta: { name: string; mime: string; folder: string; modifiedAt?: number }, thumb?: Uint8Array) {
   const fields: Record<string, string> = { name: meta.name, mime: meta.mime, folder: meta.folder, source: "phone", size: String(bytes.length), encrypted: "1", ...(meta.modifiedAt ? { modifiedAt: String(meta.modifiedAt) } : {}) };
   if (bytes.length <= CHUNK_PLAIN_BYTES) {
-    const fd = new FormData();
-    fd.append("file", { uri: `data:application/octet-stream;base64,${toB64(await encryptChunk(key, bytes))}`, name: `${meta.name}.stash`, type: "application/octet-stream" } as unknown as Blob);
-    if (thumb) fd.append("thumb", { uri: `data:application/octet-stream;base64,${toB64(await encryptChunk(key, thumb))}`, name: "thumb.stash", type: "application/octet-stream" } as unknown as Blob);
-    for (const [k, v] of Object.entries(fields)) fd.append(k, v);
-    const r = await fetch(`${c.server}/api/files`, { method: "POST", headers: auth(c), body: fd });
-    if (!r.ok) throw new Error(`upload failed (${r.status})`);
-    return (await r.json()).file;
+    // One request for the file; the preview, if any, is attached right after.
+    const r = await postFile(c, "/api/files", "file", await encryptChunk(key, bytes), `${meta.name}.stash`, fields);
+    if (!r.ok) throw new Error(`upload failed (${r.status}) ${r.body.slice(0, 120)}`);
+    const file = JSON.parse(r.body).file;
+    if (thumb && file?.id) {
+      await postFile(c, `/api/files/${file.id}/thumb`, "thumb", await encryptChunk(key, thumb), "thumb.stash", {}, "PUT").catch(() => {});
+    }
+    return file;
   }
   // The server issues the upload id, records each piece under it, and assembles them at registration.
   const ur = await fetch(`${c.server}/api/uploads`, { method: "POST", headers: { ...auth(c), "content-type": "application/json" }, body: JSON.stringify({ name: meta.name }) });
   if (!ur.ok) throw new Error(`upload start failed (${ur.status})`);
   const upload: string = (await ur.json()).upload;
   for (let i = 0, off = 0; off < bytes.length; i++, off += CHUNK_PLAIN_BYTES) {
-    const fd = new FormData();
-    fd.append("piece", { uri: `data:application/octet-stream;base64,${toB64(await encryptChunk(key, bytes.subarray(off, off + CHUNK_PLAIN_BYTES)))}`, name: `${meta.name}.part${i}.stash`, type: "application/octet-stream" } as unknown as Blob);
-    fd.append("upload", upload);
-    fd.append("index", String(i));
-    const r = await fetch(`${c.server}/api/files/part`, { method: "POST", headers: auth(c), body: fd });
-    if (!r.ok) throw new Error(`piece ${i} failed (${r.status})`);
+    const r = await postFile(c, "/api/files/part", "piece", await encryptChunk(key, bytes.subarray(off, off + CHUNK_PLAIN_BYTES)), `${meta.name}.part${i}.stash`, { upload, index: String(i) });
+    if (!r.ok) throw new Error(`piece ${i} failed (${r.status}) ${r.body.slice(0, 120)}`);
   }
-  if (thumb) {
-    const fd = new FormData();
-    fd.append("piece", { uri: `data:application/octet-stream;base64,${toB64(await encryptChunk(key, thumb))}`, name: "thumb.stash", type: "application/octet-stream" } as unknown as Blob);
-    fd.append("upload", upload);
-    fd.append("index", "thumb");
-    await fetch(`${c.server}/api/files/part`, { method: "POST", headers: auth(c), body: fd });
-  }
+  if (thumb) await postFile(c, "/api/files/part", "piece", await encryptChunk(key, thumb), "thumb.stash", { upload, index: "thumb" }).catch(() => {});
   const r = await fetch(`${c.server}/api/files`, { method: "POST", headers: { ...auth(c), "content-type": "application/json" }, body: JSON.stringify({ ...fields, upload }) });
   if (!r.ok) throw new Error(`register failed (${r.status})`);
   return (await r.json()).file;

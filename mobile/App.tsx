@@ -6,11 +6,15 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Image, Linking, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import * as MediaLibrary from "expo-media-library";
 import * as Device from "expo-device";
-import { DEFAULT_SETTINGS, loadConfig, me, pollLink, saveConfig, settingsOf, signInSheet, startLink, unlinkSelf, type Config, type Settings } from "./src/api";
-import { importKey, unwrapKey } from "./src/crypto";
+import Constants from "expo-constants";
+import { GoogleSignin, isErrorWithCode, statusCodes } from "@react-native-google-signin/google-signin";
+import { DEFAULT_SETTINGS, loadConfig, me, saveConfig, setProtection, settingsOf, signInWithGoogle, unlinkSelf, type Config, type Settings } from "./src/api";
+import { importKey, recoveryCode, unwrapKey, wrapKey } from "./src/crypto";
+
+GoogleSignin.configure({ webClientId: String(Constants.expoConfig?.extra?.googleWebClientId ?? "") });
 import { census, runBackup, scheduleBackground, type Progress } from "./src/backup";
 
-type Screen = "loading" | "welcome" | "passcode" | "allow" | "home" | "settings";
+type Screen = "loading" | "welcome" | "decide" | "lock" | "recovery" | "passcode" | "allow" | "home" | "settings";
 
 export default function App() {
   const [cfg, setCfg] = useState<Config | null>(null);
@@ -20,7 +24,10 @@ export default function App() {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [recent, setRecent] = useState<MediaLibrary.Asset[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"signin" | "open" | "backup" | null>(null);
+  const [busy, setBusy] = useState<"signin" | "open" | "backup" | "lock" | null>(null);
+  const [newPass, setNewPass] = useState("");
+  const [newHint, setNewHint] = useState("");
+  const [recovery, setRecovery] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -42,6 +49,7 @@ export default function App() {
   async function afterLink(c: Config) {
     try {
       const who = await me(c);
+      if (!who.protection) return setScreen("decide");
       if (c.key) {
         try {
           await importKey(c.key);
@@ -63,36 +71,58 @@ export default function App() {
     }
   }
 
-  // Continue with Google: the website signs the person in and links this phone in one tap.
+  // Continue with Google: the phone's own account picker; the server links this phone in the same step.
   async function signIn() {
     if (busy) return;
     setBusy("signin");
     setError(null);
     const c = cfg ?? (await loadConfig());
     try {
-      const l = await startLink(c.server, `${Device.deviceName ?? "Phone"}`);
-      const pending = { linkId: l.linkId, secret: l.secret, code: l.code, url: l.url, expiresAt: Date.now() + l.expiresInSeconds * 1000 };
-      await saveConfig({ ...c, pendingLink: pending });
-      await signInSheet(c.server, l);
-      // The sheet has closed; the approval is on the server if they said yes.
-      for (let i = 0; i < 6; i++) {
-        let s;
-        try {
-          s = await pollLink(c.server, l.linkId, l.secret);
-        } catch {
-          await new Promise((r) => setTimeout(r, 1500));
-          continue;
-        }
-        if (s.state === "approved") {
-          const next = { ...c, token: s.token, deviceId: s.deviceId, email: s.email, pendingLink: undefined };
-          await saveConfig(next);
-          setCfg(next);
-          return afterLink(next);
-        }
-        if (s.state !== "waiting") break;
-        await new Promise((r) => setTimeout(r, 1500));
-      }
-      setError("Sign-in didn't finish. Try again.");
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const res = await GoogleSignin.signIn();
+      if (res.type !== "success" || !res.data.idToken) return; // the person closed the picker
+      const who = await signInWithGoogle(c.server, res.data.idToken, `${Device.deviceName ?? "Phone"}`);
+      const next: Config = { ...c, token: who.token, deviceId: who.deviceId, email: who.email, pendingLink: undefined };
+      await saveConfig(next);
+      setCfg(next);
+      await afterLink(next);
+    } catch (e) {
+      if (isErrorWithCode(e) && e.code === statusCodes.SIGN_IN_CANCELLED) return;
+      setError(isErrorWithCode(e) && e.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE ? "This phone needs Google Play services to sign in." : String((e as Error).message));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function chooseStandard() {
+    if (!cfg || busy) return;
+    setBusy("lock");
+    try {
+      await setProtection(cfg, { mode: "standard" });
+      await afterLink(cfg);
+    } catch (e) {
+      setError(String((e as Error).message));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function chooseLocked() {
+    if (!cfg || busy) return;
+    if (newPass.length < 6) return setError("Use at least 6 characters.");
+    setBusy("lock");
+    setError(null);
+    try {
+      const who = await me(cfg);
+      if (!who.key) throw new Error("The account has no key to lock.");
+      const wrapped = await wrapKey(who.key, newPass, newHint.trim() || undefined);
+      await setProtection(cfg, { mode: "passcode", keyWrapped: wrapped });
+      const next = { ...cfg, key: who.key };
+      await saveConfig(next);
+      setCfg(next);
+      setRecovery(recoveryCode(who.key));
+      setNewPass("");
+      setScreen("recovery");
     } catch (e) {
       setError(String((e as Error).message));
     } finally {
@@ -188,6 +218,58 @@ export default function App() {
             <Text style={s.p}>Sign in once. From then on your photos and videos back up on their own, and they are there on any device you sign in to.</Text>
             <Pressable style={[s.btn, busy === "signin" && s.btnBusy]} onPress={signIn} disabled={!!busy}>
               {busy === "signin" ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Continue with Google</Text>}
+            </Pressable>
+          </View>
+        )}
+
+        {screen === "decide" && (
+          <View>
+            <Text style={s.small}>One question before your photos</Text>
+            <Text style={s.h1}>How private should your photos be?</Text>
+            <Text style={s.p}>Every photo is encrypted before it is stored either way. You can change this later in Settings on the website.</Text>
+            <View style={s.card}>
+              <Text style={s.cardTitle}>Standard</Text>
+              <Text style={s.p}>Opens wherever you sign in. Nothing to remember.</Text>
+              <Text style={s.small}>Stash can open your photos, as Google Photos can. We never do unless you share one.</Text>
+              <Pressable style={[s.btn, busy === "lock" && s.btnBusy]} onPress={chooseStandard} disabled={!!busy}>
+                {busy === "lock" ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Use Standard</Text>}
+              </Pressable>
+            </View>
+            <View style={s.card}>
+              <Text style={s.cardTitle}>Locked</Text>
+              <Text style={s.p}>Only you can open them, with a passcode you choose.</Text>
+              <Text style={s.small}>Not even Stash can. Forget the passcode and the recovery code, and the photos are gone.</Text>
+              <Pressable style={s.btnGhost} onPress={() => setScreen("lock")} disabled={!!busy}>
+                <Text style={s.btnGhostText}>Lock my photos</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {screen === "lock" && (
+          <View>
+            <Pressable onPress={() => setScreen("decide")}>
+              <Text style={s.back}>‹ Back</Text>
+            </Pressable>
+            <Text style={s.h1}>Choose a passcode</Text>
+            <Text style={s.p}>You'll type it once on each device. Keep the recovery code on the next screen somewhere safe: it is the only other way in.</Text>
+            <TextInput secureTextEntry value={newPass} onChangeText={setNewPass} placeholder="Passcode (6 or more characters)" style={s.input} autoFocus />
+            <TextInput value={newHint} onChangeText={setNewHint} placeholder="A hint only you understand (optional)" style={s.input} />
+            <Pressable style={[s.btn, busy === "lock" && s.btnBusy]} onPress={chooseLocked} disabled={!!busy}>
+              {busy === "lock" ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Lock my photos</Text>}
+            </Pressable>
+          </View>
+        )}
+
+        {screen === "recovery" && (
+          <View>
+            <Text style={s.h1}>Your recovery code</Text>
+            <Text style={s.p}>Write this down and keep it somewhere safe. With it you can open your photos even if you forget the passcode. Without both, nobody can.</Text>
+            <Text style={s.code} selectable>
+              {recovery}
+            </Text>
+            <Pressable style={s.btn} onPress={() => cfg && afterLink(cfg)}>
+              <Text style={s.btnText}>I've written it down</Text>
             </Pressable>
           </View>
         )}
@@ -338,6 +420,11 @@ const s = StyleSheet.create({
   linkBtn: { paddingVertical: 10 },
   linkText: { color: "#6b6b6b", fontSize: 15, textDecorationLine: "underline" },
   back: { color: "#6b6b6b", fontSize: 16, marginBottom: 16 },
+  card: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#e4e4e4", borderRadius: 16, padding: 18, marginTop: 14 },
+  cardTitle: { fontSize: 20, fontWeight: "600", color: "#111", marginBottom: 6 },
+  btnGhost: { borderWidth: 1, borderColor: "#e4e4e4", borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 8, backgroundColor: "#fff" },
+  btnGhostText: { color: "#111", fontSize: 16, fontWeight: "600" },
+  code: { fontSize: 22, fontFamily: "monospace", letterSpacing: 1, textAlign: "center", backgroundColor: "#fff", borderWidth: 1, borderColor: "#e4e4e4", borderRadius: 12, padding: 16, marginBottom: 16, color: "#111" },
   toggle: { flexDirection: "row", alignItems: "center", paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#eee" },
   toggleLabel: { fontSize: 16, color: "#111" },
 });

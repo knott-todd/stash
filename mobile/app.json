@@ -10,18 +10,42 @@
       "bundleIdentifier": "com.olusanyatodd.stash",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Stash backs up your photos and videos automatically.",
-        "UIBackgroundModes": ["fetch", "processing"],
-        "BGTaskSchedulerPermittedIdentifiers": ["com.olusanyatodd.stash.backup"]
+        "UIBackgroundModes": [
+          "fetch",
+          "processing"
+        ],
+        "BGTaskSchedulerPermittedIdentifiers": [
+          "com.olusanyatodd.stash.backup"
+        ]
       }
     },
     "android": {
       "package": "com.olusanyatodd.stash",
-      "permissions": ["READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO", "READ_EXTERNAL_STORAGE"]
+      "permissions": [
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "READ_EXTERNAL_STORAGE"
+      ]
     },
     "plugins": [
-      ["expo-media-library", { "photosPermission": "Stash backs up your photos and videos automatically.", "savePhotosPermission": false, "isAccessMediaLocationEnabled": false, "granularPermissions": ["photo", "video"] }],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Stash backs up your photos and videos automatically.",
+          "savePhotosPermission": false,
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": [
+            "photo",
+            "video"
+          ]
+        }
+      ],
       "expo-background-task",
-      "expo-secure-store"
-    ]
+      "expo-secure-store",
+      "@react-native-google-signin/google-signin"
+    ],
+    "extra": {
+      "googleWebClientId": "1075182560956-m3lnfgroma3ppcrimd5strbcq29144ji.apps.googleusercontent.com"
+    }
   }
 }

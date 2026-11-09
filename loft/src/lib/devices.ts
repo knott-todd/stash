@@ -52,17 +52,24 @@ export async function peekLink(code: string) {
 }
 
 // The signed-in browser says yes: the device is born and the token waits for it.
+// A new linked device with a fresh token (returned once; only its hash is kept).
+export async function createDevice(uid: string, name: string, platform: string, kind: Device["kind"]) {
+  const db = store();
+  const token = randomBytes(32).toString("base64url");
+  const device: Device = { id: newId() + newId(), uid, name: name.slice(0, 60), platform: platform.slice(0, 20), kind, createdAt: Date.now(), lastSeen: Date.now(), tokenHash: hash(token) };
+  await db.kvSet(kDevice(device.id), device);
+  await db.kvSet(kTok(device.tokenHash), device.id);
+  const ids = (await db.kvGet<string[]>(kList(uid))) ?? [];
+  await db.kvSet(kList(uid), [...ids, device.id]);
+  return { device, token };
+}
+
 export async function approveLink(code: string, uid: string, email: string | null) {
   const db = store();
   const key = kLink(code.toUpperCase());
   const l = await db.kvGet<Link>(key);
   if (!l || Date.now() - l.createdAt > LINK_TTL || l.approved) return null;
-  const token = randomBytes(32).toString("base64url");
-  const d: Device = { id: newId() + newId(), uid, name: l.name, platform: l.platform, kind: l.kind, createdAt: Date.now(), lastSeen: Date.now(), tokenHash: hash(token) };
-  await db.kvSet(kDevice(d.id), d);
-  await db.kvSet(kTok(d.tokenHash), d.id);
-  const ids = (await db.kvGet<string[]>(kList(uid))) ?? [];
-  await db.kvSet(kList(uid), [...ids, d.id]);
+  const { device: d, token } = await createDevice(uid, l.name, l.platform, l.kind);
   await db.kvSet(key, { ...l, approved: { deviceId: d.id, token, email } });
   return d;
 }

@@ -50,7 +50,7 @@ export async function takeOAuthState(nonce: string | null): Promise<OAuthState |
 type Identity = { sub: string; email: string; name?: string; picture?: string };
 
 // Ask Google who the token belongs to, rather than trusting the token's own claims.
-async function identityFromIdToken(idToken: string): Promise<Identity> {
+export async function identityFromIdToken(idToken: string): Promise<Identity> {
   const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
   const j = await r.json();
   if (!r.ok || j.aud !== process.env.GOOGLE_CLIENT_ID || !j.sub || !j.email) throw new Error("bad id token");

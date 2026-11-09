@@ -43,6 +43,34 @@ export async function encryptChunk(key: Key, plain: Uint8Array) {
   return out;
 }
 
+// Locking: wrap the account key with a passcode. Same shape as the web (PBKDF2-SHA256, 600k rounds → AES-GCM).
+export const PBKDF2_ITER = 600_000;
+export async function wrapKey(raw: string, passcode: string, hint?: string) {
+  const pass = passcode.normalize("NFKC");
+  const salt = getRandomBytes(16);
+  const keyBytes = unb64url(raw);
+  if (StashCrypto) {
+    const k = await StashCrypto.pbkdf2(pass, toB64(salt), PBKDF2_ITER);
+    const sealed = fromB64(await StashCrypto.gcmEncrypt(k, toB64(keyBytes))); // iv || ct || tag
+    return { salt: b64url(salt), iv: b64url(sealed.subarray(0, 12)), ct: b64url(sealed.subarray(12)), iter: PBKDF2_ITER, ...(hint ? { hint } : {}) };
+  }
+  const k = pbkdf2(sha256, new TextEncoder().encode(pass), salt, { c: PBKDF2_ITER, dkLen: 32 });
+  const iv = getRandomBytes(12);
+  const ct = gcm(k, iv).encrypt(keyBytes);
+  return { salt: b64url(salt), iv: b64url(iv), ct: b64url(ct), iter: PBKDF2_ITER, ...(hint ? { hint } : {}) };
+}
+
+// Recovery code: the key itself in Crockford base32, same as the web, so a person can write it down.
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+export function recoveryCode(raw: string) {
+  const bytes = unb64url(raw);
+  let bits = "";
+  for (const b of bytes) bits += b.toString(2).padStart(8, "0");
+  let out = "";
+  for (let i = 0; i < bits.length; i += 5) out += CROCKFORD[parseInt(bits.slice(i, i + 5).padEnd(5, "0"), 2)];
+  return out.match(/.{1,5}/g)!.join("-");
+}
+
 // Locked accounts: unwrap the key with the passcode (PBKDF2-SHA256 → AES-GCM).
 export async function unwrapKey(w: { salt: string; iv: string; ct: string; iter: number }, passcode: string) {
   const pass = passcode.normalize("NFKC");

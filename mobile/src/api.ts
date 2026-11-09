@@ -37,6 +37,23 @@ export const settingsOf = (c: Config): Settings => ({ ...DEFAULT_SETTINGS, ...(c
 
 const auth = (c: Config) => ({ authorization: `Bearer ${c.token}` });
 
+// --- Sign-in
+
+// Native Google sign-in: the account picker on the phone gives the app an identity token;
+// the server verifies it with Google and links this phone in the same step.
+export async function signInWithGoogle(server: string, idToken: string, name: string) {
+  const r = await fetch(`${server}/api/auth/google/device`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idToken, name, platform: "phone" }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.token) throw new Error(j.error ?? `Sign-in failed (${r.status})`);
+  return j as { token: string; deviceId: string; email: string | null; protection: "standard" | "passcode" | null };
+}
+
+// The account's first decision, made in the app: Standard (Stash keeps the key) or Locked (a passcode only the person knows).
+export async function setProtection(c: Config, body: { mode: "standard" } | { mode: "passcode"; keyWrapped: { salt: string; iv: string; ct: string; iter: number; hint?: string } }) {
+  const r = await fetch(`${c.server}/api/account/protection`, { method: "POST", headers: { ...auth(c), "content-type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Couldn't save that choice.");
+}
+
 // --- Linking
 
 export async function startLink(server: string, name: string) {

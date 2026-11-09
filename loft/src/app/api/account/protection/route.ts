@@ -15,10 +15,12 @@ const isWrapped = (w: unknown): w is WrappedKey => {
 
 export async function POST(req: Request) {
   const s = await getSession();
-  if (!s || s.deviceId) return unauthorized(); // only a person in a browser changes this
+  if (!s) return unauthorized();
   const body = await req.json().catch(() => ({}));
   const db = store();
   const u = await db.getUser(s.uid);
+  // A linked device may make the first decision (the phone app's first run); changing it later takes a browser.
+  if (s.deviceId && u.protection) return unauthorized();
   if (body.mode === "standard") {
     if (u.protection === "passcode") {
       if (typeof body.key !== "string" || !/^[A-Za-z0-9_-]{16,64}$/.test(body.key)) return NextResponse.json({ error: "key required" }, { status: 400 });

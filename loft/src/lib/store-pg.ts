@@ -276,16 +276,32 @@ export function pgStore(): Store {
       await ensure();
       await sql`DELETE FROM copy_queue WHERE uid = ${uid} AND provider = ${provider}`;
     },
-    async moveSourceInto(uid, source, top) {
+    async moveSourceInto(uid, source, top, keepAtRoot = []) {
       await ensure();
-      const like = top.replace(/[%_\\]/g, "\\    async sourceNames(uid, source) {") + "/%";
+      const like = top.replace(/[%_\\]/g, "\\$&") + "/%";
       const rows = await sql`WITH moved AS (
           UPDATE files SET data = jsonb_set(data, '{folder}', to_jsonb(CASE WHEN coalesce(data->>'folder', '') = '' THEN ${top}::text ELSE ${top}::text || '/' || (data->>'folder') END))
           WHERE uid = ${uid} AND data->>'source' = ${source}
             AND coalesce(data->>'folder', '') <> ${top} AND coalesce(data->>'folder', '') NOT LIKE ${like}
+            AND NOT (split_part(coalesce(data->>'folder', ''), '/', 1) = ANY(${keepAtRoot}::text[]))
           RETURNING 1)
         SELECT count(*)::int AS n FROM moved`;
       return Number(rows[0]?.n ?? 0);
+    },
+    async moveSourceOut(uid, source, top, names) {
+      await ensure();
+      let n = 0;
+      for (const name of names) {
+        const at = `${top}/${name}`;
+        const like = at.replace(/[%_\\]/g, "\\$&") + "/%";
+        const rows = await sql`WITH moved AS (
+            UPDATE files SET data = jsonb_set(data, '{folder}', to_jsonb(substr(data->>'folder', ${top.length + 2})))
+            WHERE uid = ${uid} AND data->>'source' = ${source} AND (data->>'folder' = ${at} OR data->>'folder' LIKE ${like})
+            RETURNING 1)
+          SELECT count(*)::int AS n FROM moved`;
+        n += Number(rows[0]?.n ?? 0);
+      }
+      return n;
     },
     async sourceNames(uid, source) {
       await ensure();

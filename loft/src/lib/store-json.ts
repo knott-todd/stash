@@ -235,13 +235,26 @@ export function jsonStore(): Store {
       d.queue = (d.queue ?? []).filter((r) => !(r.uid === uid && r.provider === provider));
       save();
     },
-    async moveSourceInto(uid, source, top) {
+    async moveSourceInto(uid, source, top, keepAtRoot = []) {
       let n = 0;
       for (const f of load().files) {
         if (f.uid !== uid || f.source !== source) continue;
         const folder = f.folder ?? "";
         if (folder === top || folder.startsWith(top + "/")) continue;
+        if (keepAtRoot.includes(folder.split("/")[0])) continue;
         f.folder = folder ? `${top}/${folder}` : top;
+        n++;
+      }
+      if (n) save();
+      return n;
+    },
+    async moveSourceOut(uid, source, top, names) {
+      let n = 0;
+      for (const f of load().files) {
+        if (f.uid !== uid || f.source !== source) continue;
+        const folder = f.folder ?? "";
+        if (!names.some((name) => folder === `${top}/${name}` || folder.startsWith(`${top}/${name}/`))) continue;
+        f.folder = folder.slice(top.length + 1);
         n++;
       }
       if (n) save();

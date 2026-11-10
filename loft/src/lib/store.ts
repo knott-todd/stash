@@ -113,14 +113,17 @@ export interface Store {
   queueClear(uid: string, provider: string): Promise<void>;
   // Puts every file from a source under one root folder ("School" → "Google Drive/School").
   // Files already in that folder are left alone. Returns how many moved.
-  moveSourceInto(uid: string, source: string, top: string): Promise<number>;
+  // Folders whose first part is in `keepAtRoot` (computer backups) stay where they are.
+  moveSourceInto(uid: string, source: string, top: string, keepAtRoot?: string[]): Promise<number>;
+  // The reverse, for the named folders only: "Google Drive/My Laptop/…" → "My Laptop/…".
+  moveSourceOut(uid: string, source: string, top: string, names: string[]): Promise<number>;
   // "folder/name" of every file that came from a source, to skip what is already here.
   sourceNames(uid: string, source: string): Promise<string[]>;
 }
 
 // `inProvider`: the folder already starts with the provider's own folder (set since
 // provider folders exist; older queue rows get it added when they're copied).
-export type QueueItem = { name: string; mime: string; size: number; folder: string; exportAs?: string; inProvider?: boolean };
+export type QueueItem = { name: string; mime: string; size: number; folder: string; exportAs?: string; inProvider?: boolean; atRoot?: boolean };
 export type QueueState = "pending" | "done" | "failed" | "skipped";
 export type QueueRow = {
   uid: string;

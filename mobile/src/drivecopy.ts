@@ -79,7 +79,7 @@ export async function runDriveCopy(onState: (s: CopyState) => void, shouldStop: 
         const d = await FileSystem.downloadAsync(`${cfg.server}/api/google/file?${q}`, tmp, { headers: auth(cfg) });
         if (d.status !== 200) throw new Error(`fetch ${d.status}`);
         const bytes = fromB64(await FileSystem.readAsStringAsync(tmp, { encoding: FileSystem.EncodingType.Base64 }));
-        await uploadBytes(cfg, key, bytes, { name: f.name, mime: f.mimeType, folder: f.folder ? `Google Drive/${f.folder}` : "Google Drive" }, undefined, "google-drive");
+        await uploadBytes(cfg, key, bytes, { name: f.name, mime: f.mimeType, folder: f.folder }, undefined, "google-drive");
         done.add(f.id);
         await saveDone(done);
         st.copied++;

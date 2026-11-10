@@ -8,7 +8,7 @@ import { connected as providersConnected, PROVIDERS } from "@/lib/providers";
 import { AUTH_ENABLED, newFileKey } from "@/lib/auth";
 import { STAGE } from "@/lib/stage";
 import { after } from "next/server";
-import { allRecords, FAKE_DRIVE, foldProviderFiles, kick, needsKick } from "@/lib/copyjob";
+import { allRecords, FAKE_DRIVE, kick, needsKick } from "@/lib/copyjob";
 import { requestOrigin } from "@/lib/public-url";
 
 export async function GET(req: Request) {
@@ -34,8 +34,6 @@ export async function GET(req: Request) {
   const uid = s.uid;
   const db = store();
   const [u, stats, migration, copies] = await Promise.all([db.getUser(uid), db.fileStats(uid), db.getMigration(uid), allRecords(uid)]);
-  // Files moved from another drive before provider folders existed join their folder, once.
-  if (stats.bySource["google-drive"] || stats.bySource.dropbox || stats.bySource.onedrive) after(() => foldProviderFiles(uid).catch(() => 0));
   // Every page load doubles as a watchdog for a server-side copy whose runs went quiet.
   const stale = copies.filter((c) => needsKick(c));
   if (stale.length) {

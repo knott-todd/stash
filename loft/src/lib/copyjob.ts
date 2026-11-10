@@ -20,7 +20,7 @@ import * as others from "./providers";
 // (provider-client.ts) and report their progress into the same record.
 
 export type { CopyProvider, CopyRecord, CopyState } from "./copy-types";
-import { COPY_LABEL, COPY_PROVIDERS, isCopyProvider, itemFolder, providerFolder, type BrowserFile, type CopyProvider, type CopyRecord, type CopyState } from "./copy-types";
+import { COPY_LABEL, isCopyProvider, itemFolder, providerFolder, type BrowserFile, type CopyProvider, type CopyRecord, type CopyState } from "./copy-types";
 export type { BrowserFile } from "./copy-types";
 
 const recKey = (uid: string, p: CopyProvider) => `copy:${uid}:${p}`;
@@ -65,9 +65,6 @@ async function patchRecord(uid: string, p: CopyProvider, patch: Partial<CopyReco
 // ---------- what the person does ----------
 
 export async function startCopy(uid: string, p: CopyProvider, mode: "server" | "browser", opts: { relist?: boolean } = {}) {
-  // Files moved before provider folders existed join the folder first, so "already in
-  // Stash" matches them where new copies will land.
-  await foldProviderFiles(uid);
   const prev = await getRecord(uid, p);
   const now = Date.now();
   const relist = opts.relist || !prev || prev.mode !== mode;
@@ -105,17 +102,16 @@ export async function stopCopy(uid: string, p: CopyProvider) {
   return r;
 }
 
-// Once per account: every file already moved from another drive goes into that drive's
-// root folder ("School" → "Google Drive/School"). Nothing is copied or deleted, only moved.
-const FOLDED = (uid: string) => `copyfolded:v1:${uid}`;
-export async function foldProviderFiles(uid: string) {
+// Files already in Stash from this drive go where new copies land: My Drive under the
+// provider's folder ("School" → "Google Drive/School"), computer backups at the root next to
+// the device folders (and back out, if an earlier version put them inside). Only moved,
+// never copied or deleted. Needs the computer backups' names, so it runs while reading.
+async function settle(uid: string, p: CopyProvider, deviceRoots: string[]) {
   const db = store();
-  if (await db.kvGet<boolean>(FOLDED(uid))) return 0;
-  let n = 0;
-  for (const p of COPY_PROVIDERS) n += await db.moveSourceInto(uid, p, COPY_LABEL[p]);
-  await db.kvSet(FOLDED(uid), true);
-  if (n) await bumpRev(uid);
-  return n;
+  const out = await db.moveSourceOut(uid, p, COPY_LABEL[p], deviceRoots);
+  const into = await db.moveSourceInto(uid, p, COPY_LABEL[p], deviceRoots);
+  if (out + into) await bumpRev(uid);
+  return out + into;
 }
 
 // Switching accounts, or disconnecting: forget the queue and the record.
@@ -243,7 +239,8 @@ async function tokenFor(uid: string, p: CopyProvider): Promise<string> {
 type Listed = { fid: string; item: QueueItem };
 type Source = {
   // One step of the listing. Returns the files found and whether there is more.
-  listStep(uid: string, r: CopyRecord, signal: AbortSignal): Promise<{ files: Listed[]; done: boolean }>;
+  // deviceRoots: the computer-backup folder names, once known (they stay at the root of Stash).
+  listStep(uid: string, r: CopyRecord, signal: AbortSignal): Promise<{ files: Listed[]; done: boolean; deviceRoots?: string[] }>;
   open(uid: string, fid: string, item: QueueItem, from: number, signal: AbortSignal): Promise<Response>;
 };
 
@@ -253,14 +250,15 @@ const googleSource: Source = {
     const db = store();
     try {
       if (!r.listedFolders) {
-        await db.kvSet(foldersKey(uid, "google-drive"), await google.listFolders(token, signal));
+        const folders = await google.listFolders(token, signal);
+        await db.kvSet(foldersKey(uid, "google-drive"), folders);
         r.listedFolders = true;
-        return { files: [], done: false };
+        return { files: [], done: false, deviceRoots: google.deviceRootNames(folders) };
       }
       const folders = (await db.kvGet<google.GFolders>(foldersKey(uid, "google-drive"))) ?? {};
       const page = await google.listFilesPage(token, folders, r.listCursor, signal);
       r.listCursor = page.next;
-      return { files: page.files.map((f) => ({ fid: f.id, item: { name: f.name, mime: f.mimeType, size: f.size, folder: f.folder, ...(f.exportAs ? { exportAs: f.exportAs } : {}) } })), done: !page.next };
+      return { files: page.files.map((f) => ({ fid: f.id, item: { name: f.name, mime: f.mimeType, size: f.size, folder: f.folder, ...(f.exportAs ? { exportAs: f.exportAs } : {}), ...(f.atRoot ? { atRoot: true } : {}) } })), done: !page.next };
     } catch (e) {
       const status = (e as { status?: number }).status;
       if (status === 401) throw new Fail("reconnect", "listing refused");
@@ -283,7 +281,7 @@ function otherSource(p: "dropbox" | "onedrive"): Source {
       const token = await tokenFor(uid, p);
       try {
         const files = await others.listAll(p, token);
-        return { files: files.map((f) => ({ fid: f.id, item: { name: f.name, mime: f.mimeType, size: f.size, folder: f.folder } })), done: true };
+        return { files: files.map((f) => ({ fid: f.id, item: { name: f.name, mime: f.mimeType, size: f.size, folder: f.folder } })), done: true, deviceRoots: [] };
       } catch (e) {
         throw new Fail("transient", String((e as Error).message));
       }
@@ -307,9 +305,11 @@ const fakeSource: Source = {
     const files: Listed[] = [];
     for (let i = 0; i < n; i++) {
       const size = i === 3 ? 9_500_000 : i === 7 ? 0 : 2_000 + ((i * 7919) % 60_000);
-      files.push({ fid: `fake-${i}`, item: { name: i === 5 ? "gone.txt" : `file-${String(i).padStart(3, "0")}.txt`, mime: "text/plain", size, folder: i % 3 === 0 ? "" : i % 3 === 1 ? "School" : "School/Notes" } });
+      // Every tenth file is in a computer backup ("My Laptop"), which stays at the root.
+      const laptop = i % 10 === 9;
+      files.push({ fid: `fake-${i}`, item: { name: i === 5 ? "gone.txt" : `file-${String(i).padStart(3, "0")}.txt`, mime: "text/plain", size, folder: laptop ? "My Laptop/Desktop" : i % 3 === 0 ? "" : i % 3 === 1 ? "School" : "School/Notes", ...(laptop ? { atRoot: true } : {}) } });
     }
-    return { files, done: true };
+    return { files, done: true, deviceRoots: ["My Laptop"] };
   },
   async open(_uid, fid, item, from) {
     await sleep(Number(process.env.STASH_FAKE_DELAY_MS ?? 150));
@@ -478,6 +478,11 @@ export async function runStep(uid: string, p: CopyProvider): Promise<{ again: bo
     if (rec.mode === "server" && (u.protection === "passcode" || !u.key)) rec = await patchRecord(uid, p, { mode: "browser" });
     if (!rec) return { again: false, note: "gone" };
     const src = sourceFor(p);
+    // A copy from before files were put in place reads the drive again once: its queued
+    // files need their folders worked out, and the files already here need settling.
+    if (!rec.settled && rec.state === "running")
+      rec = await patchRecord(uid, p, { state: "listing", listComplete: false, listCursor: undefined, listedFolders: undefined });
+    if (!rec) return { again: false, note: "gone" };
 
     // Waiting out busy storage or an outage. Short waits are slept here; long ones are
     // slept in pieces across runs, so the chain stays alive without anyone visiting.
@@ -496,6 +501,12 @@ export async function runStep(uid: string, p: CopyProvider): Promise<{ again: bo
     while (rec && rec.state === "listing" && left() > 30_000) {
       try {
         const step = await src.listStep(uid, rec, ctrl.signal);
+        // Put what's already here in place before matching against it.
+        if (step.deviceRoots && !rec.settled) {
+          await settle(uid, p, step.deviceRoots);
+          rec.settled = true;
+          have = null;
+        }
         if (step.files.length) {
           if (!have) {
             have = new Map();
@@ -507,7 +518,8 @@ export async function runStep(uid: string, p: CopyProvider): Promise<{ again: bo
             p,
             step.files.map((listed) => {
               // Into the provider's own root folder, next to the device folders.
-              const f = { ...listed, item: { ...listed.item, folder: providerFolder(p, listed.item.folder), inProvider: true } };
+              // Computer backups keep their path at the root; the rest goes under the provider's folder.
+              const f = { ...listed, item: { ...listed.item, folder: listed.item.atRoot ? listed.item.folder : providerFolder(p, listed.item.folder), inProvider: true } };
               const k = `${f.item.folder}/${f.item.name}`;
               const n = h.get(k) ?? 0;
               if (n > 0) h.set(k, n - 1);
@@ -515,7 +527,7 @@ export async function runStep(uid: string, p: CopyProvider): Promise<{ again: bo
             }),
           );
         }
-        const patch: Partial<CopyRecord> = { listCursor: rec.listCursor, listedFolders: rec.listedFolders, strikes: 0, waitUntil: undefined };
+        const patch: Partial<CopyRecord> = { listCursor: rec.listCursor, listedFolders: rec.listedFolders, settled: rec.settled, strikes: 0, waitUntil: undefined };
         if (step.done) Object.assign(patch, { state: "running", listCursor: undefined, listedFolders: undefined, listComplete: true });
         rec = (await refreshCounts(uid, p, patch)).rec;
         if (step.done) await db.kvDelete(foldersKey(uid, p));
@@ -537,6 +549,9 @@ export async function runStep(uid: string, p: CopyProvider): Promise<{ again: bo
     // Copying.
     while (left() > 20_000) {
       const fresh = await getRecord(uid, p);
+      // Asked to read the drive again ("Move again" while copying): hand over now, so the next
+      // run starts reading, instead of waiting for a watchdog.
+      if (fresh?.state === "listing") return { again: true, note: "reading again" };
       if (!fresh || fresh.state !== "running") return { again: false, note: `now ${fresh?.state}` };
       // After hours of outage the chain rests; the watchdog wakes it later.
       if (!(await waitOut(fresh))) return { again: (fresh.strikes ?? 0) < 40, note: "still waiting" };

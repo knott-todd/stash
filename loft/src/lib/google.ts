@@ -69,7 +69,9 @@ export async function accessTokenFor(uid: string): Promise<string | null> {
   return g.accessToken;
 }
 
-export type GFile = { id: string; name: string; mimeType: string; size: number; folder: string; exportAs?: string };
+// atRoot: the file is in a computer backup (Drive's "Computers"), not My Drive; its folders
+// belong at the root of Stash, next to the device folders.
+export type GFile = { id: string; name: string; mimeType: string; size: number; folder: string; exportAs?: string; atRoot?: boolean };
 
 // Google-native docs have no bytes; export them to a portable format.
 const EXPORTS: Record<string, { mime: string; ext: string }> = {
@@ -126,7 +128,9 @@ export async function listAll(token: string): Promise<GFile[]> {
 // The server-side copy lists in steps so a large Drive never outruns one function's time:
 // every folder first (small), then the files a page at a time, each page placed by its folder.
 const FOLDER_MIME = "application/vnd.google-apps.folder";
-export type GFolders = Record<string, { name: string; parent?: string }>;
+// device: a top-level folder you own that isn't in My Drive — a computer backed up by
+// Google's desktop app (Drive's "Computers" section). Folders in My Drive have My Drive as parent.
+export type GFolders = Record<string, { name: string; parent?: string; device?: boolean }>;
 
 async function drivePage(token: string, q: string, fields: string, pageToken?: string, signal?: AbortSignal) {
   const p = new URLSearchParams({ q, fields: `nextPageToken, files(${fields})`, pageSize: "1000", spaces: "drive" });
@@ -145,11 +149,26 @@ export async function listFolders(token: string, signal?: AbortSignal): Promise<
   const out: GFolders = {};
   let pageToken: string | undefined;
   do {
-    const j = await drivePage(token, `trashed = false and mimeType = '${FOLDER_MIME}'`, "id,name,parents", pageToken, signal);
-    for (const f of j.files) out[f.id] = { name: f.name, parent: f.parents?.[0] };
+    const j = await drivePage(token, `trashed = false and mimeType = '${FOLDER_MIME}'`, "id,name,parents,ownedByMe", pageToken, signal);
+    for (const f of j.files as { id: string; name: string; parents?: string[]; ownedByMe?: boolean }[])
+      out[f.id] = { name: f.name, parent: f.parents?.[0], ...(!f.parents?.length && f.ownedByMe ? { device: true } : {}) };
     pageToken = j.nextPageToken;
   } while (pageToken);
   return out;
+}
+
+// The names of the computer backups, which stay at the root of Stash.
+export const deviceRootNames = (folders: GFolders) => [...new Set(Object.values(folders).filter((f) => f.device).map((f) => f.name))];
+
+// Where a file sits: its folder path, and whether that path starts at a computer backup.
+export function placeOf(folders: GFolders, parent: string | undefined): { path: string; device: boolean } {
+  let top: string | undefined;
+  const seen = new Set<string>();
+  for (let id = parent; id && folders[id] && !seen.has(id); id = folders[id].parent) {
+    seen.add(id);
+    top = id;
+  }
+  return { path: folderPath(folders, parent), device: !!(top && folders[top].device) };
 }
 
 export function folderPath(folders: GFolders, parent: string | undefined): string {
@@ -168,7 +187,8 @@ export async function listFilesPage(token: string, folders: GFolders, pageToken?
     .filter((f) => (f.mimeType.startsWith("application/vnd.google-apps.") ? EXPORTS[f.mimeType] : true))
     .map((f) => {
       const ex = EXPORTS[f.mimeType];
-      return { id: f.id, name: ex ? f.name + ex.ext : f.name, mimeType: ex ? ex.mime : f.mimeType, size: Number(f.size ?? 0), folder: folderPath(folders, f.parents?.[0]), exportAs: ex?.mime };
+      const place = placeOf(folders, f.parents?.[0]);
+      return { id: f.id, name: ex ? f.name + ex.ext : f.name, mimeType: ex ? ex.mime : f.mimeType, size: Number(f.size ?? 0), folder: place.path, exportAs: ex?.mime, ...(place.device ? { atRoot: true } : {}) };
     });
   return { files, next: j.nextPageToken };
 }

@@ -30,6 +30,9 @@ export type CopyRecord = {
   listComplete?: boolean;
   // How the last call to start the next run went (202 = taken).
   handover?: { at: number; ok: boolean; status: number };
+  // Files already in Stash from this drive have been put in place (provider folder, with
+  // computer backups kept at the root). Done during the first step of reading the drive.
+  settled?: boolean;
 };
 
 // The browser copy's share of the queue: one file to fetch, encrypt and store.

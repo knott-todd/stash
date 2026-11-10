@@ -760,11 +760,11 @@ export function Drive() {
               ))}
           </nav>
           {!empty && (
-            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto sm:shrink-0">
+            <div className="flex items-center gap-3 w-full sm:w-auto sm:shrink-0">
               {/* One bar for the tools: search, view, New folder; dividers between. Upload is the
                   only filled control and sits beside it at the same height and radius. */}
-              <div className="flex items-center h-9 w-full sm:w-auto rounded-full border border-line bg-white divide-x divide-line" role="toolbar" aria-label="Files">
-                <label className="relative flex-1 sm:flex-none h-full">
+              <div className="flex items-center h-9 flex-1 min-w-0 sm:flex-none rounded-full border border-line bg-white divide-x divide-line" role="toolbar" aria-label="Files">
+                <label className="relative flex-1 min-w-0 sm:flex-none h-full">
                   <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3" aria-hidden />
                   <input
                     type="search"
@@ -820,7 +820,7 @@ export function Drive() {
 
         {!empty && files && tab === "drive" && (
           <button
-            className="hidden pointer-coarse:flex fixed right-5 bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] z-30 size-14 items-center justify-center rounded-full bg-ink text-white text-3xl leading-none shadow-lg active:scale-95 transition disabled:opacity-50"
+            className="hidden pointer-coarse:flex fixed right-5 bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] max-sm:bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 size-14 items-center justify-center rounded-full bg-ink text-white text-3xl leading-none shadow-lg active:scale-95 transition disabled:opacity-50"
             onClick={() => inputRef.current?.click()}
             aria-label="Add a file"
             data-testid="upload-phone"
@@ -916,7 +916,7 @@ export function Drive() {
       )}
 
       {toast && (
-        <div className="fixed bottom-6 pointer-coarse:bottom-24 left-1/2 -translate-x-1/2 bg-ink text-cream px-5 py-3 rounded-full shadow-lg rise flex items-center gap-4" role="status">
+        <div className="fixed bottom-6 pointer-coarse:bottom-24 max-sm:bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] max-sm:pointer-coarse:bottom-[calc(env(safe-area-inset-bottom)+9.5rem)] max-w-[calc(100vw-2rem)] left-1/2 -translate-x-1/2 bg-ink text-cream px-5 py-3 rounded-full shadow-lg rise flex items-center gap-4" role="status">
           {toast.text}
           {toast.retry && (
             <button className="underline" onClick={toast.retry}>
@@ -966,7 +966,7 @@ export function Drive() {
       )}
 
       {demoTools && (
-        <button onClick={resetDemo} className="fixed bottom-4 right-4 text-xs text-ink-3 hover:text-ink underline" title="Delete every file in this account" data-testid="start-fresh">
+        <button onClick={resetDemo} className="fixed bottom-4 max-sm:bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 text-xs text-ink-3 hover:text-ink underline" title="Delete every file in this account" data-testid="start-fresh">
           Start fresh
         </button>
       )}

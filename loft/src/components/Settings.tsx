@@ -166,14 +166,20 @@ export function Settings() {
 // icon · title · one line · control. `full` puts the control under the text, full width.
 function Row({ icon, title, line, full = false, children }: { icon: React.ReactNode; title: string; line: string; full?: boolean; children: React.ReactNode }) {
   return (
-    <section className="p-5 flex gap-4">
-      <span className="mt-0.5 shrink-0 text-ink-2" aria-hidden>
+    // On a phone the icon sits beside the title instead of in its own column, so the controls get the width.
+    <section className="p-4 sm:p-5 flex gap-4">
+      <span className="hidden sm:block mt-0.5 shrink-0 text-ink-2" aria-hidden>
         {icon}
       </span>
       <div className="flex-1 min-w-0">
         <div className={`flex ${full ? "flex-col gap-3" : "flex-wrap items-center justify-between gap-3"}`}>
           <div className="min-w-0">
-            <h2 className="font-semibold truncate">{title}</h2>
+            <h2 className="font-semibold flex items-center gap-2 min-w-0">
+              <span className="sm:hidden shrink-0 text-ink-2 [&>svg]:size-[18px]" aria-hidden>
+                {icon}
+              </span>
+              <span className="truncate">{title}</span>
+            </h2>
             <p className="text-sm text-ink-2">{line}</p>
           </div>
           <div className={full ? "" : "shrink-0"}>{children}</div>

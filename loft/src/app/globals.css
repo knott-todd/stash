@@ -74,6 +74,13 @@ h2,
 }
 
 
+/* Phones: the section tabs sit in a fixed bar at the bottom; keep the page clear of it. */
+@media (max-width: 639.98px) {
+  body:has(.app-tabbar) {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+}
+
 /* No entrance motion; classes kept so components don't break. */
 .rise,
 .rise-2,

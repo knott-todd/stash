@@ -80,10 +80,10 @@ export function SetupSteps({ state, big, onStart, providers, onDismiss }: { stat
 
 function Step({ done, label, children }: { done: boolean; label: string; children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2 text-ink-2">
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-2">
       <Tick done={done} />
-      <span className={done ? "line-through text-ink-3" : ""}>{label}</span>
-      {!done && <span className="text-ink-2">{children}</span>}
+      <span className={`whitespace-nowrap ${done ? "line-through text-ink-3" : ""}`}>{label}</span>
+      {!done && <span className="text-ink-2 whitespace-nowrap">{children}</span>}
     </span>
   );
 }

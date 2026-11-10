@@ -9,10 +9,17 @@ export default function Terms() {
         ← Stash
       </Link>
       <h1 className="mt-6 text-3xl font-semibold">Terms</h1>
-      <p className="mt-2 text-sm text-ink-3">Last updated 8 November 2026</p>
+      <p className="mt-2 text-sm text-ink-3">Last updated 9 November 2026</p>
 
       <section className="mt-8 space-y-6 leading-relaxed text-ink-2">
         <p>Stash is free storage, offered as it is, while it is in early release.</p>
+        <p>
+          Stash is experimental. We work to keep every file safe, but we can&apos;t guarantee that files will be kept
+          forever or that they will always be available. Keep another copy of anything you can&apos;t afford to lose.
+        </p>
+        <p>
+          You need to be at least 13 to use Stash, or 16 if you live in the European Union or the United Kingdom.
+        </p>
         <p>
           Your files are encrypted before they are stored. On a Standard account they open wherever you sign in with
           Google. On a Locked account only you can open them: if you forget the passcode and lose the recovery code,
@@ -25,6 +32,12 @@ export default function Terms() {
         <p>
           Don&apos;t store anything illegal, and don&apos;t use Stash to harm other people. Stash may remove content or
           drives that break this.
+        </p>
+        <p>
+          Stash is provided &ldquo;as is&rdquo;, without warranties of any kind. To the extent the law allows, Stash
+          and the person who runs it are not liable for any loss of data, loss of access, or other damage that comes
+          from using it or from it being unavailable. Some places don&apos;t allow these limits, so they may not all
+          apply to you.
         </p>
         <p>
           Stash is run by one person and may change, pause or close. If it closes, you will get notice and time to

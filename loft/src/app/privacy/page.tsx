@@ -12,7 +12,7 @@ export default function Privacy() {
         ← Stash
       </Link>
       <h1 className="mt-6 text-3xl font-semibold">Privacy</h1>
-      <p className="mt-2 text-sm text-ink-3">Last updated 8 November 2026</p>
+      <p className="mt-2 text-sm text-ink-3">Last updated 9 November 2026</p>
 
       <section className="mt-8 space-y-6 leading-relaxed">
         <div>
@@ -94,6 +94,15 @@ export default function Privacy() {
           <p className="mt-2 text-ink-2">
             No tracking, no analytics, no advertising, no selling or sharing of data, and nothing of yours is used to
             train anything. Stash keeps the minimum needed to show you your files and does nothing else with it.
+          </p>
+        </div>
+
+        <div>
+          <h2 className="text-xl font-semibold">If something goes wrong</h2>
+          <p className="mt-2 text-ink-2">
+            If your account information or files are ever exposed, Stash will email you at the address you sign in
+            with, without undue delay, saying what happened, what was affected and what we are doing about it, and
+            will tell the relevant authorities where the law requires it.
           </p>
         </div>
 

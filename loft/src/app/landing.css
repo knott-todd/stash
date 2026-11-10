@@ -123,6 +123,28 @@
   color: var(--l-ink-2);
 }
 
+/* Early-release notice: sits under the button so nobody signs up without seeing it. */
+.landing .experimental {
+  margin: 20px 0 0;
+  max-width: 30rem;
+  padding: 12px 14px;
+  border: 1px solid var(--l-line, #e4e4e4);
+  border-left: 3px solid var(--l-ink-2);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--l-ink-2);
+}
+.landing .experimental strong {
+  color: var(--l-ink);
+  font-weight: 600;
+}
+.landing .experimental a {
+  color: var(--l-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* Scroll cue at the foot of the hero: quiet text; the chevron hops once every few seconds. */
 @keyframes hop {
   0%,
@@ -214,6 +236,23 @@
 }
 .landing footer .thanks a:hover {
   color: var(--l-ink);
+}
+.landing footer .legal {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 12px;
+}
+.landing footer .legal a {
+  color: var(--l-ink-2);
+  text-decoration: none;
+  padding: 8px 0;
+  min-height: 24px;
+}
+.landing footer .legal a:hover {
+  color: var(--l-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* No motion. The page is static on purpose; nothing here needs to move to be understood. */

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Logo } from "./Logo";
 import { forgetAccount, rememberedAccounts, type Remembered } from "@/lib/accounts";
@@ -83,6 +84,23 @@ export function SignIn() {
             {accounts && accounts.length > 0 ? "Use another account" : "Continue with Google"}
           </button>
         )}
+
+        <p className="mt-6 text-sm text-ink-2 border-l-2 border-line pl-3">
+          <span className="font-semibold text-ink">Stash is an early experiment.</span> We can&apos;t promise files will
+          be kept forever, so keep another copy of anything you can&apos;t afford to lose.
+        </p>
+
+        <p className="mt-4 text-sm text-ink-3 text-center">
+          By continuing you agree to the{" "}
+          <Link href="/terms" className="underline underline-offset-4 hover:text-ink">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="underline underline-offset-4 hover:text-ink">
+            Privacy policy
+          </Link>
+          .
+        </p>
       </section>
     </main>
   );

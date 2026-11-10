@@ -23,6 +23,7 @@ import { Download, FolderPlus, HardDrive, HardDriveDownload, LayoutGrid, LayoutL
 import { viewableMime } from "@/lib/view";
 import { demoMode } from "@/lib/demo-flag";
 import { uploadEncrypted, uploadMode } from "@/lib/upload";
+import { ExperimentalNotice } from "./ExperimentalNotice";
 
 export type FileRow = {
   id: string;
@@ -708,6 +709,8 @@ export function Drive() {
             onResume={providerReady(provider) ? () => startGoogleCopy(provider) : undefined}
           />
         )}
+
+        {tab === "drive" && <ExperimentalNotice />}
 
         {pairOpen === "card" && (
           <PairCard

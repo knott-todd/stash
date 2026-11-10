@@ -7,15 +7,15 @@ import "./landing.css";
 const answers = [
   {
     h: "Free.",
-    p: "There is no plan to upgrade to. The storage behind Stash costs us nothing to give, so there is no bill to pass on. No tiers, no trial, no card.",
+    p: "There is no plan to upgrade to and nothing to pay. No tiers, no trial, no card.",
   },
   {
     h: "Unlimited.",
-    p: "No quota. Add a file today and ten thousand next year; the price stays the same. You will never see “storage full” again.",
+    p: "No quota. Add a file today and ten thousand next year; there is no cap to hit and the price stays the same.",
   },
   {
     h: "Private.",
-    p: "Every file is encrypted before it is stored, so the companies holding the bytes cannot read them. Only you, signed in, can open your files. We never scan them, sell them or train anything on them.",
+    p: "Every file is encrypted before it is stored, so the companies holding the bytes cannot read them. Stash never opens your files unless you share a link, and with a passcode not even Stash can. We never scan them, sell them or train anything on them.",
   },
 ];
 
@@ -43,6 +43,11 @@ export default function Landing() {
             Switch to Stash in 3 easy steps
           </Link>
           <p className="reassure">Sign in with Google. No card.</p>
+          <p className="experimental" data-testid="experimental-notice">
+            <strong>Stash is an early experiment.</strong> We work to keep every file safe, but can&apos;t promise
+            anything will be kept forever. Keep another copy of anything you can&apos;t afford to lose.{" "}
+            <Link href="/terms">Terms</Link>
+          </p>
         </div>
         {/* Scroll cue: the hero fills the screen, so say there is more. */}
         <a href="#answers" className="more" aria-label="Read what that means">
@@ -70,6 +75,10 @@ export default function Landing() {
           </a>
           , who made this all possible &lt;3
         </p>
+        <nav className="legal" aria-label="Legal">
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+        </nav>
       </footer>
     </main>
   );

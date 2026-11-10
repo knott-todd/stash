@@ -33,7 +33,21 @@ export type CopyRecord = {
 };
 
 // The browser copy's share of the queue: one file to fetch, encrypt and store.
-export type BrowserFile = { fid: string; item: { name: string; mime: string; size: number; folder: string; exportAs?: string }; attempts: number };
+export type BrowserFile = { fid: string; item: { name: string; mime: string; size: number; folder: string; exportAs?: string; inProvider?: boolean }; attempts: number };
+
+// Everything moved from another drive lives in a root folder named after it, next to
+// the device folders: "Google Drive/School/Notes", not "School/Notes".
+export const COPY_LABEL: Record<CopyProvider, string> = { "google-drive": "Google Drive", dropbox: "Dropbox", onedrive: "OneDrive" };
+export const providerFolder = (p: CopyProvider, folder: string) => {
+  const inner = folder.replace(/^\/+|\/+$/g, "");
+  return inner ? `${COPY_LABEL[p]}/${inner}` : COPY_LABEL[p];
+};
+
+// The other way: where a file sat in the other drive, from where it is in Stash.
+export const driveFolder = (p: CopyProvider, stashFolder: string) => (stashFolder === COPY_LABEL[p] ? "" : stashFolder.startsWith(COPY_LABEL[p] + "/") ? stashFolder.slice(COPY_LABEL[p].length + 1) : stashFolder);
+
+// Where a queued file goes in Stash.
+export const itemFolder = (p: CopyProvider, item: { folder: string; inProvider?: boolean }) => (item.inProvider ? item.folder : providerFolder(p, item.folder));
 
 // What still isn't in Stash: everything not copied and not too big to copy.
 export const remaining = (r: CopyRecord) => Math.max(0, r.total - r.copied - r.skipped);

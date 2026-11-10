@@ -111,11 +111,16 @@ export interface Store {
   queueCounts(uid: string, provider: string): Promise<QueueCounts>;
   queueRetryFailed(uid: string, provider: string): Promise<void>;
   queueClear(uid: string, provider: string): Promise<void>;
+  // Puts every file from a source under one root folder ("School" → "Google Drive/School").
+  // Files already in that folder are left alone. Returns how many moved.
+  moveSourceInto(uid: string, source: string, top: string): Promise<number>;
   // "folder/name" of every file that came from a source, to skip what is already here.
   sourceNames(uid: string, source: string): Promise<string[]>;
 }
 
-export type QueueItem = { name: string; mime: string; size: number; folder: string; exportAs?: string };
+// `inProvider`: the folder already starts with the provider's own folder (set since
+// provider folders exist; older queue rows get it added when they're copied).
+export type QueueItem = { name: string; mime: string; size: number; folder: string; exportAs?: string; inProvider?: boolean };
 export type QueueState = "pending" | "done" | "failed" | "skipped";
 export type QueueRow = {
   uid: string;

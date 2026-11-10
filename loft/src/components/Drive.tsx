@@ -18,6 +18,7 @@ import { rememberAccount } from "@/lib/accounts";
 import Link from "next/link";
 import { doneKey, PROVIDER_LABEL, providerEndpoints, runProviderCopy, type CopyEvent, type Provider } from "@/lib/provider-client";
 import { copyAction, currentCopy, loadCopies, useCopies, useOnCopied } from "@/lib/copy-client";
+import { driveFolder } from "@/lib/copy-types";
 import { cacheClear, cacheDelete, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { Lightbox, type Origin } from "./Lightbox";
 import { Download, FolderPlus, HardDrive, HardDriveDownload, LayoutGrid, LayoutList, Search, Trash2, Upload, X } from "lucide-react";
@@ -191,7 +192,7 @@ export function Drive() {
     if (rec && rec.provider !== provider && (rec.state === "running" || rec.state === "listing")) setProvider(rec.provider); // eslint-disable-line react-hooks/set-state-in-effect -- follows the server record
   }, [rec, provider]);
   // What the server copy last did, for the status line.
-  const shownActivity: CopyEvent | null = browserStatus ? activity : rec?.last ? { action: "Saved", name: rec.last.name, from: PROVIDER_LABEL[rec.provider], path: rec.last.folder, to: rec.last.folder } : null;
+  const shownActivity: CopyEvent | null = browserStatus ? activity : rec?.last ? { action: "Saved", name: rec.last.name, from: PROVIDER_LABEL[rec.provider], path: driveFolder(rec.provider, rec.last.folder), to: rec.last.folder } : null;
 
   const startBrowserCopy = useCallback(
     (p: Provider) => {

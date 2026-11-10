@@ -20,7 +20,7 @@ import * as others from "./providers";
 // (provider-client.ts) and report their progress into the same record.
 
 export type { CopyProvider, CopyRecord, CopyState } from "./copy-types";
-import { isCopyProvider, type BrowserFile, type CopyProvider, type CopyRecord, type CopyState } from "./copy-types";
+import { COPY_LABEL, COPY_PROVIDERS, isCopyProvider, itemFolder, providerFolder, type BrowserFile, type CopyProvider, type CopyRecord, type CopyState } from "./copy-types";
 export type { BrowserFile } from "./copy-types";
 
 const recKey = (uid: string, p: CopyProvider) => `copy:${uid}:${p}`;
@@ -65,6 +65,9 @@ async function patchRecord(uid: string, p: CopyProvider, patch: Partial<CopyReco
 // ---------- what the person does ----------
 
 export async function startCopy(uid: string, p: CopyProvider, mode: "server" | "browser", opts: { relist?: boolean } = {}) {
+  // Files moved before provider folders existed join the folder first, so "already in
+  // Stash" matches them where new copies will land.
+  await foldProviderFiles(uid);
   const prev = await getRecord(uid, p);
   const now = Date.now();
   const relist = opts.relist || !prev || prev.mode !== mode;
@@ -102,6 +105,19 @@ export async function stopCopy(uid: string, p: CopyProvider) {
   return r;
 }
 
+// Once per account: every file already moved from another drive goes into that drive's
+// root folder ("School" → "Google Drive/School"). Nothing is copied or deleted, only moved.
+const FOLDED = (uid: string) => `copyfolded:v1:${uid}`;
+export async function foldProviderFiles(uid: string) {
+  const db = store();
+  if (await db.kvGet<boolean>(FOLDED(uid))) return 0;
+  let n = 0;
+  for (const p of COPY_PROVIDERS) n += await db.moveSourceInto(uid, p, COPY_LABEL[p]);
+  await db.kvSet(FOLDED(uid), true);
+  if (n) await bumpRev(uid);
+  return n;
+}
+
 // Switching accounts, or disconnecting: forget the queue and the record.
 export async function forgetCopy(uid: string, p: CopyProvider) {
   const db = store();
@@ -123,7 +139,7 @@ export async function browserNext(uid: string, p: CopyProvider, n: number, exclu
   const rows = await store().queueNext(uid, p, Math.min(Math.max(n, 1), 100), exclude.slice(0, 500));
   // Nothing left, and nothing still in the browser's hands: finished.
   if (!rows.length && !exclude.length) return { files: [], rec: (await refreshCounts(uid, p, { state: "done" })).rec };
-  return { files: rows.map((r) => ({ fid: r.fid, item: r.item, attempts: r.attempts })), rec };
+  return { files: rows.map((r) => ({ fid: r.fid, item: { ...r.item, folder: itemFolder(p, r.item), inProvider: true }, attempts: r.attempts })), rec };
 }
 
 export async function browserMark(uid: string, p: CopyProvider, results: BrowserOutcome[]): Promise<CopyRecord | null> {
@@ -136,7 +152,7 @@ export async function browserMark(uid: string, p: CopyProvider, results: Browser
     if (!row || row.state !== "pending") continue;
     if (r.outcome === "done") {
       await db.queueSave({ ...row, state: "done", error: undefined });
-      last = { name: row.item.name, folder: row.item.folder };
+      last = { name: row.item.name, folder: itemFolder(p, row.item) };
     } else if (r.outcome === "skipped") await db.queueSave({ ...row, state: "skipped" });
     else {
       const attempts = row.attempts + 10;
@@ -419,7 +435,7 @@ async function copyOne(uid: string, p: CopyProvider, key: CryptoKey, row: QueueR
     name: item.name.slice(0, 255),
     size: total,
     mime: item.mime || "application/octet-stream",
-    folder: item.folder.replace(/^\/+|\/+$/g, ""),
+    folder: itemFolder(p, item),
     source: p,
     createdAt: Date.now(),
     encrypted: true,
@@ -489,7 +505,9 @@ export async function runStep(uid: string, p: CopyProvider): Promise<{ again: bo
           await db.queueAdd(
             uid,
             p,
-            step.files.map((f) => {
+            step.files.map((listed) => {
+              // Into the provider's own root folder, next to the device folders.
+              const f = { ...listed, item: { ...listed.item, folder: providerFolder(p, listed.item.folder), inProvider: true } };
               const k = `${f.item.folder}/${f.item.name}`;
               const n = h.get(k) ?? 0;
               if (n > 0) h.set(k, n - 1);
@@ -545,7 +563,7 @@ export async function runStep(uid: string, p: CopyProvider): Promise<{ again: bo
             try {
               await copyOne(uid, p, key, row, src, ctrl.signal);
               ok++;
-              last = { name: row.item.name, folder: row.item.folder };
+              last = { name: row.item.name, folder: itemFolder(p, row.item) };
             } catch (e) {
               const f = e instanceof Fail ? e : new Fail("transient", String((e as Error)?.message ?? e));
               if (f.kind === "reconnect") reconnect = true;

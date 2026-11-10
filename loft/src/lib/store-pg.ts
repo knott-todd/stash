@@ -235,7 +235,8 @@ export function pgStore(): Store {
         await sql`INSERT INTO copy_queue (uid, provider, fid, state, attempts, size, data)
           SELECT ${uid}, ${provider}, x.fid, x.state, 0, x.size, x.data
           FROM jsonb_to_recordset(${JSON.stringify(batch)}::jsonb) AS x(fid text, state text, size bigint, data jsonb)
-          ON CONFLICT (uid, provider, fid) DO NOTHING`;
+          ON CONFLICT (uid, provider, fid) DO UPDATE SET data = jsonb_set(copy_queue.data, '{item}', EXCLUDED.data->'item'), size = EXCLUDED.size
+          WHERE copy_queue.state <> 'done'`;
       }
     },
     async queueNext(uid, provider, n, exclude = []) {
@@ -274,6 +275,17 @@ export function pgStore(): Store {
     async queueClear(uid, provider) {
       await ensure();
       await sql`DELETE FROM copy_queue WHERE uid = ${uid} AND provider = ${provider}`;
+    },
+    async moveSourceInto(uid, source, top) {
+      await ensure();
+      const like = top.replace(/[%_\\]/g, "\\    async sourceNames(uid, source) {") + "/%";
+      const rows = await sql`WITH moved AS (
+          UPDATE files SET data = jsonb_set(data, '{folder}', to_jsonb(CASE WHEN coalesce(data->>'folder', '') = '' THEN ${top}::text ELSE ${top}::text || '/' || (data->>'folder') END))
+          WHERE uid = ${uid} AND data->>'source' = ${source}
+            AND coalesce(data->>'folder', '') <> ${top} AND coalesce(data->>'folder', '') NOT LIKE ${like}
+          RETURNING 1)
+        SELECT count(*)::int AS n FROM moved`;
+      return Number(rows[0]?.n ?? 0);
     },
     async sourceNames(uid, source) {
       await ensure();

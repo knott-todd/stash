@@ -3,7 +3,7 @@
 import { uploadEncrypted, uploadMode } from "./upload";
 import { getRawKey } from "./crypto";
 import type { CopyRecord } from "./copy-types";
-import type { BrowserFile } from "./copy-types";
+import { driveFolder, type BrowserFile } from "./copy-types";
 
 // Browser-side copy from another drive, for passcode-locked accounts (Stash can't
 // encrypt for them, so the server can't copy for them; Standard accounts copy on the
@@ -238,12 +238,12 @@ export async function runProviderCopy(
       const f = queue.shift();
       if (!f) continue;
       if (f.item.size > MAX) {
-        onEvent({ action: `Skipped (over ${Math.round(MAX / 1024 / 1024 / 1024)} GB)`, name: f.item.name, from: label, path: f.item.folder });
+        onEvent({ action: `Skipped (over ${Math.round(MAX / 1024 / 1024 / 1024)} GB)`, name: f.item.name, from: label, path: driveFolder(p, f.item.folder) });
         await mark(f.fid, "skipped");
         continue;
       }
       inflight.add(f.fid);
-      onEvent({ action: "Copying", name: f.item.name, from: label, path: f.item.folder });
+      onEvent({ action: "Copying", name: f.item.name, from: label, path: driveFolder(p, f.item.folder) });
       try {
         const q = new URLSearchParams({ id: f.fid });
         if (f.item.exportAs) q.set("export", f.item.exportAs);
@@ -254,7 +254,7 @@ export async function runProviderCopy(
         await uploadEncrypted(new File([plain], f.item.name, { type: f.item.mime }), { folder: f.item.folder, source: p, signal });
         strikes = 0;
         await mark(f.fid, "done");
-        onEvent({ action: "Saved", name: f.item.name, from: label, path: f.item.folder, to: f.item.folder });
+        onEvent({ action: "Saved", name: f.item.name, from: label, path: driveFolder(p, f.item.folder), to: f.item.folder });
         // Refresh the drive sparingly: every listing is read from the database, which is metered.
         if (++sinceRefresh >= 25 || Date.now() - lastRefresh > 20000) {
           sinceRefresh = 0;
@@ -266,14 +266,14 @@ export async function runProviderCopy(
         if (e instanceof Error && e.message === "too-big") await mark(f.fid, "skipped");
         else if (e instanceof Fail && e.final) {
           // Refused for good: the server sets it aside after a few of these (Resume gives it another go).
-          onEvent({ action: "Couldn't copy, will try once more later", name: f.item.name, from: label, path: f.item.folder });
+          onEvent({ action: "Couldn't copy, will try once more later", name: f.item.name, from: label, path: driveFolder(p, f.item.folder) });
           await mark(f.fid, "final", e.message);
         } else {
           // The connection, a sleeping laptop, a busy server: keep it and wait.
           queue.push(f);
           strikes++;
           if (strikes >= 2) pausedUntil = Date.now() + Math.min(60_000, 5_000 * 2 ** Math.min(strikes - 2, 4));
-          onEvent({ action: "Connection trouble, will retry", name: f.item.name, from: label, path: f.item.folder });
+          onEvent({ action: "Connection trouble, will retry", name: f.item.name, from: label, path: driveFolder(p, f.item.folder) });
         }
       } finally {
         inflight.delete(f.fid);

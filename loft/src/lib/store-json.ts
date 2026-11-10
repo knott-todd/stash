@@ -179,7 +179,14 @@ export function jsonStore(): Store {
       const d = load();
       const q = (d.queue ??= []);
       const have = new Set(q.filter((r) => r.uid === uid && r.provider === provider).map((r) => r.fid));
-      for (const x of items) if (!have.has(x.fid)) q.push({ uid, provider, fid: x.fid, state: x.done ? "done" : "pending", attempts: 0, item: x.item });
+      for (const x of items) {
+        if (!have.has(x.fid)) q.push({ uid, provider, fid: x.fid, state: x.done ? "done" : "pending", attempts: 0, item: x.item });
+        else {
+          // A relist refreshes what's known about files not yet copied (name, folder, size).
+          const row = q.find((r) => r.uid === uid && r.provider === provider && r.fid === x.fid);
+          if (row && row.state !== "done") row.item = x.item;
+        }
+      }
       save();
     },
     async queueGet(uid, provider, fids) {
@@ -227,6 +234,18 @@ export function jsonStore(): Store {
       const d = load();
       d.queue = (d.queue ?? []).filter((r) => !(r.uid === uid && r.provider === provider));
       save();
+    },
+    async moveSourceInto(uid, source, top) {
+      let n = 0;
+      for (const f of load().files) {
+        if (f.uid !== uid || f.source !== source) continue;
+        const folder = f.folder ?? "";
+        if (folder === top || folder.startsWith(top + "/")) continue;
+        f.folder = folder ? `${top}/${folder}` : top;
+        n++;
+      }
+      if (n) save();
+      return n;
     },
     async sourceNames(uid, source) {
       return load().files.filter((f) => f.uid === uid && f.source === source).map((f) => `${f.folder ?? ""}/${f.name}`);

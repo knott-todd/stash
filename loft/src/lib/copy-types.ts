@@ -28,6 +28,8 @@ export type CopyRecord = {
   listCursor?: string;
   listedFolders?: boolean;
   listComplete?: boolean;
+  // How the last call to start the next run went (202 = taken).
+  handover?: { at: number; ok: boolean; status: number };
 };
 
 // What still isn't in Stash: everything not copied and not too big to copy.

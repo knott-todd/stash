@@ -2,9 +2,12 @@ import { after, NextResponse } from "next/server";
 import { getSession, unauthorized } from "@/lib/session";
 import { store } from "@/lib/store";
 import { connected as othersConnected } from "@/lib/providers";
-import { allRecords, FAKE_DRIVE, forgetCopy, kick, needsKick, reportCopy, startCopy, stopCopy } from "@/lib/copyjob";
+import { allRecords, FAKE_DRIVE, forgetCopy, isQuiet, reportCopy, runAndHandOver, startCopy, stopCopy } from "@/lib/copyjob";
 import { isCopyProvider, type CopyProvider } from "@/lib/copy-types";
 import { requestOrigin } from "@/lib/public-url";
+
+// A run may happen inside these requests (after the answer is sent): give it the time.
+export const maxDuration = 300;
 
 // Moves from other drives, as the person sees them: where each copy is, and the buttons.
 //   GET                                  every copy's record
@@ -18,10 +21,11 @@ export async function GET(req: Request) {
   const s = await getSession();
   if (!s) return unauthorized();
   const copies = await allRecords(s.uid);
-  // Any visit doubles as a watchdog: a copy whose runs went quiet gets restarted.
+  // An open page keeps its copy going: quiet for 90 s (a run ended and the handover didn't
+  // happen), the next run starts right here. The lease stops two runs at once.
   const origin = requestOrigin(req);
-  const stale = copies.filter((c) => needsKick(c));
-  if (stale.length) after(() => Promise.all(stale.map((c) => kick(origin, s.uid, c.provider))));
+  const quiet = copies.filter((c) => isQuiet(c, 90_000));
+  if (quiet.length) after(() => Promise.all(quiet.map((c) => runAndHandOver(origin, s.uid, c.provider))));
   return NextResponse.json({ copies });
 }
 
@@ -46,7 +50,8 @@ export async function POST(req: Request) {
     // Standard accounts copy on the server; passcode accounts can only copy in a browser.
     const mode = u.protection === "passcode" ? "browser" : "server";
     const copy = await startCopy(s.uid, p, mode, { relist: body.action === "start" });
-    if (mode === "server") after(() => kick(origin, s.uid, p));
+    // The first run happens in this request, so starting never depends on the handover.
+    if (mode === "server") after(() => runAndHandOver(origin, s.uid, p));
     return NextResponse.json({ copy });
   }
   return NextResponse.json({ error: "unknown action" }, { status: 400 });

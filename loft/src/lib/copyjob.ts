@@ -144,12 +144,31 @@ export function runAuthorized(auth: string | null) {
 
 // Ask a fresh function to take the next run. The receiving route answers at once and
 // works after responding, so this returns in moments.
+// The answer is written on the record ("handover"), so a blocked call (a missing secret,
+// a login wall that redirects) shows up instead of passing for success.
 export async function kick(origin: string, uid: string, p: CopyProvider) {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (SECRET()) headers.authorization = `Bearer ${SECRET()}`;
   if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) headers["x-vercel-protection-bypass"] = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-  await fetch(`${origin}/api/copy/run`, { method: "POST", headers, body: JSON.stringify({ uid, provider: p }), signal: AbortSignal.timeout(15_000) }).catch(() => {});
+  const status = await fetch(`${origin}/api/copy/run`, { method: "POST", headers, body: JSON.stringify({ uid, provider: p }), redirect: "manual", signal: AbortSignal.timeout(15_000) })
+    .then((r) => r.status)
+    .catch(() => 0);
+  const cur = await getRecord(uid, p).catch(() => undefined);
+  if (cur) await store().kvSet(recKey(uid, p), { ...cur, handover: { at: Date.now(), ok: status === 202, status } }).catch(() => {});
+  return status === 202;
 }
+
+// One run here and now, then hand over to the next. Used when a person starts or resumes a
+// copy and when an open page finds it quiet, so a copy someone is watching never depends on
+// the handover working.
+export async function runAndHandOver(origin: string, uid: string, p: CopyProvider) {
+  const r = await runStep(uid, p).catch((e) => ({ again: true, note: `run crashed: ${e}` }));
+  if (r.again) await kick(origin, uid, p);
+  return r;
+}
+
+// A copy that's meant to be moving but hasn't shown a sign of life for a while.
+export const isQuiet = (r: CopyRecord, ms: number, now = Date.now()) => r.mode === "server" && (r.state === "running" || r.state === "listing") && now - (r.heartbeat ?? 0) > ms;
 
 export const needsKick = (r: CopyRecord, now = Date.now()) => r.mode === "server" && (r.state === "running" || r.state === "listing") && now - (r.heartbeat ?? 0) > STALE_MS;
 

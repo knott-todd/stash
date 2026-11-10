@@ -1,6 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { allRecordsEverywhere, kick, needsKick, runAuthorized, runStep } from "@/lib/copyjob";
+import { allRecordsEverywhere, kick, needsKick, runAndHandOver, runAuthorized } from "@/lib/copyjob";
 import { isCopyProvider } from "@/lib/copy-types";
 import { requestOrigin } from "@/lib/public-url";
 
@@ -15,10 +15,7 @@ export async function POST(req: Request) {
   if (!uid || !isCopyProvider(body.provider)) return NextResponse.json({ error: "uid and provider required" }, { status: 400 });
   const origin = requestOrigin(req);
   const p = body.provider;
-  after(async () => {
-    const r = await runStep(uid, p).catch((e) => ({ again: true, note: `run crashed: ${e}` }));
-    if (r.again) await kick(origin, uid, p);
-  });
+  after(() => runAndHandOver(origin, uid, p));
   return NextResponse.json({ ok: true }, { status: 202 });
 }
 

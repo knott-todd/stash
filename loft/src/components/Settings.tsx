@@ -175,7 +175,7 @@ function CopyLine({ c }: { c?: CopyRecord }) {
   if (!c) return null;
   const n = remaining(c);
   let text: string;
-  if (c.state === "listing") text = c.copied ? `Picking up where it left off · ${c.copied.toLocaleString()} copied` : "Reading the drive";
+  if (c.state === "listing") text = c.copied ? `Picking up where it left off · ${c.copied.toLocaleString()} copied` : c.total ? `Reading the drive · ${c.total.toLocaleString()} files found so far` : "Reading the drive";
   else if (c.state === "running") text = `Copying · ${c.copied.toLocaleString()} of ${c.total.toLocaleString()}`;
   else if (c.state === "reconnect") text = `Needs your OK again · ${n.toLocaleString()} ${n === 1 ? "file" : "files"} not backed up yet`;
   else if (n > 0) text = `${n.toLocaleString()} ${n === 1 ? "file" : "files"} not backed up yet`;

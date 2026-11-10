@@ -27,7 +27,8 @@ export function statusOf(r: CopyRecord, now = Date.now()): MigrationStatus {
     percent: r.total ? Math.round(((r.copied + r.skipped) / r.total) * 100) : 0,
   };
   const label = PROVIDER_LABEL[r.provider];
-  if (r.state === "listing") return { phase: "scanning", resume: r.copied > 0 ? c : undefined };
+  // Listing: the files found so far, so a long read visibly moves.
+  if (r.state === "listing") return { phase: "scanning", ...(r.total > 0 ? { total: r.total, bytes: r.bytes } : {}), resume: r.copied > 0 ? c : undefined };
   if (r.state === "running" && r.waitUntil && r.waitUntil > now) {
     const mins = Math.max(1, Math.round((r.waitUntil - now) / 60_000));
     const note = r.waitReason === "busy" ? `Storage asked for a pause. Carrying on by itself in about ${mins} min.` : `${label} isn't answering right now. Trying again by itself in about ${mins} min.`;

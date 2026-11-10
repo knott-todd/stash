@@ -1110,7 +1110,11 @@ function ProgressBanner({
         <div className="flex items-center gap-3">
           <span className="inline-block size-4 rounded-full border-2 border-ink-3 border-t-accent animate-spin" aria-hidden />
           <p className="font-medium flex-1">
-            {s.resume ? `Picking up where it left off · ${s.resume.copiedCount.toLocaleString()} of ${s.resume.total.toLocaleString()} copied` : `Reading your ${label}. A large drive takes a few minutes.`}
+            {s.resume
+              ? `Picking up where it left off · ${s.resume.copiedCount.toLocaleString()} of ${s.resume.total.toLocaleString()} copied`
+              : s.total
+                ? `Reading your ${label} · ${s.total.toLocaleString()} files found so far`
+                : `Reading your ${label}. A large drive takes a few minutes.`}
           </p>
           {onStop && <IconButton label="Stop copy" onClick={onStop} icon="stop" testId="banner-stop" />}
         </div>

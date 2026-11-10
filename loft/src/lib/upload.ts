@@ -40,7 +40,11 @@ export type UploadOpts = {
 // A request that storage asked us to retry: wait what it said (capped), then try again.
 async function send(url: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
-    const r = await fetch(url, { ...init, signal });
+    // No request carries more than one 4 MB piece, so one that takes three minutes is stuck
+    // (a connection that died while the laptop slept). Give up on it so the caller retries.
+    const timeout = typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(180_000) : undefined;
+    const both = signal && timeout && typeof AbortSignal.any === "function" ? AbortSignal.any([signal, timeout]) : (signal ?? timeout);
+    const r = await fetch(url, { ...init, signal: both });
     if (r.status !== 503 || attempt >= 3) return r;
     const j = await r.clone().json().catch(() => ({}));
     const wait = Math.min(Number(j.retryAfter) || 5, 60);

@@ -36,6 +36,23 @@ real URL.
 After that, nothing needs you: I push unfinished work to `staging`, you try it,
 and only what you approve is merged to `main`.
 
+## Moving another drive runs on the server
+
+Standard accounts move Google Drive (and Dropbox/OneDrive) without a tab open:
+`/api/copy/run` does about four minutes of copying, then calls itself for the
+next run. Passcode accounts still copy in the browser (Stash can't encrypt for
+them). For the chain to work on a deployment:
+
+- **CRON_SECRET** must be set (Production and Preview): the runs authenticate
+  to each other with it. Without it the copy starts and stops after one run.
+- **Staging only:** Preview deployments sit behind Vercel's login, which also
+  blocks the server calling itself. Turn on **Vercel → Settings → Deployment
+  Protection → Protection Bypass for Automation**; Vercel then provides
+  `VERCEL_AUTOMATION_BYPASS_SECRET` and the runs send it.
+- Watchdogs restart a chain that died: any Stash page load, the daily cron,
+  and `.github/workflows/copy-watchdog.yml` every 30 minutes (needs repository
+  secrets `CRON_SECRET`, and `VERCEL_BYPASS` for staging).
+
 ## Housekeeping cron
 
 `vercel.json` runs `/api/cron/sweep` daily at 04:00 UTC (unregistered uploads, idle sessions, stale link codes, old rate-limit windows). Vercel sends `Authorization: Bearer $CRON_SECRET`; set **CRON_SECRET** (any long random string) in Vercel for Production and Preview, or the route answers 404 there.

@@ -3,11 +3,39 @@
 import { useEffect, useState } from "react";
 import { fmtBytes } from "@/lib/format";
 import { IconButton } from "./Drive";
+import type { CopyRecord } from "@/lib/copy-types";
+import { PROVIDER_LABEL } from "@/lib/provider-client";
 
+type Counts = { total: number; bytes: number; copiedCount: number; copiedBytes: number; percent: number; skipped?: number; failed?: number };
 export type MigrationStatus =
   | { phase: "idle" }
-  | { phase: "scanning"; total?: number; bytes?: number }
-  | { phase: "copying" | "done" | "stopped"; total: number; bytes: number; copiedCount: number; copiedBytes: number; percent: number; skipped?: number; failed?: number };
+  | { phase: "scanning"; total?: number; bytes?: number; resume?: Counts }
+  | ({ phase: "copying" | "done" | "stopped" | "waiting" | "reconnect"; note?: string } & Counts);
+
+// Files that still aren't in Stash: not copied, and not too big to copy.
+export const left = (s: Counts) => Math.max(0, s.total - s.copiedCount - (s.skipped ?? 0));
+
+// The server's record of a move, as the banner and dialog show it.
+export function statusOf(r: CopyRecord, now = Date.now()): MigrationStatus {
+  const c: Counts = {
+    total: r.total,
+    bytes: r.bytes,
+    copiedCount: r.copied,
+    copiedBytes: r.copiedBytes,
+    skipped: r.skipped,
+    failed: r.failed,
+    percent: r.total ? Math.round(((r.copied + r.skipped) / r.total) * 100) : 0,
+  };
+  const label = PROVIDER_LABEL[r.provider];
+  if (r.state === "listing") return { phase: "scanning", resume: r.copied > 0 ? c : undefined };
+  if (r.state === "running" && r.waitUntil && r.waitUntil > now) {
+    const mins = Math.max(1, Math.round((r.waitUntil - now) / 60_000));
+    const note = r.waitReason === "busy" ? `Storage asked for a pause. Carrying on by itself in about ${mins} min.` : `${label} isn't answering right now. Trying again by itself in about ${mins} min.`;
+    return { phase: "waiting", note, ...c };
+  }
+  if (r.state === "running") return { phase: "copying", ...c };
+  return { phase: r.state, ...c };
+}
 
 // With Google configured, "Allow" goes to Google's real consent screen and the
 // copy runs in the browser. Without it, the consent step is a stand-in and the
@@ -21,6 +49,8 @@ export function MigrateDialog({
   onStart,
   onStop,
   onSwitchAccount,
+  onReconnect,
+  where = null,
 }: {
   open: boolean;
   status: MigrationStatus;
@@ -30,6 +60,8 @@ export function MigrateDialog({
   onStart: () => void;
   onStop?: () => void;
   onSwitchAccount?: () => void;
+  onReconnect?: () => void;
+  where?: "server" | "browser" | null;
 }) {
   const [step, setStep] = useState<"consent" | "progress">("consent");
 
@@ -54,8 +86,9 @@ export function MigrateDialog({
               Move my {label}
             </h2>
             <p className="mt-2 text-ink-2">
-              Stash copies every file and folder from your {label}, encrypted on this device as it arrives. Nothing is
-              deleted there.
+              {where === "browser"
+                ? `Stash copies every file and folder from your ${label}, encrypted on this device as it arrives. Keep Stash open on this device until it's done. Nothing is deleted there.`
+                : `Stash copies every file and folder from your ${label}, encrypted as it arrives. It runs on Stash's servers, so you can close this tab. Nothing is deleted there.`}
             </p>
             {real ? (
               <div className="mt-4 text-sm text-ink-2">
@@ -100,17 +133,28 @@ export function MigrateDialog({
         {step === "progress" && (
           <>
             <h2 id="migrate-title" className="text-2xl font-semibold">
-              {status.phase === "scanning" && "Reading your Drive"}
-              {status.phase === "copying" && "Moving your files"}
-              {status.phase === "done" && "All moved."}
+              {status.phase === "scanning" && (status.resume ? "Picking up where it left off" : "Reading your Drive")}
+              {(status.phase === "copying" || status.phase === "waiting") && "Moving your files"}
+              {status.phase === "done" && (left(status) === 0 ? "All moved." : "Almost all moved.")}
               {status.phase === "stopped" && "Copy stopped."}
+              {status.phase === "reconnect" && `${label} needs your OK again`}
               {status.phase === "idle" && "Starting"}
             </h2>
             {status.phase === "scanning" && (
               <p className="mt-2 text-ink-2 flex items-center gap-2">
                 <span className="inline-block size-4 rounded-full border-2 border-ink-3 border-t-ink animate-spin" aria-hidden />
-                {label} lists files slowly. A large drive takes a minute or two.
+                {label} lists files slowly. A large drive takes a few minutes.
               </p>
+            )}
+            {status.phase === "waiting" && <p className="mt-2 text-ink-2">{status.note}</p>}
+            {status.phase === "reconnect" && <p className="mt-2 text-ink-2">{label} stopped letting Stash read your files. Allow it again and the copy carries on from here.</p>}
+            {status.phase === "done" && left(status) > 0 && (
+              <p className="mt-2 text-ink-2" data-testid="migrate-left">
+                {left(status).toLocaleString()} {left(status) === 1 ? "file isn't" : "files aren't"} backed up yet. Resume tries them again.
+              </p>
+            )}
+            {where === "server" && (status.phase === "copying" || status.phase === "waiting" || status.phase === "scanning") && (
+              <p className="mt-2 text-sm text-ink-3">It runs on Stash&apos;s servers. You can close this tab or turn the computer off.</p>
             )}
             {status.phase !== "idle" && status.total !== undefined && (
               <p className="mt-2 text-ink-2" data-testid="scan-result">
@@ -119,11 +163,11 @@ export function MigrateDialog({
             )}
             {status.phase !== "idle" && status.phase !== "scanning" && (status.skipped || status.failed) ? (
               <p className="mt-1 text-sm text-ink-3">
-                {status.skipped ? `${status.skipped} over 50 MB skipped. ` : ""}
+                {status.skipped ? `${status.skipped} too big to copy. ` : ""}
                 {status.failed ? `${status.failed} couldn't be copied.` : ""}
               </p>
             ) : null}
-            {(status.phase === "copying" || status.phase === "done" || status.phase === "stopped") && (
+            {(status.phase === "copying" || status.phase === "waiting" || status.phase === "done" || status.phase === "stopped" || status.phase === "reconnect") && (
               <>
                 <div className="mt-4 h-3 rounded-full bg-cream-2 overflow-hidden">
                   <div className="h-full bg-accent transition-all duration-700" style={{ width: `${status.percent}%` }} />
@@ -139,10 +183,19 @@ export function MigrateDialog({
               </button>
             )}
             <div className="mt-5 flex items-center justify-end gap-3">
-              {status.phase === "copying" && onStop && <IconButton label="Stop copy" onClick={onStop} icon="stop" testId="migrate-stop" />}
-              {status.phase === "stopped" && <IconButton label="Resume copy" onClick={onStart} icon="play" testId="migrate-resume" />}
+              {(status.phase === "copying" || status.phase === "waiting" || status.phase === "scanning") && onStop && <IconButton label="Stop copy" onClick={onStop} icon="stop" testId="migrate-stop" />}
+              {(status.phase === "stopped" || (status.phase === "done" && left(status) > 0)) && (
+                <button className="btn-ghost border border-line py-3 text-base" onClick={onStart} data-testid="migrate-resume">
+                  Resume back up
+                </button>
+              )}
+              {status.phase === "reconnect" && onReconnect && (
+                <button className="btn-ghost border border-line py-3 text-base" onClick={onReconnect} data-testid="migrate-reconnect">
+                  Reconnect
+                </button>
+              )}
               <button className="btn-primary py-3 text-base" onClick={onClose} data-testid="migrate-close">
-                {status.phase === "done" ? "See my files" : status.phase === "stopped" ? "Close" : "Keep working"}
+                {status.phase === "done" ? "See my files" : status.phase === "stopped" || status.phase === "reconnect" ? "Close" : "Keep working"}
               </button>
             </div>
           </>

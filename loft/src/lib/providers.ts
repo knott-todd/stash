@@ -113,9 +113,10 @@ export async function listAll(p: ProviderId, token: string): Promise<Listed[]> {
   return out;
 }
 
-export async function fetchFile(p: ProviderId, token: string, id: string): Promise<Response> {
+export async function fetchFile(p: ProviderId, token: string, id: string, init: { from?: number; signal?: AbortSignal } = {}): Promise<Response> {
+  const range: Record<string, string> = init.from ? { range: `bytes=${init.from}-` } : {};
   if (p === "dropbox") {
-    return fetch("https://content.dropboxapi.com/2/files/download", { method: "POST", headers: { authorization: `Bearer ${token}`, "Dropbox-API-Arg": JSON.stringify({ path: id }) } });
+    return fetch("https://content.dropboxapi.com/2/files/download", { method: "POST", headers: { authorization: `Bearer ${token}`, "Dropbox-API-Arg": JSON.stringify({ path: id }), ...range }, signal: init.signal });
   }
-  return fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(id)}/content`, { headers: { authorization: `Bearer ${token}` } });
+  return fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(id)}/content`, { headers: { authorization: `Bearer ${token}`, ...range }, signal: init.signal });
 }

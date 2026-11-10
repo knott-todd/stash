@@ -7,6 +7,9 @@ import { GOOGLE_ENABLED } from "@/lib/google";
 import { connected as providersConnected, PROVIDERS } from "@/lib/providers";
 import { AUTH_ENABLED, newFileKey } from "@/lib/auth";
 import { STAGE } from "@/lib/stage";
+import { after } from "next/server";
+import { allRecords, FAKE_DRIVE, kick, needsKick } from "@/lib/copyjob";
+import { requestOrigin } from "@/lib/public-url";
 
 export async function GET(req: Request) {
   // Names only, never values: which settings the running server can see.
@@ -30,7 +33,13 @@ export async function GET(req: Request) {
   if (!s) return NextResponse.json({ signedIn: false, auth: AUTH_ENABLED, demo: DEMO }, { status: 200 });
   const uid = s.uid;
   const db = store();
-  const [u, stats, migration] = await Promise.all([db.getUser(uid), db.fileStats(uid), db.getMigration(uid)]);
+  const [u, stats, migration, copies] = await Promise.all([db.getUser(uid), db.fileStats(uid), db.getMigration(uid), allRecords(uid)]);
+  // Every page load doubles as a watchdog for a server-side copy whose runs went quiet.
+  const stale = copies.filter((c) => needsKick(c));
+  if (stale.length) {
+    const origin = requestOrigin(req);
+    after(() => Promise.all(stale.map((c) => kick(origin, uid, c.provider))));
+  }
   // A device from before accounts: how many files it holds, if the account is still empty.
   let legacy: { fileCount: number } | null = null;
   if (s.legacyUid && s.legacyUid !== uid && stats.count === 0) {
@@ -55,11 +64,13 @@ export async function GET(req: Request) {
       onedrive: { enabled: PROVIDERS.onedrive.enabled, connected: providersConnected(u).onedrive },
     },
     maxBytes: MAX_BYTES,
-    googleConnected: !!u.google,
+    googleConnected: FAKE_DRIVE || !!u.google,
     fileCount: stats.count,
     bytes: stats.bytes,
     photoBackup: u.photoBackup ?? null,
     migration: migration ?? null,
+    // Moves from other drives: one record each, kept on the server so any page and device sees it.
+    copies,
   });
 }
 

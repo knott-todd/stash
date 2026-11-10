@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { DATA_DIR, publicFile, type FileStats, type LinkToken, type StashFile, type Migration, type Store, type User } from "./store";
+import { DATA_DIR, emptyCounts, publicFile, type QueueRow, type FileStats, type LinkToken, type StashFile, type Migration, type Store, type User } from "./store";
 
 // JSON-file backend for local development. One file, rewritten on every change.
 
@@ -11,6 +11,7 @@ type Data = {
   migrations: Record<string, Migration>;
   tgOffset: number;
   kv?: Record<string, unknown>;
+  queue?: QueueRow[];
 };
 
 export function jsonStore(): Store {
@@ -163,7 +164,67 @@ export function jsonStore(): Store {
       }
       for (const [k, t] of Object.entries(d.tokens)) if (t.uid === uid) delete d.tokens[k];
       delete (d.kv ??= {})[`glist:${uid}`];
+      d.queue = (d.queue ?? []).filter((q) => q.uid !== uid);
+      for (const k of Object.keys(d.kv ?? {})) if (k.startsWith(`copy:${uid}:`)) delete d.kv![k];
       save();
+    },
+    async kvClaim(key, until) {
+      const kv = (load().kv ??= {});
+      if (Number(kv[key] ?? 0) >= Date.now()) return false;
+      kv[key] = until;
+      save();
+      return true;
+    },
+    async queueAdd(uid, provider, items) {
+      const d = load();
+      const q = (d.queue ??= []);
+      const have = new Set(q.filter((r) => r.uid === uid && r.provider === provider).map((r) => r.fid));
+      for (const x of items) if (!have.has(x.fid)) q.push({ uid, provider, fid: x.fid, state: x.done ? "done" : "pending", attempts: 0, item: x.item });
+      save();
+    },
+    async queueNext(uid, provider, n) {
+      const rank = (r: QueueRow) => [r.attempts, r.item.size === 0 ? 1 : 0, r.item.size];
+      return (load().queue ?? [])
+        .filter((r) => r.uid === uid && r.provider === provider && r.state === "pending")
+        .sort((a, b) => {
+          const x = rank(a);
+          const y = rank(b);
+          return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+        })
+        .slice(0, n)
+        .map((r) => structuredClone(r));
+    },
+    async queueSave(r) {
+      const q = load().queue ?? [];
+      const i = q.findIndex((x) => x.uid === r.uid && x.provider === r.provider && x.fid === r.fid);
+      if (i >= 0) q[i] = structuredClone(r);
+      save();
+    },
+    async queueCounts(uid, provider) {
+      const out = emptyCounts();
+      for (const r of load().queue ?? []) {
+        if (r.uid !== uid || r.provider !== provider) continue;
+        out[r.state].n++;
+        out[r.state].bytes += r.item.size;
+      }
+      return out;
+    },
+    async queueRetryFailed(uid, provider) {
+      for (const r of load().queue ?? []) {
+        if (r.uid === uid && r.provider === provider && r.state === "failed") {
+          r.state = "pending";
+          r.attempts = 0;
+        }
+      }
+      save();
+    },
+    async queueClear(uid, provider) {
+      const d = load();
+      d.queue = (d.queue ?? []).filter((r) => !(r.uid === uid && r.provider === provider));
+      save();
+    },
+    async sourceNames(uid, source) {
+      return load().files.filter((f) => f.uid === uid && f.source === source).map((f) => `${f.folder ?? ""}/${f.name}`);
     },
   };
 }

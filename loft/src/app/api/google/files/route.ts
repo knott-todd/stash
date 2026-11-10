@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getUid, unauthorized } from "@/lib/session";
 import { accessTokenFor, GOOGLE_ENABLED, listAll, type GFile } from "@/lib/google";
 import { store } from "@/lib/store";
+import { FAKE_DRIVE, fakeListing } from "@/lib/copyjob";
 
 // Streams or long listings: allow the function the time it needs.
 export const maxDuration = 300;
@@ -10,6 +11,10 @@ export const maxDuration = 300;
 export async function GET() {
   const uid = await getUid();
   if (!uid) return unauthorized();
+  if (FAKE_DRIVE) {
+    const files = await fakeListing();
+    return NextResponse.json({ connected: true, configured: true, files, total: files.length, bytes: files.reduce((n, f) => n + f.size, 0) });
+  }
   if (!GOOGLE_ENABLED) return NextResponse.json({ connected: false, configured: false });
   const token = await accessTokenFor(uid).catch(() => null);
   if (!token) return NextResponse.json({ connected: false, configured: true });

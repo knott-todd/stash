@@ -101,7 +101,34 @@ export interface Store {
   kvList(prefix: string): Promise<{ key: string; value: unknown }[]>; // every key under a prefix (ledgers, sweeps)
   kvIncr(key: string, by: number): Promise<number>; // atomic counter; creates at 0
   reset(uid: string): Promise<void>; // forget every file and key; keeps who the account is
+  // A lease: true when this caller now holds `key` until `until` (ms), false when someone else does.
+  kvClaim(key: string, until: number): Promise<boolean>;
+  // The copy queue for a move from another drive: one small row per file, read in batches.
+  queueAdd(uid: string, provider: string, items: { fid: string; item: QueueItem; done?: boolean }[]): Promise<void>;
+  queueNext(uid: string, provider: string, n: number): Promise<QueueRow[]>;
+  queueSave(row: QueueRow): Promise<void>;
+  queueCounts(uid: string, provider: string): Promise<QueueCounts>;
+  queueRetryFailed(uid: string, provider: string): Promise<void>;
+  queueClear(uid: string, provider: string): Promise<void>;
+  // "folder/name" of every file that came from a source, to skip what is already here.
+  sourceNames(uid: string, source: string): Promise<string[]>;
 }
+
+export type QueueItem = { name: string; mime: string; size: number; folder: string; exportAs?: string };
+export type QueueState = "pending" | "done" | "failed" | "skipped";
+export type QueueRow = {
+  uid: string;
+  provider: string;
+  fid: string;
+  state: QueueState;
+  attempts: number;
+  item: QueueItem;
+  // A large file part-way through: the pieces stored so far.
+  progress?: { id: string; parts: StoredPart[] };
+  error?: string;
+};
+export type QueueCounts = Record<QueueState, { n: number; bytes: number }>;
+export const emptyCounts = (): QueueCounts => ({ pending: { n: 0, bytes: 0 }, done: { n: 0, bytes: 0 }, failed: { n: 0, bytes: 0 }, skipped: { n: 0, bytes: 0 } });
 
 export const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), ".data");
 export const BLOB_DIR = path.join(DATA_DIR, "blobs");

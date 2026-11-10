@@ -16,6 +16,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ p: strin
   const token = await accessTokenFor(p, s.uid).catch(() => null);
   if (!token) return NextResponse.json({ error: "Not connected" }, { status: 401 });
   const r = await fetchFile(p, token, id);
-  if (!r.ok || !r.body) return NextResponse.json({ error: `The provider returned ${r.status}` }, { status: 502 });
+  // 422: refused for good. 502: worth trying again.
+  if (!r.ok || !r.body) {
+    const retry = r.ok || r.status === 429 || r.status >= 500 || r.status === 408 || r.status === 401;
+    return NextResponse.json({ error: `The provider returned ${r.status}` }, { status: retry ? 502 : 422 });
+  }
   return new Response(r.body, { headers: { "content-type": r.headers.get("content-type") ?? "application/octet-stream" } });
 }

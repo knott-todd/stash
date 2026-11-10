@@ -49,8 +49,9 @@ async function refresh(refreshToken: string) {
       grant_type: "refresh_token",
     }),
   });
-  const j = await r.json();
-  if (!r.ok) throw new Error("refresh failed");
+  const j = await r.json().catch(() => ({}));
+  // invalid_grant: the person took access back (or it lapsed). Anything else is worth retrying.
+  if (!r.ok) throw new Error(j.error === "invalid_grant" ? "invalid_grant" : "refresh failed");
   return j as { access_token: string; expires_in: number };
 }
 
@@ -122,9 +123,70 @@ export async function listAll(token: string): Promise<GFile[]> {
     });
 }
 
-export async function fetchFile(token: string, id: string, exportAs?: string) {
+// The server-side copy lists in steps so a large Drive never outruns one function's time:
+// every folder first (small), then the files a page at a time, each page placed by its folder.
+const FOLDER_MIME = "application/vnd.google-apps.folder";
+export type GFolders = Record<string, { name: string; parent?: string }>;
+
+async function drivePage(token: string, q: string, fields: string, pageToken?: string, signal?: AbortSignal) {
+  const p = new URLSearchParams({ q, fields: `nextPageToken, files(${fields})`, pageSize: "1000", spaces: "drive" });
+  if (pageToken) p.set("pageToken", pageToken);
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files?${p}`, { headers: { authorization: `Bearer ${token}` }, signal });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const e = new Error(j.error?.message ?? `list failed (${r.status})`) as Error & { status?: number };
+    e.status = r.status;
+    throw e;
+  }
+  return j as { nextPageToken?: string; files: { id: string; name: string; mimeType: string; size?: string; parents?: string[] }[] };
+}
+
+export async function listFolders(token: string, signal?: AbortSignal): Promise<GFolders> {
+  const out: GFolders = {};
+  let pageToken: string | undefined;
+  do {
+    const j = await drivePage(token, `trashed = false and mimeType = '${FOLDER_MIME}'`, "id,name,parents", pageToken, signal);
+    for (const f of j.files) out[f.id] = { name: f.name, parent: f.parents?.[0] };
+    pageToken = j.nextPageToken;
+  } while (pageToken);
+  return out;
+}
+
+export function folderPath(folders: GFolders, parent: string | undefined): string {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (let id = parent; id && folders[id] && !seen.has(id); id = folders[id].parent) {
+    seen.add(id);
+    names.unshift(folders[id].name);
+  }
+  return names.join("/");
+}
+
+export async function listFilesPage(token: string, folders: GFolders, pageToken?: string, signal?: AbortSignal): Promise<{ files: GFile[]; next?: string }> {
+  const j = await drivePage(token, `trashed = false and mimeType != '${FOLDER_MIME}'`, "id,name,mimeType,size,parents", pageToken, signal);
+  const files = j.files
+    .filter((f) => (f.mimeType.startsWith("application/vnd.google-apps.") ? EXPORTS[f.mimeType] : true))
+    .map((f) => {
+      const ex = EXPORTS[f.mimeType];
+      return { id: f.id, name: ex ? f.name + ex.ext : f.name, mimeType: ex ? ex.mime : f.mimeType, size: Number(f.size ?? 0), folder: folderPath(folders, f.parents?.[0]), exportAs: ex?.mime };
+    });
+  return { files, next: j.nextPageToken };
+}
+
+// `from`: start part-way through (a large file resumed after an interruption). Exports can't.
+export async function fetchFile(token: string, id: string, exportAs?: string, init: { from?: number; signal?: AbortSignal } = {}) {
   const url = exportAs
     ? `https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=${encodeURIComponent(exportAs)}`
     : `https://www.googleapis.com/drive/v3/files/${id}?alt=media`;
-  return fetch(url, { headers: { authorization: `Bearer ${token}` } });
+  const headers: Record<string, string> = { authorization: `Bearer ${token}` };
+  if (init.from && !exportAs) headers.range = `bytes=${init.from}-`;
+  return fetch(url, { headers, signal: init.signal });
+}
+
+// Google answers a refused download with a reason. Some are worth waiting out, the rest are final.
+export async function googleRefusal(r: Response): Promise<{ retry: boolean; reason: string }> {
+  const j = await r.json().catch(() => ({}));
+  const reason: string = j.error?.errors?.[0]?.reason ?? j.error?.status ?? String(r.status);
+  const retry = r.status === 429 || r.status >= 500 || r.status === 408 || /rateLimit|backendError|internalError|quotaExceeded/i.test(reason);
+  return { retry, reason };
 }

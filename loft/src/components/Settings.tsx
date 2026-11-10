@@ -10,6 +10,7 @@ import { signOutEverywhereHere } from "@/lib/signout";
 import { fmtBytes } from "@/lib/format";
 import { exportAll, type ExportProgress } from "@/lib/export";
 import type { FileRow } from "./Drive";
+import { copyAction, remaining, useCopies, type CopyProvider, type CopyRecord } from "@/lib/copy-client";
 
 // Settings as a list of rows that all read the same way: icon, title, one line,
 // the control at the right. Four rows: account, protection, imports, export.
@@ -34,6 +35,7 @@ export function Settings() {
   const [hasKey, setHasKey] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [askPasscode, setAskPasscode] = useState(false);
+  const { copies } = useCopies(!!me?.signedIn);
 
   const load = useCallback(async () => {
     const m: Me = await fetch("/api/me").then((r) => r.json());
@@ -117,15 +119,20 @@ export function Settings() {
           <Row icon={<HardDriveDownload size={22} strokeWidth={1.6} />} title="Imports" line="Where files were moved from. Nothing is deleted at the other end." full>
             <ul className="divide-y divide-line rounded-xl border border-line">
               {imports.map((p) => (
-                <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
-                  <span>
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 text-sm">
+                  <span className="min-w-0">
                     <span className="font-medium">{p.label}</span>
                     <span className="ml-2 text-ink-3">{p.connected ? "Connected" : "Not connected"}</span>
+                    <CopyLine c={copies.find((c) => c.provider === p.id)} />
                   </span>
-                  <span className="flex gap-3">
-                    <a className="underline underline-offset-4 text-ink-2 hover:text-ink" href={p.auth}>
-                      {p.connected ? "Move again" : "Connect"}
-                    </a>
+                  <span className="flex flex-wrap items-center gap-3">
+                    <CopyControl
+                      c={copies.find((c) => c.provider === p.id)}
+                      connected={p.connected}
+                      auth={p.auth}
+                      provider={p.id as CopyProvider}
+                      onBrowser={() => router.push("/drive")}
+                    />
                     {p.connected && (
                       <button
                         className="underline underline-offset-4 text-ink-3 hover:text-ink"
@@ -160,6 +167,77 @@ export function Settings() {
         />
       )}
     </main>
+  );
+}
+
+// Where a move from this drive stands, in one line under its name.
+function CopyLine({ c }: { c?: CopyRecord }) {
+  if (!c) return null;
+  const n = remaining(c);
+  let text: string;
+  if (c.state === "listing") text = c.copied ? `Picking up where it left off · ${c.copied.toLocaleString()} copied` : "Reading the drive";
+  else if (c.state === "running") text = `Copying · ${c.copied.toLocaleString()} of ${c.total.toLocaleString()}`;
+  else if (c.state === "reconnect") text = `Needs your OK again · ${n.toLocaleString()} ${n === 1 ? "file" : "files"} not backed up yet`;
+  else if (n > 0) text = `${n.toLocaleString()} ${n === 1 ? "file" : "files"} not backed up yet`;
+  else text = `All ${c.total.toLocaleString()} files backed up`;
+  const tooBig = c.skipped ? ` · ${c.skipped.toLocaleString()} too big to copy` : "";
+  return (
+    <span className="block text-ink-2 mt-0.5" data-testid={`copy-line-${c.provider}`}>
+      {text}
+      {tooBig}
+      {(c.state === "running" || c.state === "listing") && (
+        <span className="block text-xs text-ink-3">{c.mode === "server" ? "Runs on Stash's servers. You can close this tab." : "Copies on a device while Stash is open there."}</span>
+      )}
+    </span>
+  );
+}
+
+// The one thing to do next: stop a copy that's moving, resume one that isn't finished,
+// reconnect one that lost access, or move again once everything is in.
+function CopyControl({ c, connected, auth, provider, onBrowser }: { c?: CopyRecord; connected: boolean; auth: string; provider: CopyProvider; onBrowser: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const act = async (a: "start" | "resume" | "stop") => {
+    setBusy(true);
+    try {
+      const j = await copyAction(provider, a);
+      if (j.reconnect) location.href = auth;
+      // Passcode accounts copy in the browser: the drive page runs it.
+      else if (a !== "stop" && j.copy?.mode === "browser") onBrowser();
+    } finally {
+      setBusy(false);
+    }
+  };
+  const link = "underline underline-offset-4 text-ink-2 hover:text-ink disabled:opacity-50";
+  if (!connected && (!c || c.state === "done" || c.state === "reconnect" || c.state === "stopped")) {
+    const unfinished = c && remaining(c) > 0;
+    return (
+      <a className={link} href={auth} data-testid={`copy-connect-${provider}`}>
+        {unfinished ? "Reconnect to resume" : "Connect"}
+      </a>
+    );
+  }
+  if (c && (c.state === "running" || c.state === "listing"))
+    return (
+      <button className={link} onClick={() => act("stop")} disabled={busy} data-testid={`copy-stop-${provider}`}>
+        Stop
+      </button>
+    );
+  if (c && c.state === "reconnect")
+    return (
+      <a className={link} href={auth} data-testid={`copy-reconnect-${provider}`}>
+        Reconnect
+      </a>
+    );
+  if (c && remaining(c) > 0)
+    return (
+      <button className="btn-ghost border border-line text-sm py-1.5" onClick={() => act("resume")} disabled={busy} data-testid={`copy-resume-${provider}`}>
+        Resume back up
+      </button>
+    );
+  return (
+    <button className={link} onClick={() => act("start")} disabled={busy} data-testid={`copy-again-${provider}`}>
+      Move again
+    </button>
   );
 }
 

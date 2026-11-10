@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import type { FileStats, LinkToken, PublicFile, StashFile, Migration, Store, User } from "./store";
+import { emptyCounts, type FileStats, type LinkToken, type PublicFile, type StashFile, type Migration, type QueueRow, type QueueState, type Store, type User } from "./store";
 
 // Postgres backend (Neon over HTTP, so it works from serverless functions).
 // Rows are small: the catalogue only, never file bytes or keys.
@@ -31,7 +31,27 @@ export function pgStore(): Store {
       )`;
       await sql`CREATE TABLE IF NOT EXISTS migrations (uid text PRIMARY KEY, data jsonb NOT NULL)`;
       await sql`CREATE TABLE IF NOT EXISTS kv (key text PRIMARY KEY, value jsonb NOT NULL)`;
+      await sql`CREATE TABLE IF NOT EXISTS copy_queue (
+        uid text NOT NULL,
+        provider text NOT NULL,
+        fid text NOT NULL,
+        state text NOT NULL,
+        attempts int NOT NULL DEFAULT 0,
+        size bigint NOT NULL DEFAULT 0,
+        data jsonb NOT NULL,
+        PRIMARY KEY (uid, provider, fid)
+      )`;
+      await sql`CREATE INDEX IF NOT EXISTS copy_queue_next_idx ON copy_queue (uid, provider, state, attempts, size)`;
     })());
+
+  const rowQueue = (r: Record<string, unknown>): QueueRow => ({
+    uid: r.uid as string,
+    provider: r.provider as string,
+    fid: r.fid as string,
+    state: r.state as QueueState,
+    attempts: Number(r.attempts),
+    ...(r.data as Pick<QueueRow, "item" | "progress" | "error">),
+  });
 
   const rowFile = (r: Record<string, unknown>) => r.data as StashFile;
 
@@ -196,6 +216,62 @@ export function pgStore(): Store {
       await sql`DELETE FROM tokens WHERE uid = ${uid}`;
       await sql`UPDATE users SET data = data - 'key' - 'google' - 'photoBackup' WHERE uid = ${uid}`;
       await sql`DELETE FROM kv WHERE key = ${"glist:" + uid}`;
+      await sql`DELETE FROM copy_queue WHERE uid = ${uid}`;
+      await sql`DELETE FROM kv WHERE key LIKE ${"copy:" + uid.replace(/[%_\\]/g, "\\$&") + ":%"}`;
+    },
+    async kvClaim(key, until) {
+      await ensure();
+      const now = Date.now();
+      const rows = await sql`INSERT INTO kv (key, value) VALUES (${key}, ${JSON.stringify(until)}::jsonb)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value WHERE (kv.value #>> '{}')::bigint < ${now}
+                RETURNING key`;
+      return rows.length > 0;
+    },
+    async queueAdd(uid, provider, items) {
+      await ensure();
+      // In batches, so no single request is megabytes. Rows already there keep their state.
+      for (let i = 0; i < items.length; i += 1000) {
+        const batch = items.slice(i, i + 1000).map((x) => ({ fid: x.fid, state: x.done ? "done" : "pending", size: x.item.size, data: { item: x.item } }));
+        await sql`INSERT INTO copy_queue (uid, provider, fid, state, attempts, size, data)
+          SELECT ${uid}, ${provider}, x.fid, x.state, 0, x.size, x.data
+          FROM jsonb_to_recordset(${JSON.stringify(batch)}::jsonb) AS x(fid text, state text, size bigint, data jsonb)
+          ON CONFLICT (uid, provider, fid) DO NOTHING`;
+      }
+    },
+    async queueNext(uid, provider, n) {
+      await ensure();
+      // Fewest tries first, then smallest, so the drive fills visibly and a stubborn file never blocks the rest.
+      const rows = await sql`SELECT uid, provider, fid, state, attempts, data FROM copy_queue
+        WHERE uid = ${uid} AND provider = ${provider} AND state = 'pending'
+        ORDER BY attempts, (size = 0), size LIMIT ${n}`;
+      return rows.map(rowQueue);
+    },
+    async queueSave(r) {
+      await ensure();
+      const data = { item: r.item, ...(r.progress ? { progress: r.progress } : {}), ...(r.error ? { error: r.error } : {}) };
+      await sql`UPDATE copy_queue SET state = ${r.state}, attempts = ${r.attempts}, size = ${r.item.size}, data = ${JSON.stringify(data)}::jsonb
+        WHERE uid = ${r.uid} AND provider = ${r.provider} AND fid = ${r.fid}`;
+    },
+    async queueCounts(uid, provider) {
+      await ensure();
+      const rows = await sql`SELECT state, count(*)::int AS n, coalesce(sum(size), 0)::bigint AS bytes FROM copy_queue
+        WHERE uid = ${uid} AND provider = ${provider} GROUP BY state`;
+      const out = emptyCounts();
+      for (const r of rows as { state: QueueState; n: number; bytes: string }[]) if (out[r.state]) out[r.state] = { n: Number(r.n), bytes: Number(r.bytes) };
+      return out;
+    },
+    async queueRetryFailed(uid, provider) {
+      await ensure();
+      await sql`UPDATE copy_queue SET state = 'pending', attempts = 0 WHERE uid = ${uid} AND provider = ${provider} AND state = 'failed'`;
+    },
+    async queueClear(uid, provider) {
+      await ensure();
+      await sql`DELETE FROM copy_queue WHERE uid = ${uid} AND provider = ${provider}`;
+    },
+    async sourceNames(uid, source) {
+      await ensure();
+      const rows = await sql`SELECT (coalesce(data->>'folder', '') || '/' || (data->>'name')) AS k FROM files WHERE uid = ${uid} AND data->>'source' = ${source}`;
+      return rows.map((r) => r.k as string);
     },
   };
 }

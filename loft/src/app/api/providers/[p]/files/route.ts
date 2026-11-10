@@ -37,5 +37,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ p: stri
   if (!isProvider(p)) return NextResponse.json({ error: "unknown provider" }, { status: 404 });
   const { disconnect } = await import("@/lib/providers");
   await disconnect(s.uid, p);
+  const { stopCopy } = await import("@/lib/copyjob");
+  await stopCopy(s.uid, p);
   return NextResponse.json({ ok: true });
 }

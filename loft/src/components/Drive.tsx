@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DRAG_TYPE, FileBrowser } from "./FileBrowser";
 import { Logo } from "./Logo";
-import { MigrateDialog, type MigrationStatus } from "./MigrateDialog";
+import { left, MigrateDialog, statusOf, type MigrationStatus } from "./MigrateDialog";
 import { PairCard } from "./PairCard";
 import { SetupSteps } from "./SetupSteps";
 import { PhotosView } from "./PhotosView";
@@ -17,6 +17,7 @@ import { AskPasscode, ProtectionChoice } from "./Protection";
 import { rememberAccount } from "@/lib/accounts";
 import Link from "next/link";
 import { doneKey, PROVIDER_LABEL, providerEndpoints, runProviderCopy, type CopyEvent, type Provider } from "@/lib/provider-client";
+import { copyAction, currentCopy, loadCopies, useCopies, useOnCopied } from "@/lib/copy-client";
 import { cacheClear, cacheDelete, cacheGet, cacheHas, cachePut } from "@/lib/filecache";
 import { Lightbox, type Origin } from "./Lightbox";
 import { Download, FolderPlus, HardDrive, HardDriveDownload, LayoutGrid, LayoutList, Search, Trash2, Upload, X } from "lucide-react";
@@ -74,7 +75,8 @@ export function Drive() {
     [router],
   );
   const [migrateOpen, setMigrateOpen] = useState(false);
-  const [migration, setMigration] = useState<MigrationStatus>({ phase: "idle" });
+  // The simulated move (Google not configured). Real moves are records on the server.
+  const [demoMigration, setDemoMigration] = useState<MigrationStatus>({ phase: "idle" });
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; retry?: () => void; undo?: () => void } | null>(null);
   const [search, setSearch] = useState("");
@@ -155,7 +157,7 @@ export function Drive() {
       if (!m.google)
         fetch("/api/migrate")
           .then((r) => r.json())
-          .then(setMigration)
+          .then(setDemoMigration)
           .catch(() => {});
     });
   }, [refresh, router]);
@@ -173,50 +175,112 @@ export function Drive() {
   const [provider, setProvider] = useState<Provider>("google-drive");
   const providerReady = (p: Provider) => (p === "google-drive" ? realGoogle : !!me?.providers?.[p]?.enabled);
   const providerConnected = (p: Provider) => (p === "google-drive" ? !!me?.googleConnected : !!me?.providers?.[p]?.connected);
-  const startGoogleCopy = useCallback(
-    (p: Provider = provider) => {
-      copyCtrl.current?.abort();
+
+  // The move's record lives on the server: Standard accounts copy there with no tab
+  // open, passcode accounts copy in this tab and report in. Either way the progress
+  // comes back on every visit.
+  const { copies, loaded: copiesLoaded } = useCopies(!!me?.signedIn && realGoogle);
+  const rec = currentCopy(copies);
+  useOnCopied(copies, refresh);
+  // This tab's own browser copy (passcode accounts), while it runs.
+  const [browserStatus, setBrowserStatus] = useState<MigrationStatus | null>(null);
+  const migration: MigrationStatus = !realGoogle ? demoMigration : (browserStatus ?? (rec ? statusOf(rec) : { phase: "idle" }));
+  // Where this move runs (or will): passcode accounts in this browser, everyone else on the server.
+  const copyWhere: "server" | "browser" | null = !realGoogle ? null : browserStatus || rec?.mode === "browser" || (!rec && me?.protection === "passcode") ? "browser" : "server";
+  useEffect(() => {
+    if (rec && rec.provider !== provider && (rec.state === "running" || rec.state === "listing")) setProvider(rec.provider); // eslint-disable-line react-hooks/set-state-in-effect -- follows the server record
+  }, [rec, provider]);
+  // What the server copy last did, for the status line.
+  const shownActivity: CopyEvent | null = browserStatus ? activity : rec?.last ? { action: "Saved", name: rec.last.name, from: PROVIDER_LABEL[rec.provider], path: rec.last.folder, to: rec.last.folder } : null;
+
+  const startBrowserCopy = useCallback(
+    (p: Provider) => {
+      // Never two at once, and never restart one that's running: an upload cut off midway
+      // would land without being marked done, and be copied again.
+      copyStarted.current = true;
+      if (copyCtrl.current && !copyCtrl.current.signal.aborted) return;
       const ctrl = new AbortController();
       copyCtrl.current = ctrl;
       setProvider(p);
-      // Mark the copy as begun right away, so leaving during the scan (before any file lands) still resumes next time.
       try {
         if (!localStorage.getItem(doneKey(p))) localStorage.setItem(doneKey(p), "[]");
       } catch {}
-      runProviderCopy(p, setMigration, refresh, ctrl.signal, logEvent).catch(() => {
-        if (!ctrl.signal.aborted) setToast({ text: `${PROVIDER_LABEL[p]} stopped answering. The copy resumes when you reopen Stash.`, retry: () => location.reload() });
-      });
+      runProviderCopy(p, setBrowserStatus, refresh, ctrl.signal, logEvent)
+        .catch(() => {
+          // Only a lost connection to the drive itself ends up here; Settings offers to reconnect.
+          if (!ctrl.signal.aborted) setToast({ text: `${PROVIDER_LABEL[p]} needs you to connect it again.`, retry: () => (location.href = providerEndpoints(p).auth) });
+        })
+        .finally(() => {
+          if (copyCtrl.current === ctrl) {
+            copyCtrl.current = null;
+            setBrowserStatus(null);
+          }
+          loadCopies();
+        });
     },
-    [refresh, logEvent, provider],
+    [refresh, logEvent],
   );
-  const stopGoogleCopy = () => copyCtrl.current?.abort();
 
-  // Back from a consent screen (?google=ok, or ?connected=dropbox&result=ok), or
-  // resuming a copy that was interrupted: start it.
+  // Start, or carry on, a move. The server decides where it runs.
+  const runCopy = useCallback(
+    async (p: Provider, action: "start" | "resume") => {
+      setProvider(p);
+      copyStarted.current = true;
+      const j = await copyAction(p, action);
+      if (j.reconnect) {
+        location.href = providerEndpoints(p).auth;
+        return;
+      }
+      if (j.copy?.mode === "browser") startBrowserCopy(p);
+    },
+    [startBrowserCopy],
+  );
+  const stopCopy = () => {
+    copyCtrl.current?.abort();
+    setBrowserStatus(null);
+    copyAction(provider, "stop");
+  };
+  const resumeCopy = () => runCopy(provider, "resume");
+
+  // Back from a consent screen (?google=ok, or ?connected=dropbox&result=ok): start the move.
+  // A browser copy (passcode accounts) that was interrupted carries on here. A copy begun
+  // before copies lived on the server (only a done-list in this browser) moves over to it.
   const connectedFlag = params.get("connected");
   const resultFlag = params.get("result");
   useEffect(() => {
-    if (!me || copyStarted.current) return;
+    if (!me || !realGoogle || copyStarted.current) return;
     const came: Provider | null = googleFlag ? "google-drive" : connectedFlag === "dropbox" || connectedFlag === "onedrive" ? connectedFlag : null;
     const result = googleFlag ?? resultFlag;
     if (came && result === "denied") setToast({ text: `${PROVIDER_LABEL[came]} didn't allow access. Try again or add files yourself.` });
     if (came && result === "failed") setToast({ text: `Couldn't connect to ${PROVIDER_LABEL[came]}. Try again.`, retry: () => (location.href = providerEndpoints(came).auth) });
-    let start: Provider | null = came && result === "ok" ? came : null;
-    if (!start) {
-      for (const p of ["google-drive", "dropbox", "onedrive"] as Provider[]) {
-        if (providerReady(p) && providerConnected(p) && localStorage.getItem(doneKey(p))) {
-          start = p;
-          break;
-        }
+    if (came && result === "ok" && providerReady(came)) {
+      copyStarted.current = true;
+      setMigrateOpen(true);
+      runCopy(came, "start");
+      return;
+    }
+    if (!copiesLoaded) return;
+    for (const p of ["google-drive", "dropbox", "onedrive"] as Provider[]) {
+      if (!providerReady(p) || !providerConnected(p)) continue;
+      const r = copies.find((c) => c.provider === p);
+      let legacy = false;
+      try {
+        legacy = !r && localStorage.getItem(doneKey(p)) !== null;
+      } catch {}
+      if (r?.mode === "browser" && r.state === "running") {
+        copyStarted.current = true;
+        startBrowserCopy(p);
+        return;
+      }
+      if (legacy) {
+        copyStarted.current = true;
+        runCopy(p, "start");
+        return;
       }
     }
-    if (!start || !providerReady(start)) return;
-    copyStarted.current = true;
-    setMigrateOpen(result === "ok");
-    startGoogleCopy(start);
-    return () => copyCtrl.current?.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me, googleFlag, connectedFlag]);
+  }, [me, googleFlag, connectedFlag, copiesLoaded]);
+  useEffect(() => () => copyCtrl.current?.abort(), []);
 
   // Which files have a local copy (ciphertext in the browser cache).
   const [local, setLocal] = useState<Set<string>>(new Set());
@@ -309,14 +373,14 @@ export function Drive() {
 
   useEffect(() => {
     if (realGoogle) return;
-    if (migration.phase !== "copying" && migration.phase !== "scanning") return;
+    if (demoMigration.phase !== "copying" && demoMigration.phase !== "scanning") return;
     const t = setInterval(async () => {
       const s: MigrationStatus = await fetch("/api/migrate").then((r) => r.json());
-      setMigration(s);
+      setDemoMigration(s);
       if (s.phase === "copying" || s.phase === "done") refresh();
     }, 1000);
     return () => clearInterval(t);
-  }, [migration.phase, refresh]);
+  }, [demoMigration.phase, refresh, realGoogle]);
 
   useEffect(() => {
     if (!toast) return;
@@ -326,12 +390,14 @@ export function Drive() {
 
   async function startMigration() {
     if (providerReady(provider)) {
-      // Resume after a stop; otherwise real consent lives on the provider's screen.
-      if (migration.phase === "stopped") return startGoogleCopy(provider);
+      // Carry on after a stop or an unfinished run; a connected drive starts straight away;
+      // otherwise consent lives on the provider's screen.
+      if (migration.phase === "stopped" || (migration.phase === "done" && left(migration) > 0)) return resumeCopy();
+      if (providerConnected(provider)) return runCopy(provider, "start");
       location.href = providerEndpoints(provider).auth;
       return;
     }
-    setMigration(await fetch("/api/migrate", { method: "POST" }).then((r) => r.json()));
+    setDemoMigration(await fetch("/api/migrate", { method: "POST" }).then((r) => r.json()));
   }
 
   // Open the move dialog for one provider.
@@ -689,24 +755,26 @@ export function Drive() {
       <AppHeader active={tab} usage={me ? `${me.fileCount.toLocaleString()} files · ${fmtBytes(me.bytes)}` : null} onBeforeSignOut={() => copyCtrl.current?.abort()} />
 
       <div className="mx-auto w-full max-w-5xl px-5 pb-24 flex-1">
-        {migration.phase === "done" && (
+        {migration.phase === "done" && left(migration) === 0 && (
           <div className="card mb-5 p-4 flex flex-wrap items-center gap-3 bg-ok-soft border-ok/30" role="status" data-testid="migration-done">
             <div className="flex-1">
-              <p className="font-semibold">Your Google Drive is here.</p>
+              <p className="font-semibold">Your {PROVIDER_LABEL[provider]} is here.</p>
               <p className="text-sm text-ink-2">
-                {migration.total.toLocaleString()} files · {fmtBytes(migration.bytes)}. Google Drive stays as it was.
+                {migration.total.toLocaleString()} files · {fmtBytes(migration.bytes)}. {PROVIDER_LABEL[provider]} stays as it was.
               </p>
             </div>
           </div>
         )}
-        {(migration.phase === "copying" || migration.phase === "scanning" || migration.phase === "stopped") && (
+        {(migration.phase === "copying" || migration.phase === "scanning" || migration.phase === "stopped" || migration.phase === "waiting" || migration.phase === "reconnect" || (migration.phase === "done" && left(migration) > 0)) && (
           <ProgressBanner
             s={migration}
-            activity={activity}
+            activity={shownActivity}
             label={PROVIDER_LABEL[provider]}
+            where={copyWhere}
             onGoToFolder={setFolder}
-            onStop={providerReady(provider) ? stopGoogleCopy : undefined}
-            onResume={providerReady(provider) ? () => startGoogleCopy(provider) : undefined}
+            onStop={providerReady(provider) ? stopCopy : undefined}
+            onResume={providerReady(provider) ? resumeCopy : undefined}
+            onReconnect={providerReady(provider) ? () => (location.href = providerEndpoints(provider).auth) : undefined}
           />
         )}
 
@@ -943,15 +1011,19 @@ export function Drive() {
         onClose={() => {
           setMigrateOpen(false);
           // One-time reassurance when they leave the dialog mid-copy.
-          if (migration.phase === "copying" || migration.phase === "scanning") setToast({ text: "Keep using your drive. The copy continues in the background." });
+          if (migration.phase === "copying" || migration.phase === "scanning" || migration.phase === "waiting")
+            setToast({ text: copyWhere === "server" ? "The copy carries on even if you close Stash." : "Keep using your drive. The copy continues in the background." });
         }}
         onStart={startMigration}
-        onStop={providerReady(provider) ? stopGoogleCopy : undefined}
+        onStop={providerReady(provider) ? stopCopy : undefined}
+        onReconnect={providerReady(provider) ? () => (location.href = providerEndpoints(provider).auth) : undefined}
+        where={copyWhere}
         onSwitchAccount={
           providerReady(provider)
             ? async () => {
                 // Forget the link and copy progress, then go to the provider's account chooser.
                 copyCtrl.current?.abort();
+                await copyAction(provider, "forget");
                 await fetch(providerEndpoints(provider).disconnect, { method: "DELETE" });
                 localStorage.removeItem(doneKey(provider));
                 location.href = providerEndpoints(provider).auth + (provider === "google-drive" ? "?switch=1" : "");
@@ -1015,45 +1087,94 @@ function ProgressBanner({
   s,
   activity,
   label,
+  where,
   onGoToFolder,
   onStop,
   onResume,
+  onReconnect,
 }: {
   s: MigrationStatus;
   activity: CopyEvent | null;
   label: string;
+  where: "server" | "browser" | null;
   onGoToFolder: (folder: string) => void;
   onStop?: () => void;
   onResume?: () => void;
+  onReconnect?: () => void;
 }) {
+  // Where the copy runs decides what the person may do meanwhile.
+  const whereLine = where === "server" ? "Runs on Stash's servers. You can close this tab or turn the computer off." : where === "browser" ? "Copies on this device while Stash is open. It picks up again whenever you come back." : null;
   if (s.phase === "scanning")
     return (
       <div className="card mb-5 p-4" role="status" data-testid="migration-progress">
         <div className="flex items-center gap-3">
           <span className="inline-block size-4 rounded-full border-2 border-ink-3 border-t-accent animate-spin" aria-hidden />
-          <p className="font-medium">Reading your Google Drive. A large Drive takes a minute or two.</p>
+          <p className="font-medium flex-1">
+            {s.resume ? `Picking up where it left off · ${s.resume.copiedCount.toLocaleString()} of ${s.resume.total.toLocaleString()} copied` : `Reading your ${label}. A large drive takes a few minutes.`}
+          </p>
+          {onStop && <IconButton label="Stop copy" onClick={onStop} icon="stop" testId="banner-stop" />}
         </div>
-        <ActivityFeed e={activity} onGoToFolder={onGoToFolder} />
+        {s.resume && (
+          <div className="mt-2 h-1.5 rounded-full bg-cream-2 overflow-hidden">
+            <div className="h-full bg-accent transition-all duration-700" style={{ width: `${s.resume.percent}%` }} />
+          </div>
+        )}
+        {whereLine && <p className="mt-2 text-xs text-ink-3">{whereLine}</p>}
       </div>
     );
-  if (s.phase !== "copying" && s.phase !== "stopped") return null;
+  if (s.phase === "idle") return null;
   const stopped = s.phase === "stopped";
+  const unfinished = s.phase === "done";
+  const reconnect = s.phase === "reconnect";
+  const notIn = left(s);
+  const title = reconnect
+    ? `${label} needs your OK again`
+    : stopped
+      ? "Copy stopped"
+      : unfinished
+        ? `${notIn.toLocaleString()} ${notIn === 1 ? "file isn't" : "files aren't"} backed up yet`
+        : `Copying from ${label}`;
   return (
     <div className="card mb-5 px-4 py-3" role="status" data-testid="migration-progress">
-      <div className="flex items-center gap-3">
-        <p className="font-medium truncate">
-          {stopped ? "Copy stopped" : `Copying from ${label}`} · {s.copiedCount.toLocaleString()} of {s.total.toLocaleString()}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <p className={`font-medium min-w-0 sm:truncate ${(stopped || unfinished || reconnect) ? "basis-full sm:basis-auto" : "flex-1 sm:flex-none truncate"}`}>
+          {title} · {s.copiedCount.toLocaleString()} of {s.total.toLocaleString()}
         </p>
-        <p className="ml-auto text-sm text-ink-2 shrink-0">
+        <p className="ml-auto text-sm text-ink-2 shrink-0 hidden sm:block">
           {fmtBytes(s.copiedBytes)} / {fmtBytes(s.bytes)} · {s.percent}%
         </p>
-        {stopped && onResume && <IconButton label="Resume copy" onClick={onResume} icon="play" />}
-        {!stopped && onStop && <IconButton label="Stop copy" onClick={onStop} icon="stop" testId="banner-stop" />}
+        {(stopped || unfinished) && onResume && (
+          <button className="btn-ghost border border-line text-sm py-1.5 shrink-0" onClick={onResume} data-testid="banner-resume">
+            Resume back up
+          </button>
+        )}
+        {reconnect && onReconnect && (
+          <button className="btn-ghost border border-line text-sm py-1.5 shrink-0" onClick={onReconnect} data-testid="banner-reconnect">
+            Reconnect
+          </button>
+        )}
+        {(s.phase === "copying" || s.phase === "waiting") && onStop && <IconButton label="Stop copy" onClick={onStop} icon="stop" testId="banner-stop" />}
       </div>
       <div className="mt-2 h-1.5 rounded-full bg-cream-2 overflow-hidden">
-        <div className="h-full bg-accent transition-all duration-700" style={{ width: `${s.percent}%` }} />
+        <div className={`h-full transition-all duration-700 ${stopped || reconnect ? "bg-ink-3" : "bg-accent"}`} style={{ width: `${s.percent}%` }} />
       </div>
-      {stopped ? <p className="mt-2 text-xs text-ink-3">Nothing is lost. Resume any time.</p> : <ActivityFeed e={activity} onGoToFolder={onGoToFolder} />}
+      {s.phase === "waiting" ? (
+        <p className="mt-2 text-xs text-ink-3" data-testid="copy-waiting">
+          {s.note ?? "Waiting to carry on."}
+        </p>
+      ) : stopped ? (
+        <p className="mt-2 text-xs text-ink-3">Nothing is lost. Resume any time.</p>
+      ) : reconnect ? (
+        <p className="mt-2 text-xs text-ink-3">{label} stopped letting Stash read your files. Allow it again and the copy carries on from here.</p>
+      ) : unfinished ? (
+        <p className="mt-2 text-xs text-ink-3">
+          {s.failed ? `${label} wouldn't hand over ${s.failed === 1 ? "one file" : `${s.failed.toLocaleString()} files`}. Resume tries them again.` : "Resume carries on from here."}
+          {s.skipped ? ` ${s.skipped.toLocaleString()} too big to copy.` : ""}
+        </p>
+      ) : (
+        <ActivityFeed e={activity} onGoToFolder={onGoToFolder} />
+      )}
+      {(s.phase === "copying" || s.phase === "waiting") && whereLine && <p className="mt-1 text-xs text-ink-3">{whereLine}</p>}
     </div>
   );
 }

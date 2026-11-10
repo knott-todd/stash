@@ -1,0 +1,35 @@
+# Keeps moves from other drives going when nobody has Stash open.
+#
+# A move runs on Stash's servers as a chain of runs, each handing over to the next.
+# If a run dies without handing over (a deploy, a platform hiccup), something has to
+# restart it. Any page load does; so does Vercel's daily cron. This checks every
+# 30 minutes so a copy started at night doesn't sit idle until morning.
+#
+# Needs repository secrets (Settings → Secrets and variables → Actions):
+#   CRON_SECRET     the same value as CRON_SECRET in Vercel
+#   VERCEL_BYPASS   optional: Vercel "Protection Bypass for Automation" secret, for staging
+# Without CRON_SECRET it does nothing.
+
+name: Copy watchdog
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Restart quiet copies
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          VERCEL_BYPASS: ${{ secrets.VERCEL_BYPASS }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then echo "CRON_SECRET not set; nothing to do"; exit 0; fi
+          for url in https://stash.olusanyatodd.com https://staging.stash.olusanyatodd.com; do
+            echo "== $url"
+            curl -sS --max-time 30 -H "authorization: Bearer $CRON_SECRET" -H "x-vercel-protection-bypass: $VERCEL_BYPASS" "$url/api/copy/run" || true
+            echo
+          done

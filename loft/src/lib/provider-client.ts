@@ -2,13 +2,15 @@
 
 import { uploadEncrypted, uploadMode } from "./upload";
 import { getRawKey } from "./crypto";
-import { reportCopy } from "./copy-client";
+import type { CopyRecord } from "./copy-types";
+import type { BrowserFile } from "./copy-types";
 
 // Browser-side copy from another drive, for passcode-locked accounts (Stash can't
 // encrypt for them, so the server can't copy for them; Standard accounts copy on the
-// server, see copyjob.ts). List → for each file, fetch bytes through our proxy, encrypt
-// here, upload ciphertext. Progress survives reloads via a done-set in localStorage and
-// is reported to the server record, so Settings and other tabs see it.
+// server, see copyjob.ts). The server still reads the drive into its queue; this takes
+// a few files at a time, fetches each through our proxy, encrypts it here, uploads the
+// ciphertext and ticks it off. The list itself never comes to the browser: a large
+// drive's is far bigger than one response may carry.
 //
 // Nothing short of Stop ends it: a dropped connection, a sleeping laptop or a busy
 // server pauses the copy and it carries on when things answer again. Only a file the
@@ -18,26 +20,19 @@ export type Provider = "google-drive" | "dropbox" | "onedrive";
 export const PROVIDER_LABEL: Record<Provider, string> = { "google-drive": "Google Drive", dropbox: "Dropbox", onedrive: "OneDrive" };
 
 type Counts = { total: number; bytes: number; copiedCount: number; copiedBytes: number; percent: number; skipped: number; failed: number };
-export type CopyStatus = { phase: "scanning" } | ({ phase: "copying" | "waiting" | "done" | "stopped"; note?: string } & Counts);
+export type CopyStatus = { phase: "scanning"; total?: number; bytes?: number } | ({ phase: "copying" | "waiting" | "done" | "stopped"; note?: string } & Counts);
 
 // What the status line shows: the action, the file, where it came from and where it went.
 export type CopyEvent = { action: string; name?: string; from: string; path?: string; to?: string };
 
-type Listed = { id: string; name: string; mimeType: string; size: number; folder: string; exportAs?: string };
 
 const endpoints = (p: Provider) =>
   p === "google-drive" ? { list: "/api/google/files", file: "/api/google/file", auth: "/api/google/auth", disconnect: "/api/google" } : { list: `/api/providers/${p}/files`, file: `/api/providers/${p}/file`, auth: `/api/providers/${p}/auth`, disconnect: `/api/providers/${p}/files` };
 export const providerEndpoints = endpoints;
 
+// The done-list older browser copies kept here. Only read now to spot a copy begun
+// before copies lived on the server; the server's queue is the record.
 export const doneKey = (p: Provider) => (p === "google-drive" ? "stash_gd_done_v1" : `stash_${p}_done_v1`);
-
-function doneSet(p: Provider): Set<string> {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(doneKey(p)) ?? "[]"));
-  } catch {
-    return new Set();
-  }
-}
 
 class Fail extends Error {
   constructor(public final: boolean, message: string) {
@@ -110,89 +105,108 @@ export async function runProviderCopy(
 ) {
   const label = PROVIDER_LABEL[p];
   const ep = endpoints(p);
+  let rec: CopyRecord | null = null;
+  let halted = false; // Stop pressed (here or on another device), or finished
+  let waiting = false;
+  let note: string | undefined;
+
+  const counts = (r: CopyRecord) => ({
+    total: r.total,
+    bytes: r.bytes,
+    copiedCount: r.copied,
+    copiedBytes: r.copiedBytes,
+    skipped: r.skipped,
+    failed: r.failed,
+    percent: r.total ? Math.round(((r.copied + r.skipped) / r.total) * 100) : 0,
+  });
+  const emit = () => {
+    if (rec && rec.state !== "listing") onStatus({ phase: waiting ? "waiting" : "copying", note, ...counts(rec) });
+  };
+  const take = (r: CopyRecord | null | undefined) => {
+    if (!r) return;
+    rec = r;
+    if (r.state !== "running" && r.state !== "listing") halted = true;
+    emit();
+  };
+  const post = async (body: object) => {
+    const r = await fetch("/api/copy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: p, ...body }), signal });
+    if (!r.ok) throw new Fail(false, `copy ${r.status}`);
+    return r.json();
+  };
+
+  // 1. The server reads the drive into the queue. Wait for it, showing what it has found.
   onStatus({ phase: "scanning" });
   onEvent({ action: `Reading your ${label}`, from: label });
-
-  // The listing, retried until it answers (or Stop).
-  let files: Listed[] = [];
-  for (let strikes = 0; ; strikes++) {
-    if (signal?.aborted) return;
+  for (let strikes = 0; !signal?.aborted; ) {
     try {
-      const r = await fetch(ep.list, { signal });
-      const list = await r.json();
-      if (list.connected === false) throw new Error("not connected");
-      if (!r.ok || list.error) throw new Fail(false, list.error ?? "list failed");
-      files = list.files;
-      break;
+      const j = await fetch("/api/copy", { signal }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
+      const r: CopyRecord | undefined = (j.copies as CopyRecord[]).find((c) => c.provider === p);
+      strikes = 0;
+      if (!r || r.state === "stopped" || r.state === "done") return;
+      if (r.state === "reconnect") throw new Error("not connected");
+      if (r.state === "running") {
+        take(r);
+        break;
+      }
+      onStatus({ phase: "scanning", ...(r.total ? { total: r.total, bytes: r.bytes } : {}) });
+      await sleep(3000, signal);
     } catch (e) {
       if (signal?.aborted) return;
       if (e instanceof Error && e.message === "not connected") throw e;
-      onEvent({ action: navigator.onLine ? `${label} isn't answering. Trying again shortly.` : "Waiting for the internet", from: label });
-      await pause(Date.now() + Math.min(5 * 60_000, 10_000 * 2 ** Math.min(strikes, 5)), signal);
+      strikes++;
+      await pause(Date.now() + Math.min(60_000, 5_000 * 2 ** Math.min(strikes, 4)), signal);
     }
   }
+  if (signal?.aborted || !rec) return;
+  onEvent({ action: `Found ${(rec as CopyRecord).total.toLocaleString()} files${(rec as CopyRecord).copied ? `, ${(rec as CopyRecord).copied.toLocaleString()} already in Stash` : ""}`, from: label });
 
-  const done = doneSet(p);
-  const total = files.length;
-  const bytes = files.reduce((n, f) => n + f.size, 0);
-  let copiedCount = 0;
-  let copiedBytes = 0;
-  let skipped = 0;
-  let failed = 0;
-  let note: string | undefined;
-  let waiting = false;
-
-  // The done-set is written at most once a second: rewriting thousands of ids per file was slow.
-  let dirty = false;
-  const flush = () => {
-    if (!dirty) return;
-    dirty = false;
-    try {
-      localStorage.setItem(doneKey(p), JSON.stringify([...done]));
-    } catch {}
-  };
-  const flushTimer = setInterval(flush, 1000);
-  window.addEventListener("pagehide", flush);
-
-  let lastReport = 0;
-  let lastName: { name: string; folder: string } | undefined;
-  const report = (state: "running" | "done" | "stopped", force = false) => {
-    if (!force && Date.now() - lastReport < 10_000) return;
-    lastReport = Date.now();
-    reportCopy(p, { state, total, bytes, copied: copiedCount, copiedBytes, failed, skipped, last: lastName });
-  };
-
-  const emit = (phase: "copying" | "done" | "stopped") => {
-    const shown = phase === "copying" && waiting ? "waiting" : phase;
-    onStatus({ phase: shown, note, total, bytes, copiedCount, copiedBytes, percent: total ? Math.round(((copiedCount + skipped + failed) / total) * 100) : 100, skipped, failed });
-    report(phase === "copying" ? "running" : phase, phase !== "copying");
-  };
-
-  for (const f of files) {
-    if (done.has(f.id)) {
-      copiedCount++;
-      copiedBytes += f.size;
-    }
-  }
-  emit("copying");
-  onEvent({ action: `Found ${total.toLocaleString()} files${copiedCount ? `, ${copiedCount.toLocaleString()} already in Stash` : ""}`, from: label });
-
-  // Smallest first so the drive fills visibly within seconds; big videos last.
-  const rank = (f: Listed) => (f.size === 0 ? Number.MAX_SAFE_INTEGER : f.size);
+  // 2. Copy from the queue, a few files at a time, ticking each off as soon as it's stored.
   const { maxBytes: MAX } = await uploadMode();
-  const queue = files.filter((f) => !done.has(f.id)).sort((a, b) => rank(a) - rank(b));
-  const attempts = new Map<string, number>();
-  let inflight = 0;
+  const queue: BrowserFile[] = [];
+  const inflight = new Set<string>();
+  let exhausted = false;
+  let refilling: Promise<void> | null = null;
   let pausedUntil = 0;
   let strikes = 0; // failures in a row across all workers
   let sinceRefresh = 0;
   let lastRefresh = Date.now();
 
+  const refill = () =>
+    (refilling ??= (async () => {
+      try {
+        const j = await post({ action: "next", n: 20, exclude: [...queue.map((f) => f.fid), ...inflight] });
+        take(j.copy);
+        const files = j.files as BrowserFile[];
+        if (!files.length && !queue.length && !inflight.size) exhausted = true;
+        queue.push(...files);
+      } catch {
+        if (!signal?.aborted) {
+          strikes++;
+          pausedUntil = Date.now() + Math.min(60_000, 5_000 * 2 ** Math.min(strikes, 4));
+        }
+      } finally {
+        refilling = null;
+      }
+    })());
+
+  // Ticking off is retried until the server hears it: a file stored but not ticked off would be copied again.
+  const mark = async (fid: string, outcome: "done" | "final" | "skipped", error?: string) => {
+    for (let n = 0; !signal?.aborted || outcome === "done"; n++) {
+      try {
+        take((await post({ action: "mark", results: [{ fid, outcome, error }] })).copy);
+        return;
+      } catch {
+        if (n > 20) return;
+        await sleep(Math.min(30_000, 1000 * 2 ** Math.min(n, 5)));
+      }
+    }
+  };
+
   const gate = async () => {
-    while (!signal?.aborted && (Date.now() < pausedUntil || !navigator.onLine || !getRawKey())) {
+    while (!signal?.aborted && !halted && (Date.now() < pausedUntil || !navigator.onLine || !getRawKey())) {
       waiting = true;
       note = !navigator.onLine ? "Waiting for the internet. The copy carries on by itself." : !getRawKey() ? "Unlock your files to keep copying." : `${label} or Stash isn't answering. Trying again shortly.`;
-      emit("copying");
+      emit();
       const why = await pause(!navigator.onLine || !getRawKey() ? Date.now() + 5_000 : pausedUntil, signal);
       if (why === "woke") {
         pausedUntil = 0;
@@ -202,43 +216,45 @@ export async function runProviderCopy(
     if (waiting) {
       waiting = false;
       note = undefined;
-      emit("copying");
+      emit();
     }
   };
 
   const worker = async () => {
-    while (!signal?.aborted) {
+    while (!signal?.aborted && !halted && !exhausted) {
       await gate();
-      if (signal?.aborted) return;
+      if (signal?.aborted || halted) return;
+      if (queue.length < 4) {
+        const r = refill();
+        if (!queue.length) {
+          await r;
+          if (!queue.length) {
+            if (exhausted) return;
+            await sleep(inflight.size ? 500 : 1000, signal);
+            continue;
+          }
+        }
+      }
       const f = queue.shift();
-      if (!f) {
-        if (inflight === 0) return;
-        await sleep(300, signal);
+      if (!f) continue;
+      if (f.item.size > MAX) {
+        onEvent({ action: `Skipped (over ${Math.round(MAX / 1024 / 1024 / 1024)} GB)`, name: f.item.name, from: label, path: f.item.folder });
+        await mark(f.fid, "skipped");
         continue;
       }
-      if (f.size > MAX) {
-        skipped++;
-        onEvent({ action: `Skipped (over ${Math.round(MAX / 1024 / 1024 / 1024)} GB)`, name: f.name, from: label, path: f.folder });
-        emit("copying");
-        continue;
-      }
-      inflight++;
-      onEvent({ action: "Copying", name: f.name, from: label, path: f.folder });
+      inflight.add(f.fid);
+      onEvent({ action: "Copying", name: f.item.name, from: label, path: f.item.folder });
       try {
-        const q = new URLSearchParams({ id: f.id });
-        if (f.exportAs) q.set("export", f.exportAs);
+        const q = new URLSearchParams({ id: f.fid });
+        if (f.item.exportAs) q.set("export", f.item.exportAs);
         const r = await fetch(`${ep.file}?${q}`, { signal });
         if (r.status === 422) throw new Fail(true, (await r.json().catch(() => ({}))).error ?? "refused");
         if (!r.ok) throw new Fail(false, `fetch ${r.status}`);
         const plain = await readAll(r, signal);
-        await uploadEncrypted(new File([plain], f.name, { type: f.mimeType }), { folder: f.folder, source: p, signal });
-        done.add(f.id);
-        dirty = true;
+        await uploadEncrypted(new File([plain], f.item.name, { type: f.item.mime }), { folder: f.item.folder, source: p, signal });
         strikes = 0;
-        lastName = { name: f.name, folder: f.folder };
-        onEvent({ action: "Saved", name: f.name, from: label, path: f.folder, to: f.folder });
-        copiedCount++;
-        copiedBytes += plain.byteLength || f.size;
+        await mark(f.fid, "done");
+        onEvent({ action: "Saved", name: f.item.name, from: label, path: f.item.folder, to: f.item.folder });
         // Refresh the drive sparingly: every listing is read from the database, which is metered.
         if (++sinceRefresh >= 25 || Date.now() - lastRefresh > 20000) {
           sinceRefresh = 0;
@@ -247,40 +263,28 @@ export async function runProviderCopy(
         }
       } catch (e) {
         if (signal?.aborted) return;
-        const final = (e instanceof Fail && e.final) || (e instanceof Error && e.message === "too-big");
-        if (e instanceof Error && e.message === "too-big") {
-          skipped++;
-        } else if (final) {
-          // Refused for good: three tries, then it's set aside (Resume gives it another go).
-          const n = (attempts.get(f.id) ?? 0) + 1;
-          attempts.set(f.id, n);
-          if (n >= 3) {
-            failed++;
-            onEvent({ action: "Couldn't copy, set aside", name: f.name, from: label, path: f.folder });
-          } else queue.push(f);
+        if (e instanceof Error && e.message === "too-big") await mark(f.fid, "skipped");
+        else if (e instanceof Fail && e.final) {
+          // Refused for good: the server sets it aside after a few of these (Resume gives it another go).
+          onEvent({ action: "Couldn't copy, will try once more later", name: f.item.name, from: label, path: f.item.folder });
+          await mark(f.fid, "final", e.message);
         } else {
-          // The connection, a sleeping laptop, a busy server: put it back and wait.
-          queue.unshift(f);
+          // The connection, a sleeping laptop, a busy server: keep it and wait.
+          queue.push(f);
           strikes++;
           if (strikes >= 2) pausedUntil = Date.now() + Math.min(60_000, 5_000 * 2 ** Math.min(strikes - 2, 4));
-          onEvent({ action: "Connection trouble, will retry", name: f.name, from: label, path: f.folder });
+          onEvent({ action: "Connection trouble, will retry", name: f.item.name, from: label, path: f.item.folder });
         }
       } finally {
-        inflight--;
+        inflight.delete(f.fid);
       }
-      emit("copying");
     }
   };
-  try {
-    await Promise.all([worker(), worker(), worker(), worker()]);
-  } finally {
-    clearInterval(flushTimer);
-    window.removeEventListener("pagehide", flush);
-    flush();
-  }
+  await Promise.all([worker(), worker(), worker(), worker()]);
   onFilesChanged();
-  onEvent({ action: signal?.aborted ? "Stopped. Nothing is lost." : "Everything is in Stash.", from: label });
-  // An abort is a Stop only when the caller says so (it reports that itself); leaving the page is not.
-  if (!signal?.aborted) emit("done");
-  else onStatus({ phase: "stopped", total, bytes, copiedCount, copiedBytes, percent: total ? Math.round(((copiedCount + skipped + failed) / total) * 100) : 100, skipped, failed });
+  if (exhausted) {
+    // The server marks the copy finished when asked for more and there is none.
+    await refill();
+    onEvent({ action: "Everything is in Stash.", from: label });
+  } else if (signal?.aborted || halted) onEvent({ action: "Stopped. Nothing is lost.", from: label });
 }

@@ -32,5 +32,8 @@ export type CopyRecord = {
   handover?: { at: number; ok: boolean; status: number };
 };
 
+// The browser copy's share of the queue: one file to fetch, encrypt and store.
+export type BrowserFile = { fid: string; item: { name: string; mime: string; size: number; folder: string; exportAs?: string }; attempts: number };
+
 // What still isn't in Stash: everything not copied and not too big to copy.
 export const remaining = (r: CopyRecord) => Math.max(0, r.total - r.copied - r.skipped);

@@ -20,7 +20,8 @@ import * as others from "./providers";
 // (provider-client.ts) and report their progress into the same record.
 
 export type { CopyProvider, CopyRecord, CopyState } from "./copy-types";
-import { isCopyProvider, type CopyProvider, type CopyRecord, type CopyState } from "./copy-types";
+import { isCopyProvider, type BrowserFile, type CopyProvider, type CopyRecord, type CopyState } from "./copy-types";
+export type { BrowserFile } from "./copy-types";
 
 const recKey = (uid: string, p: CopyProvider) => `copy:${uid}:${p}`;
 const leaseKey = (uid: string, p: CopyProvider) => `copylease:${uid}:${p}`;
@@ -68,7 +69,8 @@ export async function startCopy(uid: string, p: CopyProvider, mode: "server" | "
   const now = Date.now();
   const relist = opts.relist || !prev || prev.mode !== mode;
   // A listing cut short by a Stop carries on from its page; a relist starts over.
-  const listing = mode === "server" && (relist || !prev?.listComplete);
+  // Both kinds of account: the server reads the drive (no key needed for that).
+  const listing = relist || !prev?.listComplete;
   const r: CopyRecord = {
     provider: p,
     mode,
@@ -86,7 +88,7 @@ export async function startCopy(uid: string, p: CopyProvider, mode: "server" | "
     heartbeat: now,
   };
   // Resuming gives the set-aside files another go.
-  if (mode === "server") await store().queueRetryFailed(uid, p);
+  await store().queueRetryFailed(uid, p);
   await putRecord(uid, r);
   return r;
 }
@@ -108,28 +110,48 @@ export async function forgetCopy(uid: string, p: CopyProvider) {
   await db.kvDelete(foldersKey(uid, p));
 }
 
-// The browser copy (passcode accounts) reports where it is.
-export async function reportCopy(uid: string, p: CopyProvider, s: Partial<CopyRecord>) {
+// ---------- the browser copy (passcode accounts) ----------
+// The server has read the drive into the queue; the browser takes a few files at a time
+// and ticks each off. No listing ever goes to the browser (a large drive's is far over
+// what one response may carry).
+
+export type BrowserOutcome = { fid: string; outcome: "done" | "final" | "skipped"; error?: string };
+
+export async function browserNext(uid: string, p: CopyProvider, n: number, exclude: string[]): Promise<{ files: BrowserFile[]; rec: CopyRecord | null }> {
+  const rec = (await getRecord(uid, p)) ?? null;
+  if (!rec || rec.mode !== "browser" || rec.state !== "running") return { files: [], rec };
+  const rows = await store().queueNext(uid, p, Math.min(Math.max(n, 1), 100), exclude.slice(0, 500));
+  // Nothing left, and nothing still in the browser's hands: finished.
+  if (!rows.length && !exclude.length) return { files: [], rec: (await refreshCounts(uid, p, { state: "done" })).rec };
+  return { files: rows.map((r) => ({ fid: r.fid, item: r.item, attempts: r.attempts })), rec };
+}
+
+export async function browserMark(uid: string, p: CopyProvider, results: BrowserOutcome[]): Promise<CopyRecord | null> {
+  const db = store();
+  const rows = await db.queueGet(uid, p, results.slice(0, 100).map((r) => r.fid));
+  const byId = new Map(rows.map((r) => [r.fid, r]));
+  let last: CopyRecord["last"];
+  for (const r of results.slice(0, 100)) {
+    const row = byId.get(r.fid);
+    if (!row || row.state !== "pending") continue;
+    if (r.outcome === "done") {
+      await db.queueSave({ ...row, state: "done", error: undefined });
+      last = { name: row.item.name, folder: row.item.folder };
+    } else if (r.outcome === "skipped") await db.queueSave({ ...row, state: "skipped" });
+    else {
+      const attempts = row.attempts + 10;
+      await db.queueSave({ ...row, attempts, state: attempts >= FINAL_AT ? "failed" : "pending", error: String(r.error ?? "").slice(0, 200) });
+    }
+  }
   const cur = await getRecord(uid, p);
-  if (!cur || cur.mode !== "browser") return null;
-  const num = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : d);
-  const state: CopyState = s.state === "done" || s.state === "stopped" || s.state === "running" ? s.state : cur.state;
-  // A Stop is final until Resume; a late report from a still-closing tab doesn't undo it.
-  if (cur.state === "stopped" && state === "running") return cur;
-  const next: CopyRecord = {
-    ...cur,
-    state,
-    total: num(s.total, cur.total),
-    bytes: num(s.bytes, cur.bytes),
-    copied: num(s.copied, cur.copied),
-    copiedBytes: num(s.copiedBytes, cur.copiedBytes),
-    failed: num(s.failed, cur.failed),
-    skipped: num(s.skipped, cur.skipped),
-    heartbeat: Date.now(),
-    last: s.last && typeof s.last.name === "string" ? { name: s.last.name.slice(0, 255), folder: String(s.last.folder ?? "").slice(0, 1024) } : cur.last,
-  };
-  await putRecord(uid, next);
-  return next;
+  // Counting is a query over the whole queue: at most every few seconds.
+  if (cur && Date.now() - cur.updatedAt > 4_000) return (await refreshCounts(uid, p, last ? { last } : {})).rec;
+  if (cur && last && (cur.state === "running" || cur.state === "listing")) {
+    const next = { ...cur, last, heartbeat: Date.now() };
+    await store().kvSet(recKey(uid, p), next);
+    return next;
+  }
+  return cur ?? null;
 }
 
 
@@ -168,9 +190,11 @@ export async function runAndHandOver(origin: string, uid: string, p: CopyProvide
 }
 
 // A copy that's meant to be moving but hasn't shown a sign of life for a while.
-export const isQuiet = (r: CopyRecord, ms: number, now = Date.now()) => r.mode === "server" && (r.state === "running" || r.state === "listing") && now - (r.heartbeat ?? 0) > ms;
+// Work the server does: all of a Standard account's copy; only the reading of the drive for a passcode account.
+const serverWork = (r: CopyRecord) => r.state === "listing" || (r.mode === "server" && r.state === "running");
+export const isQuiet = (r: CopyRecord, ms: number, now = Date.now()) => serverWork(r) && now - (r.heartbeat ?? 0) > ms;
 
-export const needsKick = (r: CopyRecord, now = Date.now()) => r.mode === "server" && (r.state === "running" || r.state === "listing") && now - (r.heartbeat ?? 0) > STALE_MS;
+export const needsKick = (r: CopyRecord, now = Date.now()) => serverWork(r) && now - (r.heartbeat ?? 0) > STALE_MS;
 
 // ---------- one run ----------
 
@@ -431,15 +455,12 @@ export async function runStep(uid: string, p: CopyProvider): Promise<{ again: bo
   const left = () => RUN_MS - (Date.now() - t0);
   try {
     let rec: CopyRecord | null | undefined = await getRecord(uid, p);
-    if (!rec || rec.mode !== "server" || (rec.state !== "running" && rec.state !== "listing")) return { again: false, note: "nothing to do" };
+    if (!rec || !serverWork(rec)) return { again: false, note: "nothing to do" };
 
     const u = await db.getUser(uid);
-    if (u.protection === "passcode" || !u.key) {
-      // Locked accounts: only the browser holds the key. Hand over to it.
-      await patchRecord(uid, p, { mode: "browser" });
-      return { again: false, note: "passcode account: browser copies" };
-    }
-    const key = await importKey(u.key);
+    // Locked accounts: only the browser holds the key. The server still reads the drive for it.
+    if (rec.mode === "server" && (u.protection === "passcode" || !u.key)) rec = await patchRecord(uid, p, { mode: "browser" });
+    if (!rec) return { again: false, note: "gone" };
     const src = sourceFor(p);
 
     // Waiting out busy storage or an outage. Short waits are slept here; long ones are
@@ -492,6 +513,8 @@ export async function runStep(uid: string, p: CopyProvider): Promise<{ again: bo
       }
     }
     if (!rec || rec.state !== "running") return { again: !!rec && rec.state === "listing", note: "listing continues" };
+    if (rec.mode === "browser" || !u.key) return { again: false, note: "read; the browser copies" };
+    const key = await importKey(u.key);
 
     // Copying.
     while (left() > 20_000) {

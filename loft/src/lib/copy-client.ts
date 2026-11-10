@@ -34,10 +34,6 @@ export async function copyAction(provider: CopyProvider, action: "start" | "resu
   return j;
 }
 
-// The browser copy (passcode accounts) says where it is. Throttled by the caller.
-export function reportCopy(provider: CopyProvider, status: Partial<CopyRecord>) {
-  return fetch("/api/copy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider, action: "report", status }), keepalive: true }).catch(() => {});
-}
 
 const moving = (c: CopyRecord) => c.state === "running" || c.state === "listing";
 

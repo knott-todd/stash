@@ -182,10 +182,15 @@ export function jsonStore(): Store {
       for (const x of items) if (!have.has(x.fid)) q.push({ uid, provider, fid: x.fid, state: x.done ? "done" : "pending", attempts: 0, item: x.item });
       save();
     },
-    async queueNext(uid, provider, n) {
+    async queueGet(uid, provider, fids) {
+      const want = new Set(fids);
+      return (load().queue ?? []).filter((r) => r.uid === uid && r.provider === provider && want.has(r.fid)).map((r) => structuredClone(r));
+    },
+    async queueNext(uid, provider, n, exclude = []) {
       const rank = (r: QueueRow) => [r.attempts, r.item.size === 0 ? 1 : 0, r.item.size];
+      const skip = new Set(exclude);
       return (load().queue ?? [])
-        .filter((r) => r.uid === uid && r.provider === provider && r.state === "pending")
+        .filter((r) => r.uid === uid && r.provider === provider && r.state === "pending" && !skip.has(r.fid))
         .sort((a, b) => {
           const x = rank(a);
           const y = rank(b);

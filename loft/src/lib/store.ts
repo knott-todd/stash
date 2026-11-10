@@ -105,7 +105,8 @@ export interface Store {
   kvClaim(key: string, until: number): Promise<boolean>;
   // The copy queue for a move from another drive: one small row per file, read in batches.
   queueAdd(uid: string, provider: string, items: { fid: string; item: QueueItem; done?: boolean }[]): Promise<void>;
-  queueNext(uid: string, provider: string, n: number): Promise<QueueRow[]>;
+  queueNext(uid: string, provider: string, n: number, exclude?: string[]): Promise<QueueRow[]>;
+  queueGet(uid: string, provider: string, fids: string[]): Promise<QueueRow[]>;
   queueSave(row: QueueRow): Promise<void>;
   queueCounts(uid: string, provider: string): Promise<QueueCounts>;
   queueRetryFailed(uid: string, provider: string): Promise<void>;

@@ -267,7 +267,7 @@ export function Drive() {
       try {
         legacy = !r && localStorage.getItem(doneKey(p)) !== null;
       } catch {}
-      if (r?.mode === "browser" && r.state === "running") {
+      if (r?.mode === "browser" && (r.state === "running" || r.state === "listing")) {
         copyStarted.current = true;
         startBrowserCopy(p);
         return;

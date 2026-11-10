@@ -238,12 +238,19 @@ export function pgStore(): Store {
           ON CONFLICT (uid, provider, fid) DO NOTHING`;
       }
     },
-    async queueNext(uid, provider, n) {
+    async queueNext(uid, provider, n, exclude = []) {
       await ensure();
       // Fewest tries first, then smallest, so the drive fills visibly and a stubborn file never blocks the rest.
       const rows = await sql`SELECT uid, provider, fid, state, attempts, data FROM copy_queue
-        WHERE uid = ${uid} AND provider = ${provider} AND state = 'pending'
+        WHERE uid = ${uid} AND provider = ${provider} AND state = 'pending' AND NOT (fid = ANY(${exclude}::text[]))
         ORDER BY attempts, (size = 0), size LIMIT ${n}`;
+      return rows.map(rowQueue);
+    },
+    async queueGet(uid, provider, fids) {
+      await ensure();
+      if (!fids.length) return [];
+      const rows = await sql`SELECT uid, provider, fid, state, attempts, data FROM copy_queue
+        WHERE uid = ${uid} AND provider = ${provider} AND fid = ANY(${fids}::text[])`;
       return rows.map(rowQueue);
     },
     async queueSave(r) {
